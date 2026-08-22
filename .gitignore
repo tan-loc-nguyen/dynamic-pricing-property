@@ -1,0 +1,34 @@
+# Secrets — never commit
+.env
+.env.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+.pnpm-debug.log*
+
+# Database (regenerate with `make reseed`)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Build artefacts
+tsconfig.tsbuildinfo

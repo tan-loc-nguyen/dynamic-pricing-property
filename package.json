@@ -1,0 +1,11 @@
+{
+  "name": "dynamic-pricing-property",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Explainable pricing copilot for Luminous Luxury Apartment (short-term rental revenue intelligence MVP).",
+  "scripts": {
+    "setup": "make setup",
+    "dev": "make dev",
+    "test": "make test"
+  }
+}
