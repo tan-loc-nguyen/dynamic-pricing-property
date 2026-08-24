@@ -96,9 +96,10 @@ def score_confidence(dto: MarketObservationDTO) -> tuple[str, str]:
     if not gaps and dto.price_basis == BASIS_NET:
         return CONFIDENCE_HIGH, "Comparable NET rate with full basis metadata."
     if len(gaps) <= 2 and dto.price_basis != BASIS_UNKNOWN and dto.room_category:
+        detail = f" Minor gaps: {', '.join(gaps)}." if gaps else ""
         return (
             CONFIDENCE_MEDIUM,
-            "Known price basis and comparable category; minor gaps: " + ", ".join(gaps) + ".",
+            f"Known price basis ({dto.price_basis}) and comparable category.{detail}",
         )
     return (
         CONFIDENCE_LOW,

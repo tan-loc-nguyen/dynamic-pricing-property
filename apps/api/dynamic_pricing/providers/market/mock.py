@@ -77,7 +77,12 @@ class MockMarketDataProvider(MarketDataProvider):
                                 competitor_name=comp["name"],
                                 competitor_name_key=comp["name"],
                                 observed_price=round(price / 10_000) * 10_000,
-                                source="public_web",
+                                # NOT "public_web": a mock sync replaces rows by
+                                # source, and borrowing that name would delete
+                                # genuinely collected public-web observations.
+                                # It still scores LOW because the metadata below
+                                # is deliberately absent.
+                                source="mock_low_confidence",
                                 property_external_id=PROPERTY.external_id,
                                 room_type_external_id=ext_id,
                                 room_category=None,

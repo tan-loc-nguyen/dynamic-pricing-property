@@ -369,10 +369,16 @@ def test_outcome_tracking_is_ready_and_flags_synthetic_data(client):
     assert "total_outcomes" in summary
     assert summary["real_outcomes"] == 0, "no real outcomes exist yet"
 
+    # Seeding backfills a historical run so demo outcomes have past
+    # recommendations to attach to. Regression: this used to select
+    # stay_date < today while recommendations only existed for >= today, so
+    # the entire outcome path silently produced nothing.
+    assert summary["synthetic_outcomes"] > 0, "demo outcomes were never created"
+
     created = client.post("/api/outcomes/demo").json()
     assert created["is_synthetic"] is True
     after = client.get("/api/outcomes/summary").json()
-    assert after["synthetic_outcomes"] >= created["created"]
+    assert after["synthetic_outcomes"] >= summary["synthetic_outcomes"]
     assert after["ready_for_evaluation"] is False, "synthetic data must not count as ready"
 
 
@@ -388,3 +394,75 @@ def test_real_outcome_can_be_recorded(client):
     assert created["is_synthetic"] is False
     assert created["realized_revenue"] == pytest.approx(2_150_000 * 6)
     assert client.get("/api/outcomes/summary").json()["real_outcomes"] >= 1
+
+
+# ------------------------------------- regressions: filters before the limit
+def test_history_filter_searches_all_decisions_not_just_the_last_page(client):
+    """Regression: room_type_id was filtered in Python AFTER the SQL limit, so a
+    room type with only older activity looked like it had none."""
+    recs = client.get("/api/recommendations?limit=2000").json()
+    target = next(r for r in recs if r["room_category"] == "3br")
+    client.post(
+        f"/api/recommendations/{target['id']}/override",
+        json={"final_net_rate": 3_333_000, "reason_code": "promotion", "note": "oldest"},
+    )
+    # bury it under newer decisions
+    for rec in [r for r in recs if r["room_category"] != "3br"][:12]:
+        client.post(f"/api/recommendations/{rec['id']}/accept", json={"note": "filler"})
+
+    filtered = client.get(
+        f"/api/history?room_type_id={target['room_type_id']}&limit=5"
+    ).json()
+    assert filtered, "filtering by room type must search all decisions, not one page"
+    assert all(h["room_category_label"] == target["room_category_label"] for h in filtered)
+
+
+def test_room_category_filter_is_applied_before_paging(client):
+    """Regression: category filtered an already-truncated page."""
+    page = client.get("/api/recommendations?room_category=3br&limit=10").json()
+    assert len(page) == 10, "a filtered page should be full, not a filtered slice of one page"
+    assert all(r["room_category"] == "3br" for r in page)
+
+    everything = client.get("/api/recommendations?room_category=3br&limit=2000").json()
+    assert len(everything) > 10
+    assert all(r["room_category"] == "3br" for r in everything)
+
+
+def test_search_is_applied_before_paging(client):
+    page = client.get("/api/recommendations?search=premium&limit=5").json()
+    assert len(page) == 5
+    assert all("premium" in r["room_category_label"].lower() for r in page)
+
+
+def test_clearing_a_numeric_setting_does_not_blank_the_dashboard(client):
+    """Regression: a null from the Settings UI skipped every row, committed an
+    empty run, and returned 200 with a success message."""
+    import copy
+
+    config = client.get("/api/settings/config").json()
+    before = len(client.get("/api/recommendations?limit=2000").json())
+
+    payload = copy.deepcopy(config["payload"])
+    payload["market"]["sensitivity"] = None      # exactly what a cleared field sends
+    payload["dynamic"]["max_total_adjustment_pct"] = None
+    response = client.put(
+        "/api/settings/config", json={"payload": payload, "label": "nulled", "regenerate": True}
+    )
+    assert response.status_code == 200
+
+    after = client.get("/api/recommendations?limit=2000").json()
+    assert len(after) == before, "clearing a field must not destroy the pricing run"
+    client.post("/api/settings/reset")
+
+
+def test_updating_an_event_rejects_an_inverted_date_range(client):
+    created = client.post(
+        "/api/events",
+        json={"name": "Editable", "start_date": "2026-11-01", "end_date": "2026-11-03"},
+    ).json()
+    response = client.put(
+        f"/api/events/{created['id']}",
+        json={"name": "Editable", "start_date": "2026-11-05", "end_date": "2026-11-01"},
+    )
+    assert response.status_code == 422, "an inverted range silently disables the event"
+    client.delete(f"/api/events/{created['id']}")

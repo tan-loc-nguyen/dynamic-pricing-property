@@ -163,7 +163,20 @@ def bootstrap(force: bool = False, today: date | None = None, quiet: bool = Fals
             log(f"! Market provider unavailable: {market_report.message}")
             log("  Recommendations will use a neutral market adjustment.")
 
-        # --- 6. recommendations ----------------------------------------------
+        # --- 6a. historical run (DEMO ONLY) -----------------------------------
+        # Priced first so it is never the "latest" run, and so the synthetic
+        # outcomes below have past recommendations to attach to. Without this
+        # the entire outcome-tracking path is unreachable in demo mode.
+        history_run = generate_recommendations(
+            session,
+            today=today,
+            stay_date_from=start,
+            stay_date_to=today - timedelta(days=1),
+        )
+        summary["history_run"] = history_run.as_dict()
+        log(f"Backfilled {history_run.created} historical recommendations (demo only).")
+
+        # --- 6b. live recommendations ------------------------------------------
         run = generate_recommendations(session, today=today)
         summary["run"] = run.as_dict()
         log(

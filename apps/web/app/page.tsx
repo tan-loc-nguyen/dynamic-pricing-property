@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Filters, type FilterState } from "@/components/Filters";
 import { RecommendationDrawer } from "@/components/RecommendationDrawer";
 import { RecommendationTable } from "@/components/RecommendationTable";
@@ -33,15 +33,28 @@ export default function RateReviewPage() {
     search: "",
   }));
 
+  // Debounced separately from the rest of the filters: dropdowns and dates
+  // should apply immediately, but free-text search should not fire a request
+  // per keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [filters.search]);
+
   const query = useMemo(
     () => ({
       room_type_id: filters.roomTypeId,
       start_date: filters.startDate || null,
       end_date: filters.endDate || null,
       status: filters.status,
-      search: filters.search || null,
+      search: debouncedSearch || null,
     }),
-    [filters],
+    [filters.roomTypeId, filters.startDate, filters.endDate, filters.status, debouncedSearch],
   );
 
   const load = useCallback(async () => {

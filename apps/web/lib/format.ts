@@ -73,19 +73,25 @@ export function addDaysISO(iso: string, days: number): string {
 }
 
 /** Pace gap (fraction) -> operator-readable label. Mirrors the engine's bands. */
+/**
+ * Boundaries MUST match the engine's _band_for, which uses a strict `<`.
+ * At exactly +0.08 the engine picks "Ahead of pace" and applies +4%, so a
+ * `<=` here would label the row "On pace" while the drawer showed a +4% line
+ * for the same date.
+ */
 export function paceLabel(gap: number | null | undefined): string {
   if (gap === null || gap === undefined) return "No data";
   if (gap < -0.2) return "Well behind";
   if (gap < -0.08) return "Behind";
-  if (gap <= 0.08) return "On pace";
-  if (gap <= 0.2) return "Ahead";
+  if (gap < 0.08) return "On pace";
+  if (gap < 0.2) return "Ahead";
   return "Well ahead";
 }
 
 export function paceTone(gap: number | null | undefined): "up" | "down" | "info" | "neutral" {
   if (gap === null || gap === undefined) return "neutral";
   if (gap < -0.08) return "down";
-  if (gap > 0.08) return "up";
+  if (gap >= 0.08) return "up";
   return "info";
 }
 
@@ -97,10 +103,11 @@ export function formatPaceGap(gap: number | null | undefined): string {
 }
 
 /** Recent pickup delta -> label. */
+/** Pickup bands are INCLUSIVE in the engine (see _band_for inclusive=true). */
 export function pickupLabel(delta: number | null | undefined): string {
   if (delta === null || delta === undefined) return "No data";
-  if (delta < -1.0) return "Stalled";
-  if (delta < -0.25) return "Slowing";
+  if (delta <= -1.0) return "Stalled";
+  if (delta <= -0.25) return "Slowing";
   if (delta <= 0.5) return "As expected";
   if (delta <= 2.0) return "Accelerating";
   return "Surging";

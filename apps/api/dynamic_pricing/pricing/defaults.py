@@ -226,6 +226,14 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     for key, value in override.items():
         if isinstance(value, dict) and isinstance(base.get(key), dict):
             base[key] = _deep_merge(base[key], value)
+        elif value is None and base.get(key) is not None:
+            # A cleared field in the Settings UI arrives as null. Treat that as
+            # "fall back to the default", never as "set this to None" -- a null
+            # reaching the engine would raise inside float() and silently skip
+            # every row of the pricing run.
+            # Keys whose default is already None (e.g. booking_curve.anchors)
+            # keep their intended nullability, because base.get(key) is None.
+            continue
         else:
             base[key] = value
     return base

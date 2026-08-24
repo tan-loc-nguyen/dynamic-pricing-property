@@ -47,6 +47,15 @@ def _apply_filters(query, *, property_id, room_type_id, room_category, start_dat
         query = query.where(PricingRecommendation.property_id == property_id)
     if room_type_id:
         query = query.where(PricingRecommendation.room_type_id == room_type_id)
+    if room_category and room_category != "all":
+        # Category lives on RoomType, so this must be a join rather than a
+        # post-query Python filter -- otherwise it would filter an already
+        # truncated page.
+        query = query.where(
+            PricingRecommendation.room_type_id.in_(
+                select(RoomType.id).where(RoomType.category == room_category)
+            )
+        )
     if start_date:
         query = query.where(PricingRecommendation.stay_date >= start_date)
     if end_date:
@@ -83,14 +92,13 @@ def list_recommendations(
     )
     rows = session.scalars(
         query.order_by(PricingRecommendation.stay_date, PricingRecommendation.room_type_id)
-        .offset(offset)
-        .limit(limit)
     ).all()
 
     payloads = [recommendation_dict(r) for r in rows]
-    if room_category and room_category != "all":
-        payloads = [p for p in payloads if p["room_category"] == room_category]
     if search:
+        # Free-text search spans denormalised snapshot fields, so it cannot be
+        # pushed into SQL. It is applied BEFORE paging so the page is a slice of
+        # the matches, not a filter of one arbitrary page.
         needle = search.lower()
         payloads = [
             p
@@ -99,7 +107,7 @@ def list_recommendations(
             or needle in p["room_category_label"].lower()
             or needle in p["property_name"].lower()
         ]
-    return payloads
+    return payloads[offset : offset + limit]
 
 
 @router.get("/summary", response_model=SummaryOut)
@@ -140,8 +148,6 @@ def summary(
         status=None,
     )
     rows = list(session.scalars(query).all())
-    if room_category and room_category != "all":
-        rows = [r for r in rows if (r.features or {}).get("room_category") == room_category]
     if not rows:
         return empty
 

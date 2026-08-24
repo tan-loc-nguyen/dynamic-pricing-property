@@ -79,6 +79,10 @@ def generate_demo_outcomes(session: Session, today: date | None = None, seed: in
             select(PricingRecommendation).where(PricingRecommendation.stay_date < today)
         ).all()
     )
+    if not recs:
+        # Nothing to attach to. Callers in demo mode backfill a historical run
+        # first; in production this correctly does nothing at all.
+        return 0
     existing = {
         r[0]
         for r in session.execute(select(RecommendationOutcome.recommendation_id)).all()

@@ -21,21 +21,27 @@ def list_history(
     room_type_id: int | None = None,
     limit: int = Query(200, ge=1, le=1000),
 ):
+    # Every filter must be applied in SQL BEFORE the limit. Filtering in Python
+    # afterwards would only search the most recent `limit` decisions overall, so
+    # a room type with older-only activity would look like it had none.
     query = (
         select(OperatorDecision)
+        .join(
+            PricingRecommendation,
+            OperatorDecision.recommendation_id == PricingRecommendation.id,
+        )
         .options(selectinload(OperatorDecision.recommendation))
-        .order_by(OperatorDecision.created_at.desc())
-        .limit(limit)
     )
     if decision and decision != "all":
         query = query.where(OperatorDecision.decision == decision)
+    if room_type_id:
+        query = query.where(PricingRecommendation.room_type_id == room_type_id)
+    query = query.order_by(OperatorDecision.created_at.desc()).limit(limit)
 
     rows = []
     for d in session.scalars(query).all():
         rec: PricingRecommendation | None = d.recommendation
         if rec is None:
-            continue
-        if room_type_id and rec.room_type_id != room_type_id:
             continue
         f = rec.features or {}
         difference = round(d.final_net_rate - d.recommended_net_rate, 2)

@@ -106,7 +106,15 @@ def update_competitor(competitor_id: int, body: CompetitorIn, session: Session =
         setattr(competitor, key, value)
     session.commit()
     session.refresh(competitor)
-    return {**body.model_dump(), "id": competitor.id, "observation_count": 0}
+    count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(MarketObservation)
+            .where(MarketObservation.competitor_id == competitor.id)
+        )
+        or 0
+    )
+    return {**body.model_dump(), "id": competitor.id, "observation_count": count}
 
 
 @router.delete("/competitors/{competitor_id}", status_code=204)

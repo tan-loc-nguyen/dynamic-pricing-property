@@ -82,7 +82,10 @@ class FeatureEngine:
         )
 
         # --- recent pickup, per (room type, stay date) --------------------
-        cutoff = self.today - timedelta(days=self.pickup_lookback_days)
+        # Inclusive on both ends, so subtract one to count exactly
+        # `lookback_days` calendar days -- otherwise an 8-day window is
+        # compared against a 7-day expectation and pickup reads high.
+        cutoff = self.today - timedelta(days=max(self.pickup_lookback_days - 1, 0))
         bookings = session.scalars(select(Booking).where(Booking.status != "cancelled")).all()
 
         lead_times: dict[int, list[int]] = defaultdict(list)

@@ -26,6 +26,14 @@ from .configuration import get_active_configuration
 from .rate_book import load_rate_book
 
 
+class PricingRunFailed(RuntimeError):
+    """Every row failed to price — the configuration is unusable.
+
+    Raised instead of committing a near-empty run, because a silently blank
+    Rate Review screen is far worse than a visible error.
+    """
+
+
 @dataclass
 class RunReport:
     run_id: str
@@ -35,6 +43,7 @@ class RunReport:
     created: int
     carried_over: int
     skipped: int
+    first_error: str | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -45,6 +54,7 @@ class RunReport:
             "created": self.created,
             "carried_over": self.carried_over,
             "skipped": self.skipped,
+            "first_error": self.first_error,
         }
 
 
@@ -59,8 +69,15 @@ def generate_recommendations(
     *,
     today: date | None = None,
     engine_key: str = DEFAULT_ENGINE,
+    stay_date_from: date | None = None,
+    stay_date_to: date | None = None,
 ) -> RunReport:
-    """Run the pricing engine across every active room type x future stay date."""
+    """Run the pricing engine across every active room type x stay date.
+
+    Defaults to the forward-looking window (today onwards). An explicit window
+    is used only to backfill historical runs in demo mode, so that synthetic
+    outcomes have past recommendations to attach to.
+    """
     today = today or date.today()
     config_row = get_active_configuration(session)
     config = config_row.payload
@@ -78,12 +95,14 @@ def generate_recommendations(
     active_ids = {
         r.id for r in session.scalars(select(RoomType).where(RoomType.is_active.is_(True))).all()
     }
+    window_start = stay_date_from or today
+    query = select(StayDateInventory).where(StayDateInventory.stay_date >= window_start)
+    if stay_date_to is not None:
+        query = query.where(StayDateInventory.stay_date <= stay_date_to)
     inventories = [
         inv
         for inv in session.scalars(
-            select(StayDateInventory)
-            .where(StayDateInventory.stay_date >= today)
-            .order_by(StayDateInventory.stay_date, StayDateInventory.room_type_id)
+            query.order_by(StayDateInventory.stay_date, StayDateInventory.room_type_id)
         ).all()
         if inv.room_type_id in active_ids
     ]
@@ -94,13 +113,16 @@ def generate_recommendations(
 
     run_id = uuid.uuid4().hex[:16]
     created = carried_over = skipped = 0
+    first_error: str | None = None
 
     for inventory in inventories:
         context = features.build(inventory)
         try:
             result = engine.calculate(context, config)
-        except Exception:  # noqa: BLE001 - one bad row must not kill the run
+        except Exception as exc:  # noqa: BLE001 - one bad row must not kill the run
             skipped += 1
+            if first_error is None:
+                first_error = f"{type(exc).__name__}: {exc}"
             continue
 
         rec = PricingRecommendation(
@@ -163,6 +185,15 @@ def generate_recommendations(
         # that happened once, and cloning it would inflate the audit trail.
         created += 1
 
+    if inventories and created == 0:
+        # Committing here would leave latest_run_id pointing at an empty run
+        # and blank the dashboard with no error shown anywhere.
+        session.rollback()
+        raise PricingRunFailed(
+            f"Pricing failed for all {skipped} stay date(s) and no recommendations were "
+            f"produced, so the previous run was kept. First error: {first_error}"
+        )
+
     session.commit()
     return RunReport(
         run_id=run_id,
@@ -172,6 +203,7 @@ def generate_recommendations(
         created=created,
         carried_over=carried_over,
         skipped=skipped,
+        first_error=first_error,
     )
 
 

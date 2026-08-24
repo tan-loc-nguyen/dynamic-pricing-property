@@ -7,7 +7,7 @@ unvalidated experiment as two different things.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..db import get_session
@@ -19,7 +19,11 @@ from ..services.configuration import (
     list_configurations,
     reset_to_defaults,
 )
-from ..services.recommendations import generate_recommendations, preview_rate
+from ..services.recommendations import (
+    PricingRunFailed,
+    generate_recommendations,
+    preview_rate,
+)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -46,7 +50,12 @@ def read_defaults():
 def save_config(body: ConfigIn, session: Session = Depends(get_session)):
     config = create_configuration(session, body.payload, label=body.label, note=body.note)
     if body.regenerate:
-        generate_recommendations(session)
+        try:
+            generate_recommendations(session)
+        except PricingRunFailed as exc:
+            # The config saved but cannot price anything. Tell the operator
+            # rather than leaving them on a silently empty dashboard.
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     return config
 
 

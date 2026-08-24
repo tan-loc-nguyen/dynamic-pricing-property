@@ -58,6 +58,11 @@ def update_event(event_id: int, body: EventIn, session: Session = Depends(get_se
     event = session.get(Event, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
+    if body.end_date < body.start_date:
+        # Without this an event can be edited into an inverted range, where
+        # Event.covers() is false for every date and it silently stops
+        # affecting any recommendation.
+        raise HTTPException(status_code=422, detail="end_date cannot precede start_date")
     for key, value in body.model_dump().items():
         setattr(event, key, value)
     session.commit()

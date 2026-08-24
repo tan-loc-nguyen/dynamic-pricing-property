@@ -297,7 +297,9 @@ class PricingEngineV1(PricingEngine):
         )
 
     def _factor_booking_pace(self, ctx: PricingContext, cfg: dict):
-        node = cfg.get("recent_pickup", {})
+        # The legacy config block calls this "booking_pace"; the adjustment code
+        # stays "recent_pickup" so it matches the key used in ctx.missing.
+        node = cfg.get("booking_pace", {})
         if not node.get("enabled", True):
             return None
         pace_index = (

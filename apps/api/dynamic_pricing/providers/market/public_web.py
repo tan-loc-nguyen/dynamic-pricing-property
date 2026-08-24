@@ -127,7 +127,7 @@ class PublicWebMarketDataProvider(MarketDataProvider):
 
         stay_date = kwargs.get("stay_date") or start
         property_external_id = kwargs.get("property_external_id")
-        room_external_id = kwargs.get("room_external_id")
+        room_type_external_id = kwargs.get("room_type_external_id")
 
         observations: list[MarketObservationDTO] = []
         errors: list[str] = []
@@ -135,7 +135,7 @@ class PublicWebMarketDataProvider(MarketDataProvider):
         for url in self.sources:
             try:
                 observations.extend(
-                    self._collect_one(url, stay_date, property_external_id, room_external_id)
+                    self._collect_one(url, stay_date, property_external_id, room_type_external_id)
                 )
             except ProviderUnavailable as exc:
                 errors.append(f"{url}: {exc.message}")
@@ -160,7 +160,7 @@ class PublicWebMarketDataProvider(MarketDataProvider):
         url: str,
         stay_date: date,
         property_external_id: str | None,
-        room_external_id: str | None,
+        room_type_external_id: str | None,
     ) -> list[MarketObservationDTO]:
         parsed = urlparse(url)
         host = (parsed.netloc or "").lower()
@@ -209,7 +209,7 @@ class PublicWebMarketDataProvider(MarketDataProvider):
                 observed_price=price,
                 source="public_web",
                 property_external_id=property_external_id,
-                room_external_id=room_external_id,
+                room_type_external_id=room_type_external_id,
                 source_url=url,
                 notes="Best-effort extraction from a public, robots-permitted page.",
                 room_category=None,

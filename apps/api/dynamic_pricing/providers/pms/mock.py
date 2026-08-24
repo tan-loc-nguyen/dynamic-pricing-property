@@ -216,15 +216,15 @@ class MockPMSProvider(PMSProvider):
         counter = 0
         for ext_id, category, _name, capacity, units in ROOM_TYPE_SPECS:
             rng = random.Random(f"{self.seed}:{ext_id}:bookings")
+            # Must be the SAME sequential stream fetch_inventory uses, or the
+            # bookings emitted here describe a different occupancy than the one
+            # persisted -- pickup could exceed units sold.
             inv_rng = random.Random(f"{self.seed}:{ext_id}:inventory")
             current = start
             while current <= end:
                 offset = (current - self.today).days
                 plan = SCENARIO_PLAN.get(offset, {})
-                inv = self._inventory_row(
-                    ext_id, category, units, current,
-                    random.Random(f"{self.seed}:{ext_id}:inv-{current}"),
-                )
+                inv = self._inventory_row(ext_id, category, units, current, inv_rng)
                 total_sold = inv.units_sold
                 recent = (
                     min(total_sold, int(plan["pickup"]))

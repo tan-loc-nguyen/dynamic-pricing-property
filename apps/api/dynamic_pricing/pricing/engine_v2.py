@@ -39,13 +39,23 @@ from .base import Adjustment, PricingEngine, PricingResult
 from .registry import register_engine
 
 
-def _band_for(value: float, bands: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
-    """First band whose threshold the value falls under. Bands are ordered."""
+def _band_for(
+    value: float, bands: list[dict[str, Any]], key: str, inclusive: bool = False
+) -> dict[str, Any] | None:
+    """First band whose threshold the value falls under. Bands are ordered.
+
+    ``inclusive=True`` is required for pickup bands, whose lowest reachable
+    value sits exactly ON a threshold: recent pickup cannot go below zero, so
+    the smallest possible delta is exactly -expected_pickup. With a strict `<`
+    the "stalled" band could never be selected and a date with no bookings at
+    all was reported as merely "slowing".
+    """
     for band in bands:
         threshold = band.get(key)
         if threshold is None:
             continue
-        if value < float(threshold):
+        limit = float(threshold)
+        if (value <= limit) if inclusive else (value < limit):
             return band
     return bands[-1] if bands else None
 
@@ -325,7 +335,7 @@ class PricingEngineV2(PricingEngine):
                 True,
                 False,
             )
-        band = _band_for(ctx.pickup_delta, node.get("bands", []), "max_delta")
+        band = _band_for(ctx.pickup_delta, node.get("bands", []), "max_delta", inclusive=True)
         if band is None:
             return ("recent_pickup", "Recent pickup", 0.0, "No pickup band configured.", True, False)
         pct = float(band.get("adjustment_pct", 0.0))

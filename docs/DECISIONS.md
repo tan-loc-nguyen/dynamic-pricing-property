@@ -322,3 +322,48 @@ The curve also carries a `MAX_EXPECTED_OCCUPANCY` ceiling, because a 22-unit
 building is not expected to be 100% sold on arrival day — without it, the
 season multiplier pushed the D-0 expectation to 100% and every near date looked
 behind pace.
+
+## D26 — A cleared Settings field means "use the default", never `null`
+
+`_deep_merge` ignores a `None` override when the default is non-null, and
+`generate_recommendations` refuses to commit a run that priced nothing.
+
+**Why:** the Settings number inputs emit `null` when cleared, `ConfigIn.payload`
+is deliberately an unvalidated free-form dict (the config shape must evolve
+without a schema migration), and `float(None)` raises inside the engine. The
+per-row `except Exception` then absorbed every failure, so clearing one field
+returned HTTP 200 with "all recommendations were recalculated" while the run
+dropped from 273 rows to 6 and the dashboard went blank with no error anywhere.
+
+Two guards, because they fail differently: the merge guard stops the null ever
+reaching the engine, and the empty-run guard stops *any* future config error
+from silently replacing a good run with an empty one. Keys whose default is
+already `None` keep their nullability.
+
+## D27 — Filters belong in SQL, before the LIMIT
+
+History and recommendation filters were applied in Python after
+`.limit()`/`.offset()`, so they filtered one already-truncated page rather than
+the whole set: filtering History by room category returned nothing for a
+category whose activity was older than the 200 most recent decisions.
+
+Column-backed filters (`room_type_id`, `room_category` via a `RoomType`
+subquery) now go into the `WHERE` clause. Free-text search spans denormalised
+snapshot fields and cannot, so it is applied before paging instead, and the
+page is a slice of the matches.
+
+## D28 — Band boundary semantics must be chosen per signal, and mirrored in the UI
+
+Pickup bands are **inclusive**; pace and occupancy bands are **exclusive**.
+
+**Why:** `recent_pickup` cannot go below zero, so the smallest possible
+`pickup_delta` is exactly `-expected_pickup` — sitting precisely ON the
+threshold. With a strict `<` the "Pickup stalled" band was unreachable and a
+date with no bookings at all was priced as merely "slowing". This is the same
+class of bug as D11's lead-time off-by-one, which is why the semantics are now
+a named argument rather than an implicit convention.
+
+`lib/format.ts` mirrors these boundaries exactly. When it did not, the table
+row read "On pace" while the drawer showed a +4% "Ahead of pace" line for the
+same date — the breakdown contradicting the summary is precisely the failure
+this product cannot afford.
