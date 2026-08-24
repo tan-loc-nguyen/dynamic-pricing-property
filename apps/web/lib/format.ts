@@ -72,8 +72,9 @@ export function addDaysISO(iso: string, days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Pace gap (fraction) -> operator-readable label. Mirrors the engine's bands. */
 /**
+ * Pace gap (fraction) -> operator-readable label.
+ *
  * Boundaries MUST match the engine's _band_for, which uses a strict `<`.
  * At exactly +0.08 the engine picks "Ahead of pace" and applies +4%, so a
  * `<=` here would label the row "On pace" while the drawer showed a +4% line

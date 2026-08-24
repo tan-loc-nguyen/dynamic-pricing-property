@@ -237,3 +237,54 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
         else:
             base[key] = value
     return base
+
+
+class ConfigurationInvalid(ValueError):
+    """A configuration that would price incorrectly if saved."""
+
+
+def validate_config(config: dict[str, Any]) -> list[str]:
+    """Return human-readable problems with a merged configuration.
+
+    Band thresholds are operator-editable, and editing one can strand the bands
+    above it so they can never be selected — the same defect as the original
+    unreachable "Pickup stalled" band, but reachable through the UI. Checking
+    at save time turns that from a latent mispricing into a rejected edit.
+    """
+    from .engine_v2 import _band_for
+
+    problems: list[str] = []
+
+    def unreachable(bands, key, samples, inclusive):
+        reachable = {
+            _band_for(v, bands, key, inclusive=inclusive)["label"] for v in samples if bands
+        }
+        return [b.get("label", "?") for b in bands if b.get("label") not in reachable]
+
+    pace = config.get("pace", {})
+    if pace.get("enabled", True) and pace.get("bands"):
+        # pace_gap is actual minus expected occupancy, so it spans [-1, 1].
+        samples = [-1.0, -0.5, -0.25, -0.1, 0.0, 0.1, 0.25, 0.5, 1.0]
+        for label in unreachable(pace["bands"], "max_gap", samples, False):
+            problems.append(f"Pace band '{label}' can never be selected by any pace gap.")
+
+    pickup = config.get("recent_pickup", {})
+    if pickup.get("enabled", True) and pickup.get("bands"):
+        expected = float(pickup.get("expected_pickup_per_week", 1.0) or 1.0) * (
+            float(pickup.get("lookback_days", 7) or 7) / 7.0
+        )
+        # recent_pickup cannot be negative, so -expected is the true floor.
+        samples = [-expected, -expected / 2, -0.25, 0.0, 0.5, 2.0, 50.0]
+        for label in unreachable(pickup["bands"], "max_delta", samples, True):
+            problems.append(
+                f"Pickup band '{label}' can never be selected: with {expected:g} expected "
+                f"pickup the smallest possible delta is {-expected:g}."
+            )
+
+    dynamic = config.get("dynamic", {})
+    lo = dynamic.get("min_total_adjustment_pct")
+    hi = dynamic.get("max_total_adjustment_pct")
+    if lo is not None and hi is not None and float(lo) > float(hi):
+        problems.append(f"Minimum total adjustment ({lo}%) exceeds the maximum ({hi}%).")
+
+    return problems

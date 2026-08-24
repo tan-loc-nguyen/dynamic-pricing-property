@@ -9,7 +9,10 @@ from __future__ import annotations
 STATUS_PENDING = "pending"
 STATUS_ACCEPTED = "accepted"
 STATUS_OVERRIDDEN = "overridden"
-STATUSES = [STATUS_PENDING, STATUS_ACCEPTED, STATUS_OVERRIDDEN]
+# A stay date the engine could not price. It is shown rather than omitted:
+# an omitted row is indistinguishable from one that was never in scope.
+STATUS_ERROR = "error"
+STATUSES = [STATUS_PENDING, STATUS_ACCEPTED, STATUS_OVERRIDDEN, STATUS_ERROR]
 
 DECISION_ACCEPTED = "accepted"
 DECISION_OVERRIDDEN = "overridden"

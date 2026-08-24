@@ -42,7 +42,11 @@ from ..providers.pms.mock import HISTORY_DAYS, HORIZON_DAYS
 from ..schemas import PropertyOut, SystemStatusOut
 from ..services.configuration import get_active_configuration
 from ..services.outcomes import outcome_summary
-from ..services.recommendations import generate_recommendations, latest_run_id
+from ..services.recommendations import (
+    PricingRunFailed,
+    generate_recommendations,
+    latest_run_id,
+)
 from ..services.sync import default_window, sync_market, sync_pms
 from ._shared import category_label
 
@@ -171,7 +175,9 @@ def status(session: Session = Depends(get_session)):
             "events": count(Event),
             "competitors": count(Competitor),
             "market_observations": count(MarketObservation),
-            "recommendations": count(PricingRecommendation),
+            # ALL runs, including the demo-only historical backfill -- not the
+            # current run. Rate Review shows the current run only.
+            "recommendations_all_runs": count(PricingRecommendation),
             "decisions": count(OperatorDecision),
             "outcomes": count(RecommendationOutcome),
         },
@@ -209,12 +215,21 @@ def sync(session: Session = Depends(get_session), regenerate: bool = True):
     market = get_market_provider(today=today)
     market_report = sync_market(session, market, start=start, end=end)
 
-    run = generate_recommendations(session, today=today) if regenerate else None
+    run = None
+    run_error = None
+    if regenerate:
+        try:
+            run = generate_recommendations(session, today=today)
+        except PricingRunFailed as exc:
+            # Sync must not fail wholesale because pricing is misconfigured --
+            # the freshly synced portfolio is still worth keeping.
+            run_error = str(exc)
     return {
         "pms": pms_report.as_dict(),
         "pms_fallback_to_mock": fallback_used,
         "market": market_report.as_dict(),
         "run": run.as_dict() if run else None,
+        "run_error": run_error,
     }
 
 

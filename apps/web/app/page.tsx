@@ -26,7 +26,6 @@ export default function RateReviewPage() {
 
   const [filters, setFilters] = useState<FilterState>(() => ({
     roomTypeId: null,
-    roomCategory: "all",
     startDate: todayISO(),
     endDate: addDaysISO(todayISO(), 30),
     status: "all",
@@ -86,10 +85,16 @@ export default function RateReviewPage() {
 
   const regenerate = async () => {
     setBusy(true);
+    setError(null);
     try {
       await api.generate();
       await load();
       setStatus(await api.status());
+    } catch (e: any) {
+      // Without this a failed recalculation is a silent no-op: the button
+      // resets, the stale table stays, and the only trace is an unhandled
+      // rejection in the console.
+      setError(e?.message || "Recalculation failed.");
     } finally {
       setBusy(false);
     }

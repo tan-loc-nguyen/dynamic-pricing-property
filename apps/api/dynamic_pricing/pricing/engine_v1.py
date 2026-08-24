@@ -45,7 +45,6 @@ _MISSING_COPY = {
     "lead_time": "Days-to-check-in unavailable; no lead-time adjustment applied.",
     "market": "Market signal unavailable; no market adjustment applied.",
     "day_of_week": "Day of week unavailable; no weekday adjustment applied.",
-    "season": "Season unavailable; no seasonal adjustment applied.",
 }
 
 

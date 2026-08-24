@@ -27,6 +27,15 @@ def client():
         yield c
 
 
+# NOTE ON ORDERING: these tests share one module-scoped client and database, and
+# several are destructive -- saving a config with regenerate=true replaces the
+# whole run, so any recommendation id captured before it is stale afterwards.
+# Every test therefore fetches the rows it needs at its own start rather than
+# relying on ids from an earlier test, and any test that replaces a run restores
+# the configuration before returning. Do not introduce a test that captures ids
+# and then regenerates.
+
+
 # ------------------------------------------------------------------- system
 def test_health(client):
     assert client.get("/api/health").json()["status"] == "ok"
@@ -37,7 +46,7 @@ def test_demo_data_is_seeded_on_startup(client):
     assert counts["room_types"] == 3
     assert counts["physical_rooms"] == 22, "the client operates 22 apartments"
     assert counts["rate_bands"] == 15
-    assert counts["recommendations"] > 100
+    assert counts["recommendations_all_runs"] > 100
     assert counts["events"] > 0
     assert counts["competitors"] > 0
 

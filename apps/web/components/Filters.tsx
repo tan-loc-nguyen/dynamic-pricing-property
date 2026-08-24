@@ -5,7 +5,6 @@ import type { Property } from "@/lib/types";
 
 export interface FilterState {
   roomTypeId: number | null;
-  roomCategory: string;
   startDate: string;
   endDate: string;
   status: string;
@@ -26,6 +25,9 @@ export function Filters({
 
   return (
     <div className="flex flex-wrap items-end gap-2.5">
+      {/* Binds room TYPE, not category. Luminous has one room type per category,
+          so the label is the honest thing to show the operator. The API also
+          accepts room_category for clients that need it. */}
       <div className="w-56">
         <div className="text-[11px] font-medium text-ink-500 mb-1">Room category</div>
         <select
@@ -58,6 +60,7 @@ export function Filters({
           <option value="pending">Pending</option>
           <option value="accepted">Accepted</option>
           <option value="overridden">Overridden</option>
+          <option value="error">Could not price</option>
         </select>
       </div>
 

@@ -199,7 +199,14 @@ export interface SystemStatus {
   counts: Record<string, number>;
   override_reasons: { code: string; label: string }[];
   vocabularies: Record<string, any>;
-  outcome_readiness: Record<string, any>;
+  outcome_readiness: {
+    total_outcomes: number;
+    synthetic_outcomes: number;
+    real_outcomes: number;
+    decided_recommendations: number;
+    ready_for_evaluation: boolean;
+    note: string;
+  };
   demo_mode: boolean;
   last_run_id: string | null;
 }

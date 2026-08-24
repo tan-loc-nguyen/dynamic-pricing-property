@@ -5,7 +5,7 @@
 # (a dead config key, an unreachable band, a stale field name), so the linter
 # is tuned for reachability rather than style.
 line-length = 100
-target-version = "py310"
+target-version = "py313"  # matches the venv
 
 [lint]
 select = [
@@ -23,4 +23,8 @@ ignore = ["B008"]  # FastAPI's Depends() in defaults is idiomatic
 "dynamic_pricing/providers/**" = ["ARG002", "ARG001"]
 "dynamic_pricing/features/booking_curve.py" = ["ARG002"]
 "dynamic_pricing/main.py" = ["ARG001"]          # lifespan(app) is framework-required
-"tests/**" = ["ARG001", "F811"]                 # pytest fixtures shadow by design
+# ARG001 only: pytest fixtures are passed but not always used directly.
+# F811 is deliberately NOT ignored -- it catches two test functions sharing a
+# name, where the second shadows the first and the first never runs. That is
+# exactly the class this config exists to catch, and it is invisible without it.
+"tests/**" = ["ARG001"]

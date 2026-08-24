@@ -11,9 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..db import get_session
-from ..pricing.defaults import EXPERIMENTAL_SECTIONS, default_config
+from ..pricing.defaults import ConfigurationInvalid, EXPERIMENTAL_SECTIONS, default_config
 from ..schemas import ConfigIn, ConfigOut, PreviewIn, PreviewOut
 from ..services.configuration import (
+    activate_configuration,
     create_configuration,
     get_active_configuration,
     list_configurations,
@@ -48,13 +49,20 @@ def read_defaults():
 
 @router.put("/config", response_model=ConfigOut)
 def save_config(body: ConfigIn, session: Session = Depends(get_session)):
-    config = create_configuration(session, body.payload, label=body.label, note=body.note)
+    previous = get_active_configuration(session)
+    try:
+        config = create_configuration(session, body.payload, label=body.label, note=body.note)
+    except ConfigurationInvalid as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if body.regenerate:
         try:
             generate_recommendations(session)
         except PricingRunFailed as exc:
-            # The config saved but cannot price anything. Tell the operator
-            # rather than leaving them on a silently empty dashboard.
+            # Roll the activation back. Otherwise /api/status advertises the
+            # broken version while /api/recommendations still serves the run
+            # from the previous one, and every later regenerate fails the same
+            # way -- trading a blank dashboard for a wedged app.
+            activate_configuration(session, previous.id)
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return config
 
@@ -63,7 +71,12 @@ def save_config(body: ConfigIn, session: Session = Depends(get_session)):
 def reset(session: Session = Depends(get_session), regenerate: bool = True):
     config = reset_to_defaults(session)
     if regenerate:
-        generate_recommendations(session)
+        try:
+            generate_recommendations(session)
+        except PricingRunFailed as exc:
+            # Reset is the recovery path, so this should be unreachable -- but
+            # a 500 here would leave no way out at all.
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     return config
 
 

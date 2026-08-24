@@ -29,7 +29,11 @@ from ..schemas import (
     RecommendationOut,
     SummaryOut,
 )
-from ..services.recommendations import generate_recommendations, latest_run_id
+from ..services.recommendations import (
+    PricingRunFailed,
+    generate_recommendations,
+    latest_run_id,
+)
 from ._shared import decisions_for_stay_date, recommendation_dict
 
 router = APIRouter(prefix="/api/recommendations", tags=["recommendations"])
@@ -51,6 +55,9 @@ def _apply_filters(query, *, property_id, room_type_id, room_category, start_dat
         # Category lives on RoomType, so this must be a join rather than a
         # post-query Python filter -- otherwise it would filter an already
         # truncated page.
+        # NOTE: this filters the LIVE category while the response renders the
+        # category frozen in the run's feature snapshot. Recategorising a room
+        # type between runs makes the two disagree until the next run.
         query = query.where(
             PricingRecommendation.room_type_id.in_(
                 select(RoomType.id).where(RoomType.category == room_category)
@@ -90,11 +97,16 @@ def list_recommendations(
         end_date=end_date,
         status=status,
     )
-    rows = session.scalars(
-        query.order_by(PricingRecommendation.stay_date, PricingRecommendation.room_type_id)
-    ).all()
+    query = query.order_by(PricingRecommendation.stay_date, PricingRecommendation.room_type_id)
+    if not search:
+        # Only the free-text branch needs the full set. Paging in SQL otherwise
+        # avoids materialising and serialising every matching row to return one.
+        query = query.offset(offset).limit(limit)
 
+    rows = session.scalars(query).all()
     payloads = [recommendation_dict(r) for r in rows]
+    if not search:
+        return payloads
     if search:
         # Free-text search spans denormalised snapshot fields, so it cannot be
         # pushed into SQL. It is applied BEFORE paging so the page is a slice of
@@ -176,7 +188,10 @@ def summary(
 
 @router.post("/generate")
 def generate(session: Session = Depends(get_session), engine_key: str = DEFAULT_ENGINE):
-    return generate_recommendations(session, engine_key=engine_key).as_dict()
+    try:
+        return generate_recommendations(session, engine_key=engine_key).as_dict()
+    except PricingRunFailed as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/{recommendation_id}", response_model=RecommendationDetailOut)

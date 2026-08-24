@@ -83,9 +83,12 @@ def edit_band(band_id: int, body: RateBandUpdateIn, session: Session = Depends(g
 @router.post("/reset")
 def reset(session: Session = Depends(get_session), regenerate: bool = True):
     """Restore every band to the client-validated values."""
-    from ..services.recommendations import generate_recommendations
+    from ..services.recommendations import PricingRunFailed, generate_recommendations
 
     restored = reset_rate_book(session)
     if regenerate:
-        generate_recommendations(session)
+        try:
+            generate_recommendations(session)
+        except PricingRunFailed as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"restored": restored, "source": RATE_BOOK_SOURCE}

@@ -17,7 +17,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import PricingConfiguration
-from ..pricing.defaults import default_config, merge_config
+from ..pricing.defaults import (
+    ConfigurationInvalid,
+    default_config,
+    merge_config,
+    validate_config,
+)
 
 
 def get_active_configuration(session: Session) -> PricingConfiguration:
@@ -41,8 +46,16 @@ def create_configuration(
     label: str = "operator-edit",
     note: str | None = None,
 ) -> PricingConfiguration:
-    """Persist a new active configuration version."""
+    """Persist a new active configuration version.
+
+    Rejects a configuration that would price incorrectly rather than saving it
+    and discovering the problem one pricing run later.
+    """
     merged = merge_config(payload)
+
+    problems = validate_config(merged)
+    if problems:
+        raise ConfigurationInvalid(" ".join(problems))
 
     latest = session.scalars(
         select(PricingConfiguration).order_by(PricingConfiguration.version.desc())
@@ -84,3 +97,23 @@ def list_configurations(session: Session, limit: int = 25) -> list[PricingConfig
             .limit(limit)
         ).all()
     )
+
+
+def activate_configuration(session: Session, config_id: int) -> PricingConfiguration | None:
+    """Make one existing version active again.
+
+    Used to roll back an activation when the newly-saved config turns out to be
+    unusable, so the app is never left advertising a version it cannot price
+    with.
+    """
+    target = session.get(PricingConfiguration, config_id)
+    if target is None:
+        return None
+    for row in session.scalars(
+        select(PricingConfiguration).where(PricingConfiguration.is_active.is_(True))
+    ).all():
+        row.is_active = False
+    target.is_active = True
+    session.commit()
+    session.refresh(target)
+    return target

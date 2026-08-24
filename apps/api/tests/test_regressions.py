@@ -76,11 +76,81 @@ def test_nulled_settings_never_crash_the_engine(path):
     assert result.recommended_net_rate > 0
 
 
-def test_a_run_that_prices_nothing_raises_instead_of_blanking_the_dashboard():
-    """Committing an empty run left latest_run_id pointing at nothing."""
-    from dynamic_pricing.services.recommendations import PricingRunFailed
+def test_a_systemic_error_stops_the_run_and_keeps_the_previous_one():
+    """A repeated error is a config fault, not a bad row — it must not silently
+    drop stay dates.
 
-    assert issubclass(PricingRunFailed, RuntimeError)
+    Round 2 caught the previous version of this test asserting only
+    `issubclass(PricingRunFailed, RuntimeError)` — a tautology that passed even
+    with the guard deleted, in the file written to prevent exactly that. This
+    version exercises the behaviour: it breaks a setting every row touches,
+    and asserts the run is refused AND the earlier run is still served.
+    """
+    import os
+    import tempfile
+
+
+    from dynamic_pricing.services.recommendations import (
+        PricingRunFailed,
+        generate_recommendations,
+        latest_run_id,
+        load_current_recommendations,
+    )
+
+    os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mkdtemp()}/systemic.db"
+    from dynamic_pricing.seed import bootstrap
+
+    bootstrap(force=True, quiet=True)
+
+    from dynamic_pricing.db import SessionLocal
+    from dynamic_pricing.services.configuration import get_active_configuration
+
+    with SessionLocal() as session:
+        good_run = latest_run_id(session)
+        good_count = len(load_current_recommendations(session))
+        assert good_count > 0
+
+        # rounding.increment is applied to EVERY row, so this is systemic.
+        config = get_active_configuration(session)
+        # Reassign rather than mutate: SQLAlchemy does not track in-place edits
+        # to a JSON column, so a mutation would not persist and this test would
+        # silently assert nothing.
+        payload = dict(config.payload)
+        payload["rounding"] = {**payload["rounding"], "increment": "not-a-number"}
+        config.payload = payload
+        session.commit()
+
+        with pytest.raises(PricingRunFailed) as caught:
+            generate_recommendations(session)
+
+        assert caught.value.affected >= 3, "should stop once the error repeats"
+        assert latest_run_id(session) == good_run, "the previous run must still be served"
+        assert len(load_current_recommendations(session)) == good_count
+
+
+def test_a_gated_factor_failure_is_caught_even_though_rows_still_succeed():
+    """The defect that made the count-based guard useless.
+
+    `market.sensitivity` is read only AFTER the market gate, so a bad value
+    kills just the rows that have qualified market data. `created` stays > 0,
+    so 'all rows failed' can never detect it — which is why detection is based
+    on error repetition instead.
+    """
+    from conftest import make_context
+    from dynamic_pricing.pricing import get_engine, merge_config
+
+    config = merge_config({"market": {"sensitivity": "not-a-number"}})
+
+    # A row WITHOUT qualified market data never reaches the bad value.
+    ungated = make_context(
+        market_price_index=None, market_qualified_count=0, market_observation_count=0
+    )
+    assert get_engine("v2").calculate(ungated, config).recommended_net_rate > 0
+
+    # A row WITH market data does. (float("abc") raises ValueError, not
+    # TypeError — the reason a narrow `except TypeError` would not have helped.)
+    with pytest.raises(ValueError):
+        get_engine("v2").calculate(make_context(), config)
 
 
 # --- #3 the "Pickup stalled" band was unreachable -------------------------

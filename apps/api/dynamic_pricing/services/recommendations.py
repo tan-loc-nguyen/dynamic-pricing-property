@@ -13,25 +13,49 @@ outcome analysis later.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..features.engine import FeatureEngine
-from ..models import PricingAdjustment, PricingRecommendation, RoomType, StayDateInventory
+from ..constants import STATUS_ERROR
+from ..models import (
+    PricingAdjustment,
+    PricingRecommendation,
+    RoomType,
+    StayDateInventory,
+)
 from ..pricing import DEFAULT_ENGINE, get_engine
 from .configuration import get_active_configuration
 from .rate_book import load_rate_book
 
 
-class PricingRunFailed(RuntimeError):
-    """Every row failed to price — the configuration is unusable.
+# A pricing failure is either about ONE bad inventory row, or about the
+# configuration/code — and those need opposite handling. A row-shaped problem
+# should be tolerated and shown; a systemic one should stop the run.
+#
+# We cannot tell them apart by counting failures, because every interesting
+# factor in the engine is gated: a broken `market.sensitivity` only reaches the
+# rows that HAVE qualified market data, so "all rows failed" never fires. What
+# does distinguish them is repetition of the SAME error: 267 rows failing with
+# one identical message is a config bug, one row failing alone is a bad row.
+SYSTEMIC_ERROR_THRESHOLD = 3
 
-    Raised instead of committing a near-empty run, because a silently blank
-    Rate Review screen is far worse than a visible error.
+
+class PricingRunFailed(RuntimeError):
+    """The configuration cannot price this portfolio.
+
+    Raised instead of committing a run that would silently drop stay dates.
+    Carries the offending error and how many rows it hit.
     """
+
+    def __init__(self, message: str, *, error: str | None = None, affected: int = 0) -> None:
+        super().__init__(message)
+        self.error = error
+        self.affected = affected
 
 
 @dataclass
@@ -44,6 +68,7 @@ class RunReport:
     carried_over: int
     skipped: int
     first_error: str | None = None
+    failures: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -55,12 +80,17 @@ class RunReport:
             "carried_over": self.carried_over,
             "skipped": self.skipped,
             "first_error": self.first_error,
+            "failures": self.failures,
         }
 
 
 def latest_run_id(session: Session) -> str | None:
+    # id.desc() as an explicit tiebreaker: bootstrap writes two runs back to
+    # back, and created_at alone would be ordering-by-luck if they collided.
     return session.scalars(
-        select(PricingRecommendation.run_id).order_by(PricingRecommendation.created_at.desc())
+        select(PricingRecommendation.run_id).order_by(
+            PricingRecommendation.created_at.desc(), PricingRecommendation.id.desc()
+        )
     ).first()
 
 
@@ -114,15 +144,69 @@ def generate_recommendations(
     run_id = uuid.uuid4().hex[:16]
     created = carried_over = skipped = 0
     first_error: str | None = None
+    error_signatures: Counter[str] = Counter()
+    failures: list[dict] = []
 
     for inventory in inventories:
         context = features.build(inventory)
         try:
             result = engine.calculate(context, config)
-        except Exception as exc:  # noqa: BLE001 - one bad row must not kill the run
+        except Exception as exc:  # noqa: BLE001 - see SYSTEMIC_ERROR_THRESHOLD
+            signature = f"{type(exc).__name__}: {exc}"
             skipped += 1
+            error_signatures[signature] += 1
             if first_error is None:
-                first_error = f"{type(exc).__name__}: {exc}"
+                first_error = signature
+            failures.append(
+                {
+                    "room_type_id": context.room_type_id,
+                    "room_type_name": context.room_type_name,
+                    "stay_date": context.stay_date.isoformat(),
+                    "error": signature,
+                }
+            )
+
+            # The same error repeating across rows is a configuration or code
+            # fault, not a bad inventory row. Stop rather than quietly serving
+            # a portfolio with stay dates missing from it.
+            if error_signatures[signature] >= SYSTEMIC_ERROR_THRESHOLD:
+                session.rollback()
+                raise PricingRunFailed(
+                    f"Pricing failed identically on {error_signatures[signature]} stay dates, so "
+                    f"the configuration is unusable and the previous run was kept. Error: {signature}",
+                    error=signature,
+                    affected=error_signatures[signature],
+                ) from exc
+
+            # A one-off failure is tolerated, but the stay date must NOT vanish:
+            # an omitted row is indistinguishable from one that was never in
+            # scope. Record it in an error state so the operator sees WHICH
+            # dates are unpriced, not merely how many.
+            session.add(
+                PricingRecommendation(
+                    run_id=run_id,
+                    mode=mode,
+                    property_id=context.property_id,
+                    room_type_id=context.room_type_id,
+                    stay_date=context.stay_date,
+                    season_key=context.season_key,
+                    band_min_net_rate=context.band_min_net_rate,
+                    band_base_net_rate=context.band_base_net_rate,
+                    band_max_net_rate=context.band_max_net_rate,
+                    base_net_rate=context.band_base_net_rate or context.current_net_rate,
+                    current_net_rate=context.current_net_rate,
+                    net_rate_before_clamp=context.current_net_rate,
+                    recommended_net_rate=context.current_net_rate,
+                    change_pct=0.0,
+                    total_adjustment_pct=0.0,
+                    explanation=f"This stay date could not be priced: {signature}",
+                    engine_version=engine.version,
+                    config_version=config_row.version,
+                    features=context.to_dict(),
+                    extra={"error": signature, "unpriced": True},
+                    status=STATUS_ERROR,
+                )
+            )
             continue
 
         rec = PricingRecommendation(
@@ -185,14 +269,10 @@ def generate_recommendations(
         # that happened once, and cloning it would inflate the audit trail.
         created += 1
 
-    if inventories and created == 0:
-        # Committing here would leave latest_run_id pointing at an empty run
-        # and blank the dashboard with no error shown anywhere.
-        session.rollback()
-        raise PricingRunFailed(
-            f"Pricing failed for all {skipped} stay date(s) and no recommendations were "
-            f"produced, so the previous run was kept. First error: {first_error}"
-        )
+    # NOTE: there is deliberately no "created == 0" check here. It cannot work:
+    # every interesting factor in the engine is gated, so a broken setting only
+    # reaches the subset of rows that use that factor and `created` stays > 0.
+    # Repetition of one error signature is the signal that generalises.
 
     session.commit()
     return RunReport(
@@ -204,6 +284,7 @@ def generate_recommendations(
         carried_over=carried_over,
         skipped=skipped,
         first_error=first_error,
+        failures=failures,
     )
 
 

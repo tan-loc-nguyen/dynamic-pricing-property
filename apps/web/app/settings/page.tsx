@@ -101,7 +101,15 @@ function BandEditor({
             className={`${inputClass} tnum`}
             value={band[thresholdKey] ?? ""}
             onChange={(e) =>
-              onChange(bands.map((b, j) => (i === j ? { ...b, [thresholdKey]: Number(e.target.value) } : b)))
+              // Empty must NOT collapse to 0 -- a 0 threshold silently strands every
+              // band above it. Mirrors NumberInput: cleared -> null -> default on merge.
+              onChange(
+                bands.map((b, j) =>
+                  i === j
+                    ? { ...b, [thresholdKey]: e.target.value === "" ? null : Number(e.target.value) }
+                    : b,
+                ),
+              )
             }
           />
           <div className="relative">
@@ -109,9 +117,15 @@ function BandEditor({
               type="number"
               step={0.5}
               className={`${inputClass} tnum pr-7`}
-              value={band.adjustment_pct ?? 0}
+              value={band.adjustment_pct ?? ""}
               onChange={(e) =>
-                onChange(bands.map((b, j) => (i === j ? { ...b, adjustment_pct: Number(e.target.value) } : b)))
+                onChange(
+                  bands.map((b, j) =>
+                    i === j
+                      ? { ...b, adjustment_pct: e.target.value === "" ? null : Number(e.target.value) }
+                      : b,
+                  ),
+                )
               }
             />
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-ink-400">%</span>

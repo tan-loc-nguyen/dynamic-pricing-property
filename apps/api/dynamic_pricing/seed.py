@@ -35,7 +35,7 @@ from .providers.pms.mock import HISTORY_DAYS, HORIZON_DAYS
 from .services.configuration import get_active_configuration
 from .services.outcomes import generate_demo_outcomes
 from .services.rate_book import ensure_rate_book
-from .services.recommendations import generate_recommendations
+from .services.recommendations import PricingRunFailed, generate_recommendations
 from .services.sync import default_window, sync_market, sync_pms
 
 # Manually-curated demo events, offsets from "today". Real events must come
@@ -165,18 +165,35 @@ def bootstrap(force: bool = False, today: date | None = None, quiet: bool = Fals
         # Priced first so it is never the "latest" run, and so the synthetic
         # outcomes below have past recommendations to attach to. Without this
         # the entire outcome-tracking path is unreachable in demo mode.
-        history_run = generate_recommendations(
-            session,
-            today=today,
-            stay_date_from=start,
-            stay_date_to=today - timedelta(days=1),
-        )
-        summary["history_run"] = history_run.as_dict()
-        log(f"Backfilled {history_run.created} historical recommendations (demo only).")
+        # Demo-only, so a failure here must never abort the bootstrap: properties
+        # are already committed, and has_data() would then skip the rebuild on
+        # every subsequent start, permanently serving a portfolio with no
+        # recommendations.
+        try:
+            history_run = generate_recommendations(
+                session,
+                today=today,
+                stay_date_from=start,
+                stay_date_to=today - timedelta(days=1),
+            )
+            summary["history_run"] = history_run.as_dict()
+            log(f"Backfilled {history_run.created} historical recommendations (demo only).")
+        except PricingRunFailed as exc:
+            summary["history_run_error"] = str(exc)
+            log(f"! Historical backfill skipped: {exc}")
 
         # --- 6b. live recommendations ------------------------------------------
-        run = generate_recommendations(session, today=today)
-        summary["run"] = run.as_dict()
+        try:
+            run = generate_recommendations(session, today=today)
+            summary["run"] = run.as_dict()
+        except PricingRunFailed as exc:
+            # Leave the database in a state the next start will rebuild from,
+            # rather than one has_data() considers complete.
+            summary["run_error"] = str(exc)
+            log(f"! Pricing failed: {exc}")
+            log("  Wiping so the next start rebuilds rather than serving an empty portfolio.")
+            wipe(session)
+            return summary
         log(
             f"Generated {run.created} recommendations "
             f"(engine {run.engine_version}, config v{run.config_version}, mode={run.mode})."
