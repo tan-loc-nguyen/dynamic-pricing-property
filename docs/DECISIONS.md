@@ -515,3 +515,31 @@ exist under `output: "export"`. Since packaging this as a single-process local
 app is still open, locale is a `[locale]` route segment with
 `generateStaticParams` and an explicit switcher.
 
+## D31 — The shell is one viewport tall; each pane scrolls inside its own box
+
+`body` and the flex shell are `h-screen overflow-hidden`; `main` scrolls, the
+sidebar scrolls, and on Rate Review the table gets its own frame with a sticky
+header and pinned pagination.
+
+**Why:** the sidebar is a flex sibling of `main`, so a long table grew the
+document and dragged the sidebar down with it — 3,200px tall on a 45-row page,
+putting its Shadow Mode and unvalidated notices thousands of pixels below the
+fold. Those two notices are the standing reminder of what this product is; a
+layout that scrolls them away defeats them.
+
+**Two things that do not work here, both tried:**
+
+- `min-h-full` on the page with `min-h-[22rem]` on the table card. A minimum
+  height lets the CONTENT height win, so the card grows to its full 2,675px and
+  the page scrolls again — exactly the state being fixed. The parent needs a
+  *definite* height (`h-full`) for `flex-1` to divide.
+- `position: sticky` on `<thead>`. Inconsistently supported; the cells are what
+  actually stick, so it lives on `<th>` alone rather than in two places.
+
+**The trade-off, stated plainly:** the frame is the viewport minus the chrome
+above it — page padding, header, status banner, summary cards and filters come
+to ~424px. On a 1080px screen the table gets ~550px (roughly nine rows); on an
+806px laptop viewport it gets 280px (four). If that proves too tight in use,
+the reclaimable space is the summary cards (116px) and the filter card's own
+border and padding (88px) — not the table.
+

@@ -107,7 +107,7 @@ export default function RateReviewPage() {
   const shown = recommendations.slice(0, visible);
 
   return (
-    <div className="px-7 py-6 space-y-5 max-w-[1700px]">
+    <div className="flex h-full flex-col gap-5 px-7 py-6 max-w-[1700px]">
       <PageHeader
         title={t("title")}
         subtitle={t("subtitle")}
@@ -125,7 +125,12 @@ export default function RateReviewPage() {
         <Filters properties={properties} value={filters} onChange={setFilters} />
       </Card>
 
-      <Card>
+      {/* h-full above gives this a definite height to divide up; min-h-0 is what
+          lets it actually shrink. Without either, the card keeps its content
+          height and the page grows again — which is what dragged the sidebar
+          down to 3200px. A min-height here does NOT work: it makes the content
+          height win and the whole page scrolls once more. */}
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {loading ? (
           <Spinner label={t("loading")} />
         ) : error ? (
@@ -141,18 +146,20 @@ export default function RateReviewPage() {
           />
         ) : (
           <>
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-200">
+            <div className="flex shrink-0 items-center justify-between px-4 py-2.5 border-b border-ink-200">
               <div className="text-[12px] text-ink-500">
                 {t("showing", { shown: shown.length, total: recommendations.length })}
                             </div>
             </div>
-            <RecommendationTable
-              recommendations={shown}
-              onSelect={(r) => setSelectedId(r.id)}
-              selectedId={selectedId}
-            />
+            <div className="min-h-0 flex-1 overflow-auto">
+              <RecommendationTable
+                recommendations={shown}
+                onSelect={(r) => setSelectedId(r.id)}
+                selectedId={selectedId}
+              />
+            </div>
             {visible < recommendations.length && (
-              <div className="p-3 text-center border-t border-ink-100">
+              <div className="shrink-0 p-3 text-center border-t border-ink-100">
                 <Button size="sm" onClick={() => setVisible((v) => v + PAGE_SIZE)}>
                   {t("showMore", {
                     count: Math.min(PAGE_SIZE, recommendations.length - visible),

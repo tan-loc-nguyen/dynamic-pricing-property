@@ -46,10 +46,9 @@ export function RecommendationTable({
   const tv = useTranslations("vocab");
   const bandLabel = useBandLabel();
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[13px]">
+    <table className="w-full text-[13px]">
         <thead>
-          <tr className="border-b border-ink-200 bg-ink-50/60">
+          <tr className="border-b border-ink-200 bg-ink-50">
             {[
               [t("stayDate"), "left"],
               [t("roomCategory"), "left"],
@@ -68,7 +67,7 @@ export function RecommendationTable({
             ].map(([h, align], i) => (
               <th
                 key={String(h) + i}
-                className={`px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 ${
+                className={`sticky top-0 z-10 bg-ink-50 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 ${
                   align === "right" ? "text-right" : "text-left"
                 }`}
               >
@@ -199,7 +198,6 @@ export function RecommendationTable({
             );
           })}
         </tbody>
-      </table>
-    </div>
+    </table>
   );
 }

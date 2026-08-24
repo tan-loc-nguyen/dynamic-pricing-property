@@ -20,7 +20,7 @@ export function Nav() {
   const ta = useTranslations("app");
 
   return (
-    <aside className="w-60 shrink-0 border-r border-ink-200 bg-white flex flex-col">
+    <aside className="w-60 shrink-0 border-r border-ink-200 bg-white flex flex-col overflow-y-auto">
       <div className="px-5 py-5 border-b border-ink-100">
         <div className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 grid place-items-center text-white text-sm font-semibold">
