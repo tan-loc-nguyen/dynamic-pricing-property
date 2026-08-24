@@ -646,41 +646,41 @@ def test_every_validation_placeholder_is_supplied(engine, config, locale):
     assert not problems, "\n".join(sorted(set(problems)))
 
 
-def test_the_rate_band_sentence_gates_on_provenance_not_on_having_numbers(engine, config):
-    """`has_band` answered the wrong question.
+@pytest.mark.parametrize(
+    "source,expects_a_band",
+    [
+        ("CLIENT_VALIDATED", True),
+        # An operator editing a band in the Rate Book is a supported action. The
+        # band still exists, its numbers are still the ones shown, and its season
+        # is still known -- only its PROVENANCE changed, and {source} already
+        # says that. Gating the sentence on "is it validated" made an edited band
+        # claim no band covered the date: false three ways over.
+        ("OPERATOR_EDITED", True),
+        ("FALLBACK", False),
+    ],
+)
+def test_the_rate_band_sentence_asks_whether_a_band_exists(engine, config, source, expects_a_band):
+    """`rate_band_source` has THREE values, so a boolean gate has to name all
+    three. Two earlier versions of this predicate each had fewer states than the
+    field they read: `has_band` asked "are there numbers" (always yes, because
+    the feature engine substitutes the room type's fallback rates), and its
+    replacement asked "is it validated" (no for an edited band).
 
-    On the real fallback path the feature engine substitutes the ROOM TYPE's
-    fallback rates (features/engine.py:292), and those columns are NOT NULL with
-    defaults — so min/max are always present, `has_band` was always true, and the
-    branch written for this case was unreachable in production. The row then read
-    "2BR Regular in —: BASE 2,000,000 ₫ NET (band 1,500,000–4,000,000)": room-type
-    guesses wearing the shape of a validated band, with a dash where the season
-    goes.
-
-    The sentence's question is "did this come from the validated book?", and
-    `rate_band_source` is what records that.
+    The sentence's actual question is narrower than either: is there a band to
+    name at all? Provenance is carried separately by {source}.
     """
-    fallback = make_context(
-        season_key=None,
-        season_label=None,
-        rate_band_source="FALLBACK",
-        band_min_net_rate=1_500_000.0,
-        band_base_net_rate=2_000_000.0,
-        band_max_net_rate=4_000_000.0,
+    ctx = make_context(
+        rate_band_source=source,
+        season_key=None if source == "FALLBACK" else "low_2",
+        band_min_net_rate=1_500_000.0 if source == "FALLBACK" else 1_800_000.0,
+        band_base_net_rate=2_000_000.0 if source == "FALLBACK" else 2_100_000.0,
+        band_max_net_rate=4_000_000.0 if source == "FALLBACK" else 2_300_000.0,
     )
-    params = next(
-        a for a in engine.calculate(fallback, config).adjustments if a.code == "rate_band"
-    ).params
+    params = next(a for a in engine.calculate(ctx, config).adjustments if a.code == "rate_band").params
 
-    assert params["has_validated_band"] is False, (
-        "numbers being present does not make them a validated band"
-    )
-    assert "has_band" not in params, "the misleading name must not survive alongside it"
+    assert params["has_rate_band"] is expects_a_band
+    assert params["source"] == source, "provenance travels separately and is always named"
 
-    validated = next(
-        a for a in engine.calculate(make_context(), config).adjustments if a.code == "rate_band"
-    ).params
-    assert validated["has_validated_band"] is True
 
 
 @pytest.mark.parametrize("locale", LOCALES)
@@ -690,8 +690,13 @@ def test_no_message_escapes_its_own_placeholder(locale):
     `'{event_name}' falls on this stay date` therefore rendered the literal text
     `{event_name}` — in the explanation, on every event row. Nothing else caught
     it: the placeholder IS declared and IS supplied, so the both-directions
-    check passed while the sentence was broken. Only formatting through real ICU
-    showed it, and this is the cheap standing guard for that class.
+    check passed while the sentence was broken.
+
+    DO NOT fold this into `make lint`'s ICU compile check. An escaped
+    placeholder is VALID ICU — it compiles cleanly, so the compiler reports
+    nothing. The two guards look overlapping and are not: the compiler catches
+    malformed ICU, this catches well-formed ICU that says the wrong thing.
+    Consolidating them would silently reopen this exact bug.
     """
     offenders = [
         f"{key}: {value}"

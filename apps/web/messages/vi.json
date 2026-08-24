@@ -20,7 +20,7 @@
   "adjustments": {
     "rate_band": {
       "label": "Giá cơ sở theo mùa",
-      "reason": "{has_validated_band, select, true {{room_category} trong {season}: giá CƠ SỞ {base_net_rate, number} ₫ NET (khung {min_net_rate, number}–{max_net_rate, number}). Nguồn: {source}.} other {Chưa có khung giá đã xác thực cho {room_category} vào ngày này, nên hệ thống dùng mức dự phòng {base_net_rate, number} ₫ NET của hạng căn hộ làm giá cơ sở. Nguồn: {source}.}}"
+      "reason": "{has_rate_band, select, true {{room_category} trong {season}: giá CƠ SỞ {base_net_rate, number} ₫ NET (khung {min_net_rate, number}–{max_net_rate, number}). Nguồn: {source}.} other {Chưa có khung giá nào áp dụng cho {room_category} vào ngày này, nên hệ thống dùng mức dự phòng {base_net_rate, number} ₫ NET của hạng căn hộ làm giá cơ sở. Nguồn: {source}.}}"
     },
     "pace": {
       "well_behind": {

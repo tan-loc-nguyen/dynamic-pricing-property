@@ -36,7 +36,7 @@ from typing import Any
 
 from ..features.context import PricingContext
 from .base import Adjustment, PricingEngine, PricingResult
-from .rate_book import RATE_BOOK_SOURCE
+from .rate_book import NO_BAND_SOURCE
 from .registry import register_engine
 
 # Every message key this engine can emit. The locale files are checked
@@ -162,12 +162,13 @@ class RateBandPricingEngine(PricingEngine):
                     "currency": context.currency,
                     "source": context.rate_band_source,
                     "rate_basis": "NET",
-                    # Provenance, NOT "are there numbers". The feature engine
-                    # substitutes the room type's fallback rates when no band
-                    # covers a date, and those columns are NOT NULL -- so a
-                    # has-numbers test is always true and would describe a
-                    # guess in the shape of a validated band.
-                    "has_validated_band": context.rate_band_source == RATE_BOOK_SOURCE,
+                    # "Is there a band to name?" -- NOT "are there numbers"
+                    # (always yes: the feature engine substitutes the room
+                    # type's fallback rates, which are NOT NULL) and NOT "is it
+                    # validated" (no for an operator-edited band, which is still
+                    # a real band). Provenance travels separately as `source`,
+                    # which the sentence always names.
+                    "has_rate_band": context.rate_band_source != NO_BAND_SOURCE,
                 },
             )
         )

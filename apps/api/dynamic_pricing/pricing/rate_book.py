@@ -25,6 +25,12 @@ from dataclasses import dataclass
 from datetime import date
 
 RATE_BOOK_SOURCE = "CLIENT_VALIDATED"
+# The third value `source` can take. Not a band at all: it means no band covered
+# the date and the ROOM TYPE's fallback rates were substituted. The other two --
+# CLIENT_VALIDATED and OPERATOR_EDITED -- are both real bands and differ only in
+# provenance, which is why "is there a band?" and "is it validated?" are
+# different questions and must not share a predicate.
+NO_BAND_SOURCE = "FALLBACK"
 RATE_BASIS = "NET"
 
 # --- room categories -------------------------------------------------------

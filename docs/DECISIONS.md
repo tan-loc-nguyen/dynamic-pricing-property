@@ -489,6 +489,16 @@ existed, the placeholder was declared, the engine supplied it. `make lint` now
 parses every message with the real ICU compiler
 (`apps/web/scripts/check-messages.mjs`), and a test rejects `'{` outright.
 
+**Two deliberately unreachable messages.** `pace.no_band` and
+`recent_pickup.no_band` need an empty band list, which `validate_config`
+rejects, so nothing reaches them in production —
+`test_the_scenarios_below_reach_every_emittable_key` only reaches them via a
+config passed straight to the engine. They stay. The distinction that matters
+is whether unreachability changes *behaviour* or only changes *coverage*: an
+unreachable pricing band silently misprices, whereas an unreachable message
+whose absence would leave a case with no sentence at all is a fallback. Do not
+delete these citing the reachability test.
+
 **No middleware.** Locale detection would live in middleware, which does not
 exist under `output: "export"`. Since packaging this as a single-process local
 app is still open, locale is a `[locale]` route segment with

@@ -30,7 +30,7 @@ from ..models import (
     RoomType,
     StayDateInventory,
 )
-from ..pricing.rate_book import CATEGORY_LABELS, SeasonalRateBook
+from ..pricing.rate_book import CATEGORY_LABELS, NO_BAND_SOURCE, SeasonalRateBook
 from .booking_curve import get_booking_curve_provider
 from .context import PricingContext
 
@@ -292,7 +292,7 @@ class FeatureEngine:
             band_min_net_rate=band.min_net_rate if band else (room_type.fallback_min_net_rate if room_type else None),
             band_base_net_rate=band.base_net_rate if band else (room_type.fallback_base_net_rate if room_type else None),
             band_max_net_rate=band.max_net_rate if band else (room_type.fallback_max_net_rate if room_type else None),
-            rate_band_source=band.source if band else "FALLBACK",
+            rate_band_source=band.source if band else NO_BAND_SOURCE,
             current_net_rate=inventory.current_net_rate,
             current_ota_price=inventory.current_ota_price,
             units_total=inventory.units_total,

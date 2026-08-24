@@ -6,6 +6,12 @@
  * They cannot see a message that is well-formed JSON and malformed ICU, which
  * is how `'{event_name}'` shipped: the apostrophe is an ICU escape, so the
  * braces rendered literally while every other check passed.
+ *
+ * It does NOT supersede `test_no_message_escapes_its_own_placeholder`. An
+ * escaped placeholder is well-formed ICU and compiles cleanly here, so this
+ * check is blind to the very class that motivated it. The two are complements,
+ * not duplicates: this one catches malformed ICU, that one catches valid ICU
+ * that says the wrong thing. Keep both.
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
