@@ -33,9 +33,11 @@ data/*.db-wal
 # Build artefacts
 tsconfig.tsbuildinfo
 
-# Packaged desktop build (`make bundle`) — an 11MB binary per platform
+# Packaged desktop build (`make bundle`) and CI artefacts pulled with
+# `gh run download` — ~22MB per platform
 dist/
 build/
+release/
 
 # Client source documents — NEVER commit (repo is public)
 private/

@@ -245,7 +245,7 @@ make bundle          # exports the web app, then packages one binary
 ./dist/DynamicPricingProperty
 ```
 
-One ~11MB executable. It serves the API and the web app from a single process
+One ~22MB executable. It serves the API and the web app from a single process
 on the first free port, then opens the operator's browser on the Vietnamese
 dashboard. No Python, no Node, no terminal, no install.
 

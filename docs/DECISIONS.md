@@ -547,7 +547,7 @@ border and padding (88px) — not the table.
 ## D32 — One binary that serves its own frontend, not an Electron shell
 
 `make bundle` exports the Next app to static HTML, mounts it on the FastAPI app
-at `/`, and PyInstaller packages the result as a single ~11MB executable. The
+at `/`, and PyInstaller packages the result as a single ~22MB executable. The
 operator double-clicks it; their own browser opens on the Vietnamese dashboard.
 
 **Why not Electron.** The client already has a browser. Electron would add
@@ -582,6 +582,10 @@ exactly this and had already been paid for.
 - **The entry script cannot be a package module.** A frozen entry runs as
   `__main__` with no package context, so `runner.py`'s relative imports raised
   before anything else. `packaging/entrypoint.py` imports it by absolute name.
+  The give-away was the SIZE: that build came out at 11MB rather than 22MB,
+  because PyInstaller's static analysis could not resolve the relative import
+  and so never followed the graph into `main` — most of the app was simply not
+  in there. A frozen build that is suspiciously small is missing code.
 
 **The API banner moved from `/` to `/api`.** Starlette matches routes before
 mounts, so a route at `/` would have served JSON to every operator who opened
