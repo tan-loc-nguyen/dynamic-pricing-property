@@ -114,7 +114,7 @@ class DemoBookingCurveProvider(BookingCurveProvider):
             return anchors[0][1]
         if dta >= anchors[-1][0]:
             return anchors[-1][1]
-        for (x0, y0), (x1, y1) in zip(anchors, anchors[1:]):
+        for (x0, y0), (x1, y1) in zip(anchors, anchors[1:], strict=False):
             if x0 <= dta <= x1:
                 if x1 == x0:
                     return y0

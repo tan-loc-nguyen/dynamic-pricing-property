@@ -7,8 +7,7 @@ from datetime import date
 
 import pytest
 
-from conftest import STAY, make_context
-from dynamic_pricing.pricing import get_engine
+from conftest import make_context
 from dynamic_pricing.pricing.engine_v2 import _round_rate
 
 

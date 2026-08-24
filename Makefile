@@ -11,7 +11,7 @@ WEB   := $(ROOT)/apps/web
 PY    := $(API)/.venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web seed reseed test test-watch clean check env
+.PHONY: help setup dev api web seed reseed test test-watch lint clean check env
 
 help:
 	@echo ""
@@ -20,6 +20,7 @@ help:
 	@echo "  make setup     Install everything (Python venv, npm packages, demo DB)"
 	@echo "  make dev       Start API (:8000) and web (:3000) together"
 	@echo "  make test      Run the pricing + feature engine tests"
+	@echo "  make lint      Check for unreachable / dead code"
 	@echo ""
 	@echo "  make api       Backend only"
 	@echo "  make web       Frontend only"
@@ -49,6 +50,9 @@ reseed:
 
 test:
 	@cd $(API) && $(PY) -m pytest -q
+
+lint:
+	@cd $(API) && $(PY) -m ruff check dynamic_pricing tests
 
 test-watch:
 	@cd $(API) && $(PY) -m pytest -q --tb=short -x

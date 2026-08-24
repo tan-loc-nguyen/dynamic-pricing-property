@@ -1,0 +1,26 @@
+# Lint config for dynamic-pricing-property.
+#
+# Scope is deliberately narrow: rules that catch CODE THAT CANNOT DO WHAT IT
+# LOOKS LIKE IT DOES. A code review found several bugs of exactly that shape
+# (a dead config key, an unreachable band, a stale field name), so the linter
+# is tuned for reachability rather than style.
+line-length = 100
+target-version = "py310"
+
+[lint]
+select = [
+    "F",      # pyflakes: unused imports/locals, undefined names
+    "ARG",    # unused arguments
+    "B",      # bugbear: likely-wrong constructs
+    "RET505", # unreachable branches after return
+]
+ignore = ["B008"]  # FastAPI's Depends() in defaults is idiomatic
+
+[lint.per-file-ignores]
+# Abstract/interface implementations must keep the full signature even when a
+# concrete implementation ignores an argument. These are contract conformance,
+# not dead code.
+"dynamic_pricing/providers/**" = ["ARG002", "ARG001"]
+"dynamic_pricing/features/booking_curve.py" = ["ARG002"]
+"dynamic_pricing/main.py" = ["ARG001"]          # lifespan(app) is framework-required
+"tests/**" = ["ARG001", "F811"]                 # pytest fixtures shadow by design

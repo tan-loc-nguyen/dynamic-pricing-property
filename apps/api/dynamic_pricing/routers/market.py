@@ -239,7 +239,7 @@ def delete_observation(observation_id: int, session: Session = Depends(get_sessi
 
 # ------------------------------------------------------------------ providers
 @router.get("/providers")
-def providers(session: Session = Depends(get_session)):
+def providers():
     out = []
     for key in list_market_providers():
         provider = get_market_provider(key)

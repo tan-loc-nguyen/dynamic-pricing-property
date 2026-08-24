@@ -12,7 +12,6 @@ from datetime import date, timedelta
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from .config import get_settings
 from .db import SessionLocal, init_db
 from .models import (
     Booking,
@@ -100,7 +99,6 @@ def seed_events(session: Session, today: date) -> int:
 
 def bootstrap(force: bool = False, today: date | None = None, quiet: bool = False) -> dict:
     """Create the schema and populate demo data if needed."""
-    settings = get_settings()
     today = today or date.today()
     init_db()
 

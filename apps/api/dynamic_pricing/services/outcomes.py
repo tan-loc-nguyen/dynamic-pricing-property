@@ -19,7 +19,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import (
-    Booking,
     PricingRecommendation,
     RecommendationOutcome,
     StayDateInventory,

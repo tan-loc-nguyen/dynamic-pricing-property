@@ -173,7 +173,7 @@ class PricingEngineV1(PricingEngine):
                 "min_price_floor",
                 "Minimum price floor",
                 factor,
-                f"Calculated price fell below the configured floor; raised to the minimum.",
+                "Calculated price fell below the configured floor; raised to the minimum.",
             )
             bounds_applied = "min"
         elif max_price is not None and running > max_price:
@@ -182,7 +182,7 @@ class PricingEngineV1(PricingEngine):
                 "max_price_cap",
                 "Maximum price cap",
                 factor,
-                f"Calculated price exceeded the configured ceiling; reduced to the maximum.",
+                "Calculated price exceeded the configured ceiling; reduced to the maximum.",
             )
             bounds_applied = "max"
 
