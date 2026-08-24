@@ -489,3 +489,20 @@ def prepare_config(payload: dict[str, Any] | None) -> dict[str, Any]:
     if problems:
         raise ConfigurationInvalid(" ".join(problems))
     return merged
+
+
+def preview_config(payload: dict[str, Any] | None) -> tuple[dict[str, Any], list[str]]:
+    """Merge -> coerce, WITHOUT raising. The entry point for an unsaved config.
+
+    Preview exists for a config the operator is still editing, so it must not
+    refuse an incomplete one the way ``prepare_config`` does. But it must go
+    through the same coercion, or it prices something different from what the
+    save will: clearing a band's percentage is repaired on save and used to
+    500 the preview, so the panel silently blanked while Save succeeded.
+
+    Returns the problems instead of raising, so the operator can be told which
+    field needs attention rather than watching the panel disappear.
+    """
+    merged = merge_config(payload)
+    merged, problems = coerce_config(merged)
+    return merged, problems + validate_config(merged)

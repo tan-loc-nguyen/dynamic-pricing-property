@@ -30,13 +30,24 @@ class UnknownRegistryKey(LookupError):
     rather than discarding the one piece of information the user needs.
     """
 
-    def __init__(self, kind: str, key: str, registered: list[str]) -> None:
+    def __init__(
+        self, kind: str, key: str, registered: list[str], *, was_default: bool = False
+    ) -> None:
         self.kind = kind
         self.key = key
         self.registered = registered
-        super().__init__(
-            f"Unknown {kind} '{key}'. Valid options: {', '.join(registered) or 'none registered'}."
-        )
+        self.was_default = was_default
+        options = ", ".join(registered) or "none registered"
+        if was_default:
+            # The caller supplied nothing, so blaming their input would send the
+            # first person to hit this looking at the request instead of the code.
+            message = (
+                f"The default {kind} '{key}' is not registered — this is a bug in the "
+                f"application, not in the request. Valid options: {options}."
+            )
+        else:
+            message = f"Unknown {kind} '{key}'. Valid options: {options}."
+        super().__init__(message)
 
 
 def resolve(
@@ -47,9 +58,10 @@ def resolve(
     default: str,
 ) -> T:
     """Look up ``key``, falling back to ``default`` only when nothing was asked for."""
-    requested = (key or "").strip().lower()
-    if not requested:
-        requested = default
+    supplied = (key or "").strip().lower()
+    requested = supplied or default
     if requested not in registry:
-        raise UnknownRegistryKey(kind, requested, sorted(registry))
+        raise UnknownRegistryKey(
+            kind, requested, sorted(registry), was_default=not supplied
+        )
     return registry[requested]

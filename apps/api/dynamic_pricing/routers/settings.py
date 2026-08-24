@@ -87,16 +87,22 @@ def versions(session: Session = Depends(get_session)):
 
 @router.post("/preview", response_model=PreviewOut | None)
 def preview(body: PreviewIn, session: Session = Depends(get_session)):
-    """Price one stay date against an UNSAVED configuration."""
-    from ..pricing.defaults import merge_config
+    """Price one stay date against an UNSAVED configuration.
 
-    config = merge_config(body.payload)
+    Uses preview_config, NOT merge_config: the preview must pass through the
+    same coercion the save does, or it prices a different configuration from
+    the one being previewed.
+    """
+    from ..pricing.defaults import preview_config
+
+    config, problems = preview_config(body.payload)
     context, result = preview_rate(
         session, config=config, room_type_id=body.room_type_id, stay_date=body.stay_date
     )
     if context is None or result is None:
         return None
     return PreviewOut(
+        problems=problems,
         room_type_id=context.room_type_id,
         room_type_name=context.room_type_name,
         room_category_label=context.room_category_label,

@@ -222,6 +222,7 @@ export interface PricingConfig {
 }
 
 export interface Preview {
+  problems: string[];
   room_type_id: number;
   room_type_name: string;
   room_category_label: string;

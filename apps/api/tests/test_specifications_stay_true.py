@@ -262,3 +262,38 @@ def test_enum_leaves_only_claims_values_the_defaults_satisfy():
             if value is not None and value not in allowed:
                 violations.append(f"{path} = {value!r} not in {allowed}")
     assert not violations, f"the shipped defaults violate their own enum spec: {violations}"
+
+
+def test_no_config_reaches_an_engine_without_passing_the_boundary():
+    """Every caller-supplied config must go through coercion — not merely have
+    its casts live in a declared layer.
+
+    test_every_cast_site_lives_behind_the_boundary checks where casts LIVE. It
+    could not catch the preview endpoint, which called merge_config directly and
+    handed an uncoerced config to the engine from OUTSIDE the per-row loop: the
+    cast's location was legitimate, the path reaching it was not.
+
+    There are exactly two entry points, and they must be the sanctioned ones.
+    This is the fourth time a second path has quietly skipped a guard
+    (PricingRunFailed handled at 1 of 3 call sites, the rollback, reset(), and
+    now this), so it is encoded rather than watched for.
+    """
+    sanctioned = {"pricing/defaults.py"}  # prepare_config + preview_config live here
+    offenders: list[str] = []
+    for path in PACKAGE.rglob("*.py"):
+        rel = str(path.relative_to(PACKAGE))
+        if rel in sanctioned:
+            continue
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "merge_config"
+            ):
+                offenders.append(f"{rel}:{node.lineno}")
+    assert not offenders, (
+        "merge_config called outside the coercion boundary — this hands an "
+        "uncoerced, caller-supplied config to the engine. Use prepare_config "
+        f"(save) or preview_config (unsaved): {offenders}"
+    )

@@ -233,6 +233,9 @@ class PreviewIn(BaseModel):
 
 
 class PreviewOut(BaseModel):
+    # Field-level problems with the UNSAVED config. Reported rather than raised,
+    # so a half-finished edit shows guidance instead of a blank panel.
+    problems: list[str] = []
     room_type_id: int
     room_type_name: str
     room_category_label: str

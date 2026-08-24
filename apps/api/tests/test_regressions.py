@@ -493,3 +493,53 @@ def test_an_unknown_market_provider_cannot_fabricate_observations():
 
     with pytest.raises(UnknownRegistryKey):
         get_market_provider("public-web")
+
+
+# --- round 6: preview and save must agree --------------------------------
+def test_preview_accepts_every_config_the_save_path_accepts():
+    """The preview 500'd on a payload the save repaired and accepted.
+
+    Clearing a band's percentage is exactly what the Settings editor emits, so
+    the live preview blanked with no explanation while Save went on succeeding —
+    two code paths disagreeing about one config, invisibly.
+    """
+    from dynamic_pricing.pricing.defaults import default_config, prepare_config, preview_config
+
+    payload = default_config()
+    for band in payload["pace"]["bands"]:
+        band["adjustment_pct"] = None
+
+    saved = prepare_config(payload)          # must not raise
+    previewed, problems = preview_config(payload)
+
+    assert problems == [], "a payload the save repairs must not be a preview problem"
+    assert [b["adjustment_pct"] for b in previewed["pace"]["bands"]] == [
+        b["adjustment_pct"] for b in saved["pace"]["bands"]
+    ], "preview must price the same config the save would store"
+
+
+def test_preview_reports_problems_instead_of_raising():
+    """Preview is for an unsaved, possibly-incomplete config, so it must report
+    rather than refuse — but it must still coerce."""
+    from dynamic_pricing.pricing.defaults import preview_config
+
+    config, problems = preview_config({"market": {"sensitivity": "abc"}})
+    assert problems, "a bad value must be reported"
+    assert "market.sensitivity" in problems[0], "and must name the field"
+    assert config is not None, "preview must still return a usable config"
+
+
+def test_an_unregistered_default_blames_the_code_not_the_request():
+    """The message misdirected in the one case it exists to catch: the caller
+    supplied nothing, and was told their key was unknown."""
+    from dynamic_pricing.lookup import UnknownRegistryKey, resolve
+
+    with pytest.raises(UnknownRegistryKey) as caught:
+        resolve({"mock": object}, None, kind="market provider", default="missing")
+    assert caught.value.was_default is True
+    assert "bug in the application" in str(caught.value)
+
+    with pytest.raises(UnknownRegistryKey) as user_error:
+        resolve({"mock": object}, "typo", kind="market provider", default="mock")
+    assert user_error.value.was_default is False
+    assert "bug in the application" not in str(user_error.value)

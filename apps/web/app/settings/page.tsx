@@ -140,6 +140,7 @@ export default function DynamicRulesPage() {
   const [config, setConfig] = useState<PricingConfig | null>(null);
   const [draft, setDraft] = useState<any>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [baseline, setBaseline] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -167,7 +168,18 @@ export default function DynamicRulesPage() {
     if (!draft) return;
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
-      api.preview(draft).then(setPreview).catch(() => setPreview(null));
+      api
+        .preview(draft)
+        .then((result) => {
+          setPreview(result);
+          setPreviewError(null);
+        })
+        .catch((e: any) => {
+          // Swallowing this blanked the panel with no explanation while Save
+          // went on succeeding — preview and save disagreeing, invisibly.
+          setPreview(null);
+          setPreviewError(e?.message || "Could not price a preview for this configuration.");
+        });
     }, 350);
     return () => {
       if (debounce.current) clearTimeout(debounce.current);
@@ -418,6 +430,27 @@ export default function DynamicRulesPage() {
               A sample stay date priced with your unsaved changes.
             </p>
 
+            {preview && preview.problems.length > 0 && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                <div className="text-[11.5px] font-semibold text-amber-900">
+                  This configuration cannot be saved yet
+                </div>
+                <ul className="mt-1 space-y-0.5">
+                  {preview.problems.map((problem) => (
+                    <li key={problem} className="text-[11px] text-amber-800 leading-snug">
+                      • {problem}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {previewError && (
+              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11.5px] text-rose-700">
+                {previewError}
+              </div>
+            )}
+
             {preview ? (
               <>
                 <div className="mt-3 text-[12px] text-ink-600">
@@ -490,7 +523,9 @@ export default function DynamicRulesPage() {
                 </div>
               </>
             ) : (
-              <div className="mt-3 text-[12px] text-ink-400">No sample stay date available.</div>
+              !previewError && (
+                <div className="mt-3 text-[12px] text-ink-400">No sample stay date available.</div>
+              )
             )}
           </Card>
 
