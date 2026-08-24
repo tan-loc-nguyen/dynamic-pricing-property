@@ -518,15 +518,55 @@ def test_preview_accepts_every_config_the_save_path_accepts():
     ], "preview must price the same config the save would store"
 
 
-def test_preview_reports_problems_instead_of_raising():
-    """Preview is for an unsaved, possibly-incomplete config, so it must report
-    rather than refuse — but it must still coerce."""
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"market": {"sensitivity": "abc"}},
+        {"rounding": {"increment": "abc"}},
+        {"rounding": {"mode": "nearset"}},
+        {"recent_pickup": {"lookback_days": 7.5}},
+        {"market": {"min_confidence": "BANANA"}},
+        {"pace": {"bands": [{"label": "only", "max_gap": None, "adjustment_pct": None}]}},
+        {"booking_curve": {"anchors": [{"day": 0}]}},
+    ],
+)
+def test_preview_never_raises_and_always_returns_a_priceable_config(payload):
+    """Preview must report AND repair.
+
+    The first version of this fix only reported: the bad value stayed in place,
+    the engine received it, and the endpoint still 500'd — the blank panel all
+    over again. Reporting without repairing is not enough for a caller that
+    must not crash. Caught by end-to-end verification, not by the test, which
+    is why this one is parametrised over every bad-input shape.
+    """
+    from conftest import make_context
+    from dynamic_pricing.pricing import get_engine
     from dynamic_pricing.pricing.defaults import preview_config
 
-    config, problems = preview_config({"market": {"sensitivity": "abc"}})
+    config, problems = preview_config(payload)
     assert problems, "a bad value must be reported"
-    assert "market.sensitivity" in problems[0], "and must name the field"
-    assert config is not None, "preview must still return a usable config"
+
+    # ...and the returned config must actually be priceable.
+    result = get_engine().calculate(make_context(), config)
+    assert result.recommended_net_rate > 0
+
+
+def test_preview_repairs_but_the_save_path_still_refuses():
+    """Repair is a preview affordance only. A config the operator cannot save
+    must not become saveable by having been previewed."""
+    from dynamic_pricing.pricing.defaults import (
+        ConfigurationInvalid,
+        prepare_config,
+        preview_config,
+    )
+
+    payload = {"market": {"sensitivity": "abc"}}
+    config, problems = preview_config(payload)
+    assert config["market"]["sensitivity"] == 0.50, "preview falls back to the default"
+    assert problems
+
+    with pytest.raises(ConfigurationInvalid):
+        prepare_config(payload)
 
 
 def test_an_unregistered_default_blames_the_code_not_the_request():

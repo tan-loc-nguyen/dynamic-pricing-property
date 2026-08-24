@@ -338,13 +338,20 @@ def _required_key_problems(config: dict[str, Any]) -> list[str]:
     return problems
 
 
-def coerce_config(config: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+def coerce_config(
+    config: dict[str, Any], *, repair: bool = False
+) -> tuple[dict[str, Any], list[str]]:
     """Coerce every numeric leaf, reporting the field path on failure.
 
     A cleared field (None) falls back to the shipped default. This is what makes
     the Settings UI's "clear a field to reset it" behaviour true for band members
     too -- `_deep_merge` cannot do it there, because bands are a LIST and it only
     recurses into dicts.
+
+    ``repair=True`` additionally substitutes the default for a value that CANNOT
+    be coerced, so a caller that must not crash (the live preview) still gets a
+    usable config. The problem is still reported either way -- repairing without
+    reporting would be the silent substitution this codebase keeps removing.
     """
     # Structural problems are reported ALONGSIDE type problems, not instead of
     # them: prepare_config promises the operator every bad field path in one
@@ -368,6 +375,10 @@ def coerce_config(config: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                 coerced = float(value)
             except (TypeError, ValueError):
                 problems.append(f"{path} must be a number, got {value!r}.")
+                if repair:
+                    fallback = _default_at(path, config)
+                    if fallback is not None:
+                        container[key] = fallback
                 continue
             if kind is int:
                 # Reject rather than truncate, and say why. Previously 7.5
@@ -375,6 +386,10 @@ def coerce_config(config: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                 # which is both wrong (7.5 IS a number) and asymmetric.
                 if coerced != int(coerced):
                     problems.append(f"{path} must be a whole number, got {value!r}.")
+                    if repair:
+                        fallback = _default_at(path, config)
+                        if fallback is not None:
+                            container[key] = fallback
                     continue
                 container[key] = int(coerced)
             else:
@@ -392,6 +407,10 @@ def coerce_config(config: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                 problems.append(
                     f"{resolved} must be one of {', '.join(allowed)}; got {value!r}."
                 )
+                if repair:
+                    fallback = _default_at(resolved, config)
+                    if fallback is not None:
+                        container[key] = fallback
     return config, problems
 
 
@@ -504,5 +523,34 @@ def preview_config(payload: dict[str, Any] | None) -> tuple[dict[str, Any], list
     field needs attention rather than watching the panel disappear.
     """
     merged = merge_config(payload)
-    merged, problems = coerce_config(merged)
-    return merged, problems + validate_config(merged)
+    # repair=True: an uncoercible LEAF falls back to its default so the preview
+    # can still render. Reporting alone was not enough -- the bad value stayed in
+    # place and the engine 500'd on it, which is the blank panel all over again.
+    merged, problems = coerce_config(merged, repair=True)
+    try:
+        problems += validate_config(merged)
+    except Exception as exc:  # noqa: BLE001 - preview must never raise
+        problems.append(f"Configuration could not be fully checked: {exc}")
+
+    if problems:
+        # Some faults cannot be repaired leaf-by-leaf: an operator-authored band
+        # has no shipped default to fall back to, and a malformed anchors list
+        # has no usable member. Restore the whole affected SECTION so the panel
+        # still renders -- the problems above already say what was wrong, and a
+        # preview that vanishes teaches the operator nothing.
+        shipped = default_config()
+        for section in {p.split(".")[0].split("[")[0] for p in _problem_paths(problems)}:
+            if section in shipped:
+                merged[section] = shipped[section]
+
+    return merged, problems
+
+
+def _problem_paths(problems: list[str]) -> list[str]:
+    """The leading dotted path from each problem message, where there is one."""
+    paths = []
+    for problem in problems:
+        head = problem.split(" ", 1)[0]
+        if "." in head or "[" in head:
+            paths.append(head)
+    return paths
