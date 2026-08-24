@@ -38,6 +38,38 @@ from ..features.context import PricingContext
 from .base import Adjustment, PricingEngine, PricingResult
 from .registry import register_engine
 
+# Every message key this engine can emit. The locale files are checked
+# against this, so a missing translation fails a test rather than a demo.
+EMITTABLE_MESSAGE_KEYS: tuple[str, ...] = (
+    "adjustments.rate_band",
+    "adjustments.pace.well_behind",
+    "adjustments.pace.behind",
+    "adjustments.pace.on_pace",
+    "adjustments.pace.ahead",
+    "adjustments.pace.well_ahead",
+    "adjustments.pace.unavailable",
+    "adjustments.pace.occupancy_unavailable",
+    "adjustments.pace.no_band",
+    "adjustments.recent_pickup.stalled",
+    "adjustments.recent_pickup.slowing",
+    "adjustments.recent_pickup.as_expected",
+    "adjustments.recent_pickup.accelerating",
+    "adjustments.recent_pickup.surging",
+    "adjustments.recent_pickup.unavailable",
+    "adjustments.recent_pickup.no_band",
+    "adjustments.event.level",
+    "adjustments.event.override",
+    "adjustments.market.applied",
+    "adjustments.market.ignored_low_confidence",
+    "adjustments.market.unavailable",
+    "adjustments.market.insufficient",
+    "adjustments.day_of_week",
+    "adjustments.dynamic_bound",
+    "adjustments.band_min_clamp",
+    "adjustments.band_max_clamp",
+    "adjustments.rounding",
+)
+
 
 def _band_for(
     value: float, bands: list[dict[str, Any]], key: str, inclusive: bool = False
@@ -96,26 +128,31 @@ class RateBandPricingEngine(PricingEngine):
         adjustments.append(
             Adjustment(
                 code="rate_band",
-                label=f"Seasonal base rate — {context.season_label or 'unknown season'}",
+                label=context.season_label or "",
+                label_key="adjustments.rate_band",
                 price_before=base_net,
                 price_after=base_net,
                 delta=0.0,
                 adjustment_pct=0.0,
                 factor=1.0,
-                reason=(
-                    f"{context.room_category_label} in {context.season_label}: "
-                    f"BASE {base_net:,.0f} {context.currency} NET "
-                    f"(band {band_min:,.0f}–{band_max:,.0f}). "
-                    f"Source: {context.rate_band_source}."
-                    + (f" {context.season_note}" if context.season_note else "")
-                )
-                if band_min is not None and band_max is not None
-                else f"Base {base_net:,.0f} {context.currency} NET.",
+                params={
+                    "season_key": context.season_key,
+                    "room_category": context.room_category,
+                    "stay_date": context.stay_date.isoformat(),
+                    "base_net_rate": base_net,
+                    "min_net_rate": band_min,
+                    "max_net_rate": band_max,
+                    "currency": context.currency,
+                    "source": context.rate_band_source,
+                    "rate_basis": "NET",
+                    "has_band": band_min is not None and band_max is not None,
+                },
             )
         )
 
         # ---- the dynamic layer -------------------------------------------
-        contributions: list[tuple[str, str, float, str, bool, bool]] = []
+        # (code, label, label_key, pct, params, is_neutral, is_ignored)
+        contributions: list[tuple[str, str, str | None, float, dict, bool, bool]] = []
         for producer in (
             self._pace,
             self._recent_pickup,
@@ -127,7 +164,7 @@ class RateBandPricingEngine(PricingEngine):
             if result is not None:
                 contributions.append(result)
 
-        raw_total = sum(c[2] for c in contributions if not c[5])  # exclude ignored
+        raw_total = sum(c[3] for c in contributions if not c[6])  # exclude ignored
 
         dyn = cfg.get("dynamic", {})
         lo = float(dyn.get("min_total_adjustment_pct", -15.0))
@@ -140,7 +177,7 @@ class RateBandPricingEngine(PricingEngine):
         scale = (bounded_total / raw_total) if (bound_hit and raw_total) else 1.0
 
         running = base_net
-        for code, label, pct, reason, neutral, ignored in contributions:
+        for code, label, label_key, pct, params, neutral, ignored in contributions:
             applied_pct = 0.0 if ignored else pct * scale
             before = running
             after = before + base_net * (applied_pct / 100.0)
@@ -153,7 +190,8 @@ class RateBandPricingEngine(PricingEngine):
                     delta=round(after - before, 2) if not ignored else 0.0,
                     adjustment_pct=round(applied_pct, 4),
                     factor=round(after / before, 9) if before and not ignored else 1.0,
-                    reason=reason,
+                    label_key=label_key,
+                    params=params,
                     is_neutral=neutral,
                     is_ignored=ignored,
                 )
@@ -166,16 +204,18 @@ class RateBandPricingEngine(PricingEngine):
                 Adjustment(
                     code="dynamic_bound",
                     label="Total adjustment bound",
+                    label_key="adjustments.dynamic_bound",
                     price_before=round(running, 2),
                     price_after=round(running, 2),
                     delta=0.0,
                     adjustment_pct=0.0,
                     factor=1.0,
-                    reason=(
-                        f"Signals totalled {raw_total:+.1f}%, beyond the configured limit of "
-                        f"{lo:+.0f}%…{hi:+.0f}%. Scaled back to {bounded_total:+.1f}% so no single "
-                        f"run can move the rate too far."
-                    ),
+                    params={
+                        "raw_pct": round(raw_total, 4),
+                        "bounded_pct": round(bounded_total, 4),
+                        "min_pct": lo,
+                        "max_pct": hi,
+                    },
                 )
             )
 
@@ -196,10 +236,12 @@ class RateBandPricingEngine(PricingEngine):
                     delta=round(running - before, 2),
                     adjustment_pct=0.0,
                     factor=round(running / before, 9) if before else 1.0,
-                    reason=(
-                        f"Dynamic layer would have priced below the validated seasonal floor of "
-                        f"{band_min:,.0f} {context.currency} NET. Raised to the floor."
-                    ),
+                    label_key="adjustments.band_min_clamp",
+                    params={
+                        "bound_net_rate": float(band_min),
+                        "unclamped_net_rate": round(before, 2),
+                        "currency": context.currency,
+                    },
                 )
             )
         elif band_max is not None and running > band_max:
@@ -215,10 +257,12 @@ class RateBandPricingEngine(PricingEngine):
                     delta=round(running - before, 2),
                     adjustment_pct=0.0,
                     factor=round(running / before, 9) if before else 1.0,
-                    reason=(
-                        f"Dynamic layer would have priced above the validated seasonal ceiling of "
-                        f"{band_max:,.0f} {context.currency} NET. Reduced to the ceiling."
-                    ),
+                    label_key="adjustments.band_max_clamp",
+                    params={
+                        "bound_net_rate": float(band_max),
+                        "unclamped_net_rate": round(before, 2),
+                        "currency": context.currency,
+                    },
                 )
             )
 
@@ -245,9 +289,8 @@ class RateBandPricingEngine(PricingEngine):
                     delta=round(rounded - before, 2),
                     adjustment_pct=0.0,
                     factor=round(rounded / before, 9) if before else 1.0,
-                    reason=f"Rounded to the nearest {int(increment):,} {context.currency}."
-                    if increment
-                    else "Rounded.",
+                    label_key="adjustments.rounding",
+                    params={"increment": increment, "currency": context.currency},
                 )
             )
             running = rounded
@@ -272,7 +315,19 @@ class RateBandPricingEngine(PricingEngine):
             "clamp_applied": clamp_applied,
             "rounding_increment": increment,
             "missing_signals": list(context.missing),
-            "ignored_signals": [c[0] for c in contributions if c[5]],
+            "ignored_signals": [c[0] for c in contributions if c[6]],
+            # The band this run selected, carried on the recommendation itself so
+            # the list view can label a row without loading its adjustments -- and
+            # without re-deriving the band from thresholds in the frontend (D28).
+            "pace_label_key": next((c[2] for c in contributions if c[0] == "pace"), None),
+            "pickup_label_key": next(
+                (c[2] for c in contributions if c[0] == "recent_pickup"), None
+            ),
+            # ...and the wording itself, for a band the operator named: there is
+            # no message key for it, and the row must still show what the drawer
+            # shows rather than falling back to "no data".
+            "pace_label": next((c[1] for c in contributions if c[0] == "pace"), None),
+            "pickup_label": next((c[1] for c in contributions if c[0] == "recent_pickup"), None),
             "booking_curve": context.booking_curve_source,
             "booking_curve_validated": context.booking_curve_validated,
             "dynamic_assumptions_status": "UNVALIDATED",
@@ -286,46 +341,60 @@ class RateBandPricingEngine(PricingEngine):
             net_rate_before_clamp=round(net_rate_before_clamp, 2),
             total_adjustment_pct=applied_total_pct,
             adjustments=adjustments,
-            explanation=self._explain(
-                context,
-                adjustments,
-                recommended,
-                signals_pct=bounded_total,
-                realised_pct=applied_total_pct,
-            ),
             engine_version=self.version,
             metadata=metadata,
         )
 
     # ------------------------------------------------------------- signals
-    # Each returns (code, label, adjustment_pct, reason, is_neutral, is_ignored)
+    # Each returns (code, label, label_key, adjustment_pct, params,
+    # is_neutral, is_ignored).
+    #
+    # No producer composes a sentence. They emit the key that names the
+    # sentence and the figures it interpolates, so the same calculation reads
+    # correctly in English and Vietnamese.
+
+    @staticmethod
+    def _band_identity(band: dict, section: str, fallback_label: str) -> tuple[str, str | None]:
+        """(label, message key) for a band.
+
+        A SHIPPED band carries a stable ``key`` that the locale files translate.
+        A band the operator invented or a label they retyped has no key, so its
+        own wording is returned verbatim -- mistranslating it into a
+        neighbouring band's copy would put words in the operator's mouth.
+        """
+        label = str(band.get("label") or fallback_label)
+        key = band.get("key")
+        return label, f"adjustments.{section}.{key}" if key else None
 
     def _pace(self, ctx: PricingContext, cfg: dict):
         node = cfg.get("pace", {})
         if not node.get("enabled", True):
             return None
         if ctx.pace_gap is None:
-            reason = (
-                "Booking pace unavailable; no pace adjustment applied."
+            key = (
+                "adjustments.pace.unavailable"
                 if ctx.expected_occupancy is None
-                else "Occupancy unavailable; no pace adjustment applied."
+                else "adjustments.pace.occupancy_unavailable"
             )
-            return ("pace", "Pace position", 0.0, reason, True, False)
+            return ("pace", "Pace position", key, 0.0, {}, True, False)
 
         band = _band_for(ctx.pace_gap, node.get("bands", []), "max_gap")
         if band is None:
-            return ("pace", "Pace position", 0.0, "No pace band configured.", True, False)
+            return ("pace", "Pace position", "adjustments.pace.no_band", 0.0, {}, True, False)
         pct = float(band.get("adjustment_pct", 0.0))
-        direction = "ahead of" if ctx.pace_gap > 0 else "behind"
+        label, key = self._band_identity(band, "pace", "Pace position")
         return (
             "pace",
-            f"{band.get('label', 'Pace position')}",
+            label,
+            key,
             pct,
-            (
-                f"{ctx.occupancy:.0%} sold with {ctx.days_to_arrival} day(s) to arrival. "
-                f"The booking curve expects {ctx.expected_occupancy:.0%} by now, so this date is "
-                f"{abs(ctx.pace_gap) * 100:.0f} points {direction} pace."
-            ),
+            {
+                "occupancy": ctx.occupancy,
+                "expected_occupancy": ctx.expected_occupancy,
+                "days_to_arrival": ctx.days_to_arrival,
+                "gap_pp": round(abs(ctx.pace_gap) * 100, 1),
+                "direction": "ahead" if ctx.pace_gap > 0 else "behind",
+            },
             abs(pct) < 1e-9,
             False,
         )
@@ -338,24 +407,36 @@ class RateBandPricingEngine(PricingEngine):
             return (
                 "recent_pickup",
                 "Recent pickup",
+                "adjustments.recent_pickup.unavailable",
                 0.0,
-                "No booking history for this room type; no pickup adjustment applied.",
+                {},
                 True,
                 False,
             )
         band = _band_for(ctx.pickup_delta, node.get("bands", []), "max_delta", inclusive=True)
         if band is None:
-            return ("recent_pickup", "Recent pickup", 0.0, "No pickup band configured.", True, False)
+            return (
+                "recent_pickup",
+                "Recent pickup",
+                "adjustments.recent_pickup.no_band",
+                0.0,
+                {},
+                True,
+                False,
+            )
         pct = float(band.get("adjustment_pct", 0.0))
+        label, key = self._band_identity(band, "recent_pickup", "Recent pickup")
         return (
             "recent_pickup",
-            band.get("label", "Recent pickup"),
+            label,
+            key,
             pct,
-            (
-                f"{ctx.recent_pickup:.0f} booking(s) in the last "
-                f"{int(node.get('lookback_days', 7))} days versus {ctx.expected_pickup:.1f} expected "
-                f"({ctx.pickup_delta:+.1f})."
-            ),
+            {
+                "recent_pickup": ctx.recent_pickup,
+                "expected_pickup": ctx.expected_pickup,
+                "delta": ctx.pickup_delta,
+                "lookback_days": int(node.get("lookback_days", 7)),
+            },
             abs(pct) < 1e-9,
             False,
         )
@@ -366,16 +447,18 @@ class RateBandPricingEngine(PricingEngine):
             return None
         if ctx.event_adjustment_pct is not None:
             pct = float(ctx.event_adjustment_pct)
-            basis = "event-specific override"
+            key = "adjustments.event.override"
+            level = None
         else:
             level = (ctx.event_impact_level or "medium").lower()
             pct = float(node.get("impact_adjustment_pct", {}).get(level, 0.0))
-            basis = f"{level} impact level"
+            key = "adjustments.event.level"
         return (
             "event",
-            f"Event: {ctx.event_name}",
+            ctx.event_name or "",
+            key,
             pct,
-            f"'{ctx.event_name}' falls on this stay date ({basis}).",
+            {"event_name": ctx.event_name, "impact_level": level},
             abs(pct) < 1e-9,
             False,
         )
@@ -392,44 +475,43 @@ class RateBandPricingEngine(PricingEngine):
         if ctx.market_qualified_count == 0 and ctx.market_ignored_count > 0:
             return (
                 "market",
-                "Market signal (ignored — low confidence)",
+                "Market signal",
+                "adjustments.market.ignored_low_confidence",
                 0.0,
-                (
-                    f"{ctx.market_ignored_count} observation(s) found but none met the {gate} "
-                    f"confidence bar, so the market did not move this rate. Generic web prices "
-                    f"lack stay-date, length-of-stay and tax/fee basis, and are not comparable to "
-                    f"a NET rate."
-                ),
+                {"ignored_count": ctx.market_ignored_count, "gate": gate},
                 False,
                 True,
             )
 
         if ctx.market_price_index is None or ctx.market_qualified_count < min_obs:
-            reason = "Market signal unavailable; no market adjustment applied."
+            key = "adjustments.market.unavailable"
+            params: dict = {}
             if 0 < ctx.market_qualified_count < min_obs:
-                reason = (
-                    f"Only {ctx.market_qualified_count} qualified observation(s) "
-                    f"(minimum {min_obs}); no market adjustment applied."
-                )
-            return ("market", "Market signal", 0.0, reason, True, False)
+                key = "adjustments.market.insufficient"
+                params = {"qualified_count": ctx.market_qualified_count, "min_observations": min_obs}
+            return ("market", "Market signal", key, 0.0, params, True, False)
 
         sensitivity = float(node.get("sensitivity", 0.5))
         cap = float(node.get("max_adjustment_pct", 5.0))
         raw = sensitivity * (ctx.market_price_index - 1.0) * 100.0
         pct = min(max(raw, -cap), cap)
 
-        direction = "above" if ctx.market_price_index > 1 else "below"
-        capped = f" (capped from {raw:+.1f}%)" if abs(pct - raw) > 1e-9 else ""
         return (
             "market",
             "Market signal",
+            "adjustments.market.applied",
             pct,
-            (
-                f"Comparable rate {ctx.market_reference_net_rate:,.0f} {ctx.currency} is "
-                f"{abs(ctx.market_price_index - 1) * 100:.0f}% {direction} the comp-set baseline "
-                f"({ctx.market_qualified_count} × {ctx.market_confidence}-confidence "
-                f"observation(s), sensitivity {sensitivity:.2f}){capped}."
-            ),
+            {
+                "reference_net_rate": ctx.market_reference_net_rate,
+                "currency": ctx.currency,
+                "delta_pct": round(abs(ctx.market_price_index - 1) * 100, 1),
+                "direction": "above" if ctx.market_price_index > 1 else "below",
+                "qualified_count": ctx.market_qualified_count,
+                "confidence": ctx.market_confidence,
+                "sensitivity": sensitivity,
+                "was_capped": abs(pct - raw) > 1e-9,
+                "raw_pct": round(raw, 4),
+            },
             abs(pct) < 1e-9,
             False,
         )
@@ -445,101 +527,13 @@ class RateBandPricingEngine(PricingEngine):
             return None
         return (
             "day_of_week",
-            ctx.day_of_week.capitalize(),
+            ctx.day_of_week,
+            "adjustments.day_of_week",
             pct,
-            f"{ctx.day_of_week.capitalize()} carries a {pct:+.1f}% structural adjustment.",
+            {"day": ctx.day_of_week, "pct": pct},
             False,
             False,
         )
-
-    # --------------------------------------------------------- explanation
-    def _explain(
-        self,
-        ctx: PricingContext,
-        adjustments: list[Adjustment],
-        recommended: float,
-        *,
-        signals_pct: float,
-        realised_pct: float,
-    ) -> str:
-        """Build the operator-facing summary.
-
-        Takes BOTH percentages deliberately. ``signals_pct`` is what the dynamic
-        layer asked for; ``realised_pct`` is what the recommended rate actually
-        represents once the band clamp and rounding have been applied. They are
-        different quantities and the closing sentence used to call both
-        "dynamic" -- quoting the figure the engine WANTED beside the price it
-        actually PRODUCED, which on a clamped row contradicted itself ("raised
-        to the floor ... (-11.2% dynamic on base)" for a rate that is -8.7% of
-        base) and disagreed with the table row beside it.
-        """
-        parts: list[str] = []
-        opening = (
-            f"{ctx.room_category_label} on {ctx.stay_date:%a %d %b} sits in "
-            f"{ctx.season_label or 'an unknown season'}, where the validated BASE NET rate is "
-            f"{ctx.band_base_net_rate:,.0f} {ctx.currency}."
-            if ctx.band_base_net_rate
-            else f"Base NET rate {ctx.current_net_rate:,.0f} {ctx.currency}."
-        )
-        parts.append(opening)
-
-        # Clamps are NOT dynamic signals -- they are limits applied to the
-        # signals' result, and they get their own sentence below. Listing them
-        # here printed "Seasonal MIN floor (+0.0%, +58,175)" among the signals,
-        # attributing a 0% adjustment to a line that moved the rate by 58,175.
-        applied = [
-            a
-            for a in adjustments
-            if a.code
-            not in (
-                "rate_band",
-                "rounding",
-                "dynamic_bound",
-                "band_min_clamp",
-                "band_max_clamp",
-            )
-            and not a.is_neutral
-            and not a.is_ignored
-        ]
-        if applied:
-            moves = [
-                f"{a.label} ({a.adjustment_pct:+.1f}%, {a.delta:+,.0f})" for a in applied
-            ]
-            parts.append("Dynamic signals: " + "; ".join(moves) + ".")
-        else:
-            parts.append("No dynamic signal moved this date away from its seasonal base rate.")
-
-        clamped = [a for a in adjustments if a.code in ("band_min_clamp", "band_max_clamp")]
-        if clamped:
-            parts.append(clamped[0].reason)
-
-        ignored = [a for a in adjustments if a.is_ignored]
-        if ignored:
-            parts.append(ignored[0].reason)
-
-        blind = [
-            a.reason
-            for a in adjustments
-            if a.is_neutral and a.code in ctx.missing and a.reason
-        ]
-        if blind:
-            parts.append(" ".join(blind))
-
-        # Only name both figures when they actually differ; on an unclamped,
-        # cleanly-rounded row they are the same number and saying it twice
-        # would be noise.
-        if abs(signals_pct - realised_pct) > 0.05:
-            parts.append(
-                f"Signals totalled {signals_pct:+.1f}%; realised {realised_pct:+.1f}% "
-                f"after limits and rounding. Recommended NET rate "
-                f"{recommended:,.0f} {ctx.currency}."
-            )
-        else:
-            parts.append(
-                f"Recommended NET rate {recommended:,.0f} {ctx.currency} "
-                f"({realised_pct:+.1f}% on base)."
-            )
-        return " ".join(parts)
 
 
 # Registered under a neutral key. The registry is the pluggability seam: a

@@ -71,7 +71,7 @@ signal independent.
 
 **Trade-off:** it measures *relative* market strength across dates, not whether
 we are absolutely cheap or expensive. Both are useful; the second needs a
-competitor set validated by the operator first (**A22**).
+competitor set validated by the operator first (**ASSUMPTIONS U12**).
 
 ---
 
@@ -83,9 +83,10 @@ Each save writes a new `PricingConfiguration` row; recommendations store the
 **Why:** the shape of the rules *will* change after operator interviews. A JSON
 payload absorbs that without a migration, and versioning means any past
 recommendation stays traceable to the exact rules that produced it. The cost —
-no column-level DB validation — is acceptable because `merge_config()`
-guarantees a fully-populated config reaches the engine even from a partial
-form submission.
+no column-level DB validation — is acceptable because `prepare_config()`
+(save) and `preview_config()` (unsaved) guarantee a fully-populated, coerced
+config reaches the engine even from a partial form submission. See D30's
+sibling guard, `test_no_config_reaches_an_engine_without_passing_the_boundary`.
 
 ---
 
@@ -104,8 +105,8 @@ agreed to.
 
 ## D8 — Approving a price updates the local record; nothing is pushed anywhere
 
-Accept/Override writes the final price onto `StayDateInventory.current_price`.
-No OTA or PMS write occurs — `PMSProvider.push_price()` exists as a visible
+Accept/Override writes the final rate onto `StayDateInventory.current_net_rate`.
+No OTA or PMS write occurs — `PMSProvider.push_rate()` exists as a visible
 seam and deliberately raises.
 
 **Why:** autonomous OTA updates are an explicit non-goal, but the loop needs to
@@ -234,7 +235,7 @@ occupancy directly means the same number pulls the rate the same way in both.
 And rewarding occupancy, lead time *and* pace separately would pay three times
 for one underlying demand condition.
 
-V2 therefore has no `occupancy`, `lead_time` or `urgency_discount` step at all —
+The engine therefore has no `occupancy`, `lead_time` or `urgency_discount` step at all —
 asserted by a test, because it would be easy to "helpfully" add one back.
 
 ## D19 — Additive percentages, not stacked multipliers
@@ -406,3 +407,57 @@ Nothing migrates old rows, because the demo database is rebuilt by `make
 reseed`. This table is the mapping, and it is written down because
 `engine_version` IS the traceability mechanism: an auditor holding a `v2.0.0`
 row has no other way to connect it to the code.
+
+## D30 — The engine emits message keys and numbers, never sentences
+
+`Adjustment` carries `label_key` + `params`. `PricingResult.explanation` and
+`PricingRecommendation.explanation` are gone, and so is `Adjustment.reason`.
+The sentence is composed at render time by `next-intl`, from
+`apps/web/messages/{en,vi}.json`.
+
+**Why:** the client is Vietnamese, and the explanation *is* the product. The
+engine used to compose finished English prose and persist it, so the one thing
+the operator most needs to read was the one thing no frontend i18n library
+could reach — it arrives at React as an opaque string.
+
+Structuring it turned out to be the *smaller* job than translating on the
+backend, because it removed the only thing that would have forced a Python i18n
+system at all. Everything else the API returns is either already code-keyed
+(override reasons, seasons, confidence levels — the frontend looks the code up
+in its own message file) or real-world data that must never be translated
+(property names, competitor names, operator notes).
+
+**What is deliberately NOT translated:** Settings validation messages and 422
+error details. Both are English, both are documented gaps, and neither is
+worth a second toolchain for an MVP.
+
+**Operator-authored text passes through.** Pace and pickup bands are editable,
+so a shipped band carries a stable `key` (`well_behind`, `stalled`) that the
+message files translate, while a band an operator renames or invents has
+`label_key: null` and its own wording is shown verbatim. Translating it would
+put words in their mouth; matching it to a neighbouring band — the bug D26's
+`_default_at` already had to fix once — would be worse.
+
+**The guardrail that makes this safe:** `test_every_emittable_key_has_a_translation`
+checks every key `EMITTABLE_MESSAGE_KEYS` declares against BOTH locale files,
+and `test_the_locales_describe_exactly_the_same_things` checks the two files
+have identical key sets. A missing Vietnamese string is a test failure, not a
+blank line discovered in front of a client. `test_vietnamese_is_actually_translated`
+additionally fails if the Vietnamese file is mostly a copy of the English one.
+
+**A duplication this removed.** `paceLabel()` and `pickupLabel()` in
+`lib/format.ts` re-derived the engine's bands from thresholds in TypeScript —
+the D28 bug. The engine now publishes `pace_label_key` / `pickup_label_key` on
+the recommendation itself, the table and the drawer both read that same key
+through `useAdjustmentText`, and the second derivation is deleted rather than
+kept in sync.
+
+**Vietnamese is the default locale.** The operator who uses this daily is
+Vietnamese; English is for non-Vietnamese stakeholders. `i18n/routing.ts`,
+one line.
+
+**No middleware.** Locale detection would live in middleware, which does not
+exist under `output: "export"`. Since packaging this as a single-process local
+app is still open, locale is a `[locale]` route segment with
+`generateStaticParams` and an explicit switcher.
+

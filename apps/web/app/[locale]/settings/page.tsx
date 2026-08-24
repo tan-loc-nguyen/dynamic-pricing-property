@@ -1,10 +1,13 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, Card, Chip, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatAdjPct, formatSignedVND, formatVND } from "@/lib/format";
+import { formatAdjPct } from "@/lib/format";
+import { useFormat } from "@/lib/useFormat";
 import type { PricingConfig, Preview } from "@/lib/types";
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -81,12 +84,13 @@ function BandEditor({
   thresholdStep?: number;
   onChange: (bands: any[]) => void;
 }) {
+  const t = useTranslations("settings");
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-[1fr_130px_130px] gap-2 text-[11px] font-medium text-ink-400 px-1">
-        <span>Band</span>
+        <span>{t("band")}</span>
         <span>{thresholdLabel}</span>
-        <span>Adjustment</span>
+        <span>{t("adjustment")}</span>
       </div>
       {bands.map((band, i) => (
         <div key={i} className="grid grid-cols-[1fr_130px_130px] gap-2 items-center">
@@ -137,6 +141,8 @@ function BandEditor({
 }
 
 export default function DynamicRulesPage() {
+  const t = useTranslations("settings");
+  const { formatSignedVND, formatVND } = useFormat();
   const [config, setConfig] = useState<PricingConfig | null>(null);
   const [draft, setDraft] = useState<any>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -178,7 +184,7 @@ export default function DynamicRulesPage() {
           // Swallowing this blanked the panel with no explanation while Save
           // went on succeeding — preview and save disagreeing, invisibly.
           setPreview(null);
-          setPreviewError(e?.message || "Could not price a preview for this configuration.");
+          setPreviewError(e?.message || t("previewFailed"));
         });
     }, 350);
     return () => {
@@ -223,20 +229,20 @@ export default function DynamicRulesPage() {
     }
   };
 
-  if (loading || !draft) return <div className="px-7 py-6"><Spinner label="Loading dynamic rules…" /></div>;
+  if (loading || !draft) return <div className="px-7 py-6"><Spinner label={t("loading")} /></div>;
 
   const delta = preview && baseline ? preview.recommended_net_rate - baseline.recommended_net_rate : 0;
 
   return (
     <div className="px-7 py-6 max-w-[1500px]">
       <PageHeader
-        title="Dynamic rules"
-        subtitle="The experimental layer that sits on top of the validated rate book: pace, pickup, events and market. None of these values has been validated with Luminous."
+        title={t("title")}
+        subtitle={t("subtitle")}
         actions={
           <>
-            <Button onClick={reset} disabled={saving}>Reset to demo defaults</Button>
+            <Button onClick={reset} disabled={saving}>{t("reset")}</Button>
             <Button variant="primary" onClick={save} disabled={saving || !dirty}>
-              {saving ? "Saving…" : dirty ? "Save & recalculate" : "No changes"}
+              {saving ? t("saving") : dirty ? t("save") : t("noChanges")}
             </Button>
           </>
         }
@@ -269,30 +275,30 @@ export default function DynamicRulesPage() {
       <div className="mt-5 grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-5 items-start">
         <div className="space-y-4">
           <Section
-            title="Pace position"
-            description="The primary demand signal: on-the-books occupancy versus what the booking curve expects for this lead time. Thresholds are gaps in fractions (0.20 = 20 percentage points)."
+            title={t("pace")}
+            description={t("paceDesc")}
           >
             <BandEditor
               bands={draft.pace.bands}
               thresholdKey="max_gap"
-              thresholdLabel="Up to gap"
+              thresholdLabel={t("upToGap")}
               onChange={(b) => update(["pace", "bands"], b)}
             />
           </Section>
 
           <Section
-            title="Recent pickup"
-            description="Booking acceleration over the recent window — deliberately a smaller lever than pace, because the two must not double-count the same demand."
+            title={t("recentPickup")}
+            description={t("pickupDesc")}
           >
             <div className="grid grid-cols-2 gap-3 mb-4">
-              <Field label="Lookback window (days)">
+              <Field label={t("lookbackDays")}>
                 <NumberInput
                   step={1}
                   value={draft.recent_pickup.lookback_days}
                   onChange={(v) => update(["recent_pickup", "lookback_days"], v)}
                 />
               </Field>
-              <Field label="Expected pickup per week (units)">
+              <Field label={t("expectedPickup")}>
                 <NumberInput
                   step={0.1}
                   value={draft.recent_pickup.expected_pickup_per_week}
@@ -303,15 +309,15 @@ export default function DynamicRulesPage() {
             <BandEditor
               bands={draft.recent_pickup.bands}
               thresholdKey="max_delta"
-              thresholdLabel="Up to delta"
+              thresholdLabel={t("upToDelta")}
               thresholdStep={0.25}
               onChange={(b) => update(["recent_pickup", "bands"], b)}
             />
           </Section>
 
           <Section
-            title="Events"
-            description="Applied only on dates you have flagged in the demand calendar. Normal seasonality is already in the rate book."
+            title={t("events")}
+            description={t("eventsDesc")}
           >
             <div className="grid grid-cols-3 gap-3">
               {["low", "medium", "high"].map((level) => (
@@ -327,36 +333,36 @@ export default function DynamicRulesPage() {
           </Section>
 
           <Section
-            title="Market signal"
-            description="Only observations at or above the confidence bar can move a rate. Generic web prices are LOW confidence and are shown but never applied."
+            title={t("marketSignal")}
+            description={t("marketDesc")}
           >
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Field label="Minimum confidence" hint="Evidence below this is ignored">
+              <Field label={t("minConfidence")} hint={t("minConfidenceHint")}>
                 <select
                   className={inputClass}
                   value={draft.market.min_confidence}
                   onChange={(e) => update(["market", "min_confidence"], e.target.value)}
                 >
-                  <option value="HIGH">High only</option>
-                  <option value="MEDIUM">Medium and above</option>
-                  <option value="LOW">Low and above (not advised)</option>
+                  <option value="HIGH">{t("confHigh")}</option>
+                  <option value="MEDIUM">{t("confMedium")}</option>
+                  <option value="LOW">{t("confLow")}</option>
                 </select>
               </Field>
-              <Field label="Sensitivity" hint="0 ignores the market entirely">
+              <Field label={t("sensitivity")} hint={t("sensitivityHint")}>
                 <NumberInput
                   step={0.05}
                   value={draft.market.sensitivity}
                   onChange={(v) => update(["market", "sensitivity"], v)}
                 />
               </Field>
-              <Field label="Max adjustment">
+              <Field label={t("maxAdjustment")}>
                 <NumberInput
                   suffix="%"
                   value={draft.market.max_adjustment_pct}
                   onChange={(v) => update(["market", "max_adjustment_pct"], v)}
                 />
               </Field>
-              <Field label="Min observations">
+              <Field label={t("minObservations")}>
                 <NumberInput
                   step={1}
                   value={draft.market.min_observations}
@@ -367,7 +373,7 @@ export default function DynamicRulesPage() {
           </Section>
 
           <Section
-            title="Day of week"
+            title={t("dayOfWeek")}
             description="OFF by default. Luminous' rate table shows no weekday structure, so there is nothing to justify a weekday adjustment yet."
           >
             <label className="flex items-center gap-2 mb-3">
@@ -376,8 +382,8 @@ export default function DynamicRulesPage() {
                 checked={draft.day_of_week.enabled}
                 onChange={(e) => update(["day_of_week", "enabled"], e.target.checked)}
               />
-              <span className="text-[12.5px] text-ink-700">Enable day-of-week adjustments</span>
-              {!draft.day_of_week.enabled && <Chip tone="neutral">Disabled</Chip>}
+              <span className="text-[12.5px] text-ink-700">{t("enableDow")}</span>
+              {!draft.day_of_week.enabled && <Chip tone="neutral">{t("disabled")}</Chip>}
             </label>
             <div className={`grid grid-cols-4 sm:grid-cols-7 gap-2 ${draft.day_of_week.enabled ? "" : "opacity-40 pointer-events-none"}`}>
               {DAYS.map((day) => (
@@ -393,25 +399,25 @@ export default function DynamicRulesPage() {
           </Section>
 
           <Section
-            title="Bounds & rounding"
+            title={t("boundsRounding")}
             description="A hard limit on the whole dynamic layer, applied before the validated band clamp."
           >
             <div className="grid grid-cols-3 gap-3">
-              <Field label="Max total adjustment">
+              <Field label={t("maxTotal")}>
                 <NumberInput
                   suffix="%"
                   value={draft.dynamic.max_total_adjustment_pct}
                   onChange={(v) => update(["dynamic", "max_total_adjustment_pct"], v)}
                 />
               </Field>
-              <Field label="Min total adjustment">
+              <Field label={t("minTotal")}>
                 <NumberInput
                   suffix="%"
                   value={draft.dynamic.min_total_adjustment_pct}
                   onChange={(v) => update(["dynamic", "min_total_adjustment_pct"], v)}
                 />
               </Field>
-              <Field label="Rounding increment (VND)">
+              <Field label={t("roundingIncrement")}>
                 <NumberInput
                   step={1000}
                   value={draft.rounding.increment}
@@ -425,7 +431,7 @@ export default function DynamicRulesPage() {
         {/* live preview */}
         <div className="xl:sticky xl:top-6 space-y-3">
           <Card className="p-4">
-            <div className="text-[13px] font-semibold text-ink-900">Live preview</div>
+            <div className="text-[13px] font-semibold text-ink-900">{t("livePreview")}</div>
             <p className="text-[11.5px] text-ink-500 mt-0.5 leading-snug">
               A sample stay date priced with your unsaved changes.
             </p>
@@ -461,11 +467,11 @@ export default function DynamicRulesPage() {
 
                 <div className="mt-3 rounded-lg bg-ink-50 border border-ink-200 p-3">
                   <div className="flex items-baseline justify-between text-[11px] text-ink-500">
-                    <span>Validated BASE</span>
+                    <span>{t("validatedBase")}</span>
                     <span className="tnum">{formatVND(preview.band_base_net_rate)}</span>
                   </div>
                   <div className="flex items-baseline justify-between mt-1.5">
-                    <span className="text-[11px] text-ink-500">Recommended NET</span>
+                    <span className="text-[11px] text-ink-500">{t("recommendedNet")}</span>
                     <span className="tnum text-[19px] font-bold text-brand-700">
                       {formatVND(preview.recommended_net_rate)}
                     </span>
@@ -480,7 +486,7 @@ export default function DynamicRulesPage() {
                   </div>
                   {dirty && baseline && (
                     <div className="mt-2 pt-2 border-t border-ink-200 flex items-baseline justify-between">
-                      <span className="text-[11px] text-ink-500">Effect of your edits</span>
+                      <span className="text-[11px] text-ink-500">{t("previewEffect")}</span>
                       <span
                         className={`tnum text-[12px] font-semibold ${
                           delta > 0 ? "text-emerald-600" : delta < 0 ? "text-rose-600" : "text-ink-400"
@@ -524,13 +530,13 @@ export default function DynamicRulesPage() {
               </>
             ) : (
               !previewError && (
-                <div className="mt-3 text-[12px] text-ink-400">No sample stay date available.</div>
+                <div className="mt-3 text-[12px] text-ink-400">{t("noSample")}</div>
               )
             )}
           </Card>
 
           <Card className="p-4 bg-amber-50 border-amber-200">
-            <div className="text-[12px] font-semibold text-amber-900">Everything here is unvalidated</div>
+            <div className="text-[12px] font-semibold text-amber-900">{t("unvalidated")}</div>
             <p className="text-[11.5px] text-amber-800 mt-1 leading-snug">
               Pace thresholds, pickup sensitivity, event impact sizes and market sensitivity were all chosen
               by the engineering team. They are listed in ASSUMPTIONS.md and need operator validation.

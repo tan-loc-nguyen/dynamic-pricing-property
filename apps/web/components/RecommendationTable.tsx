@@ -6,14 +6,13 @@ import {
   formatAdjPct,
   formatOccupancy,
   formatPaceGap,
-  formatStayDate,
-  formatVND,
   isWeekend,
-  marketLabel,
-  paceLabel,
+  marketBucket,
   paceTone,
-  pickupLabel,
 } from "@/lib/format";
+import { useFormat } from "@/lib/useFormat";
+import { useBandLabel } from "@/lib/adjustments";
+import { useTranslations } from "next-intl";
 import type { Recommendation } from "@/lib/types";
 
 /** Where the recommended NET rate sits inside the validated MIN–MAX band. */
@@ -48,25 +47,29 @@ export function RecommendationTable({
   onSelect: (rec: Recommendation) => void;
   selectedId?: number | null;
 }) {
+  const { formatStayDate, formatVND } = useFormat();
+  const t = useTranslations("table");
+  const tv = useTranslations("vocab");
+  const bandLabel = useBandLabel();
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-ink-200 bg-ink-50/60">
             {[
-              ["Stay date", "left"],
-              ["Room category", "left"],
-              ["Avail", "right"],
-              ["OTB occ", "left"],
-              ["D-", "right"],
-              ["Pace", "left"],
-              ["Pickup", "left"],
-              ["Current NET", "right"],
-              ["Recommended NET", "right"],
-              ["Dynamic", "right"],
-              ["In band", "left"],
-              ["Market", "left"],
-              ["Status", "left"],
+              [t("stayDate"), "left"],
+              [t("roomCategory"), "left"],
+              [t("avail"), "right"],
+              [t("onTheBooks"), "left"],
+              [t("daysToArrival"), "right"],
+              [t("pace"), "left"],
+              [t("pickup"), "left"],
+              [t("currentNet"), "right"],
+              [t("recommendedNet"), "right"],
+              [t("dynamic"), "right"],
+              [t("inBand"), "left"],
+              [t("market"), "left"],
+              [t("status"), "left"],
               ["", "right"],
             ].map(([h, align], i) => (
               <th
@@ -98,16 +101,16 @@ export function RecommendationTable({
                       {formatStayDate(rec.stay_date)}
                     </span>
                     {rec.is_event && (
-                      <Chip tone="warn" title={rec.event_name || "Event"}>
+                      <Chip tone="warn" title={rec.event_name || t("event")}>
                         Event
                       </Chip>
                     )}
                   </div>
-                  <div className="text-[10.5px] text-ink-400 mt-0.5">{(rec.season_label || "").replace(/\s*\(.*\)$/, "")}</div>
+                  <div className="text-[10.5px] text-ink-400 mt-0.5">{rec.season_key ? tv(`seasonsShort.${rec.season_key}`) : ""}</div>
                 </td>
 
                 <td className="px-3 py-2.5 whitespace-nowrap">
-                  <div className="font-medium text-ink-900 leading-tight">{rec.room_category_label}</div>
+                  <div className="font-medium text-ink-900 leading-tight">{tv(`roomCategories.${rec.room_category}`)}</div>
                 </td>
 
                 <td className="px-3 py-2.5 text-right tnum text-ink-600">
@@ -118,20 +121,26 @@ export function RecommendationTable({
                 <td className="px-3 py-2.5 whitespace-nowrap">
                   <span className="tnum text-ink-700">{formatOccupancy(rec.occupancy)}</span>
                   <span className="text-[10.5px] text-ink-400 ml-1">
-                    exp {formatOccupancy(rec.expected_occupancy)}
+                    {t("expected")} {formatOccupancy(rec.expected_occupancy)}
                   </span>
                 </td>
 
                 <td className="px-3 py-2.5 text-right tnum text-ink-600">{rec.days_to_arrival ?? "—"}</td>
 
                 <td className="px-3 py-2.5 whitespace-nowrap">
-                  <Chip tone={paceTone(rec.pace_gap)} title={`Pace gap ${formatPaceGap(rec.pace_gap)}`}>
-                    {paceLabel(rec.pace_gap)} {rec.pace_gap !== null && formatPaceGap(rec.pace_gap)}
+                  <Chip
+                    tone={paceTone(rec.pace_gap)}
+                    title={t("paceGapTitle", { gap: formatPaceGap(rec.pace_gap) })}
+                  >
+                    {bandLabel(rec.pace_label_key, rec.pace_label || t("noData"))}{" "}
+                    {rec.pace_gap !== null && formatPaceGap(rec.pace_gap)}
                   </Chip>
                 </td>
 
                 <td className="px-3 py-2.5">
-                  <span className="text-[11.5px] text-ink-500">{pickupLabel(rec.pickup_delta)}</span>
+                  <span className="text-[11.5px] text-ink-500">
+                    {bandLabel(rec.pickup_label_key, rec.pickup_label || t("noData"))}
+                  </span>
                 </td>
 
                 <td className="px-3 py-2.5 text-right tnum text-ink-500 whitespace-nowrap">
@@ -164,20 +173,23 @@ export function RecommendationTable({
                   {rec.market_qualified_count > 0 ? (
                     <Chip
                       tone={confidenceTone(rec.market_confidence)}
-                      title={`${rec.market_qualified_count} qualified observation(s) at ${rec.market_confidence} confidence`}
+                      title={t("marketTitle", {
+                        count: rec.market_qualified_count,
+                        confidence: rec.market_confidence ?? "—",
+                      })}
                     >
-                      {marketLabel(rec.market_price_index)}
+                      {t(`marketBucket.${marketBucket(rec.market_price_index)}`)}
                     </Chip>
                   ) : rec.market_ignored_count > 0 ? (
                     <Chip
                       tone="warn"
-                      title={`${rec.market_ignored_count} observation(s) below the confidence bar — shown, not applied`}
+                      title={t("marketIgnored", { count: rec.market_ignored_count })}
                     >
-                      Low conf · ignored
+                      {t("marketIgnored", { count: rec.market_ignored_count })}
                     </Chip>
                   ) : (
-                    <Chip tone="neutral" title="No market observations for this date">
-                      No data
+                    <Chip tone="neutral" title={t("noMarket")}>
+                      {t("noData")}
                     </Chip>
                   )}
                 </td>
@@ -187,7 +199,7 @@ export function RecommendationTable({
                 </td>
 
                 <td className="px-3 py-2.5 text-right">
-                  <span className="text-[12px] font-medium text-brand-600 whitespace-nowrap">Review →</span>
+                  <span className="text-[12px] font-medium text-brand-600 whitespace-nowrap">{t("review")}</span>
                 </td>
               </tr>
             );

@@ -76,7 +76,8 @@ class AdjustmentOut(BaseModel):
     price_before: float
     price_after: float
     delta: float
-    reason: str
+    label_key: str | None = None
+    params: dict[str, Any] = {}
     is_neutral: bool
     is_ignored: bool
 
@@ -163,11 +164,14 @@ class RecommendationOut(BaseModel):
     market_ignored_count: int = 0
 
     status: str
-    explanation: str
     engine_version: str
     config_version: int
     created_at: datetime
     missing_signals: list[str] = []
+    pace_label_key: str | None = None
+    pickup_label_key: str | None = None
+    pace_label: str | None = None
+    pickup_label: str | None = None
     clamp_applied: str | None = None
 
 
@@ -251,7 +255,6 @@ class PreviewOut(BaseModel):
     change_pct: float
     total_adjustment_pct: float
     adjustments: list[AdjustmentOut]
-    explanation: str
     engine_version: str
 
 
@@ -365,8 +368,12 @@ class HistoryOut(BaseModel):
     property_name: str
     room_type_name: str
     room_category_label: str
+    # The CODE travels with the label: a label can only be translated if the
+    # frontend knows what it was derived from.
+    room_category: str | None = None
     stay_date: date
     season_label: str | None = None
+    season_key: str | None = None
     decision: str
     recommended_net_rate: float
     final_net_rate: float

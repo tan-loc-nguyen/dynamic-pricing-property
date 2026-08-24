@@ -35,7 +35,7 @@ Open **<http://localhost:3000>**.
 `make dev` alone is enough — it runs setup if needed and seeds the database on
 API startup. Prerequisites: Python 3.10+ and Node 18+; `make setup` tells you
 the exact install command for your platform, or `AUTO_INSTALL=1 make setup`
-installs them for you. `make test` runs 148 tests.
+installs them for you. `make test` runs 233 tests.
 
 ---
 
@@ -71,7 +71,7 @@ that does not exist yet.
 The rate table already encodes the season — a July rate is different from a
 September rate because it is in the table. Multiplying a seasonality factor on
 top of a seasonal band would count the season twice. Season **selects** the
-band; it never scales it. There is no seasonality factor anywhere in V2.
+band; it never scales it. There is no seasonality factor in the engine at all.
 
 **Why NET and OTA prices are separate.**
 Luminous' table is NET — what they receive. A guest-facing OTA price is that
@@ -182,6 +182,44 @@ Recommended NET rate                              2,170,000 ₫
 
 ---
 
+## Languages
+
+The app ships in **Vietnamese and English**. Vietnamese is the default, because
+the operator who uses this daily is Vietnamese; English is one click away in the
+sidebar for anyone else.
+
+```
+/vi              Vietnamese (default)
+/en              English
+```
+
+Everything the operator reads is translated, **including the pricing
+explanation** — the part that matters most and the part a frontend i18n library
+normally cannot reach. The engine does not compose sentences: each step of the
+breakdown carries a message key plus the numbers that key interpolates, and the
+sentence is assembled at render time in whichever language is being viewed.
+Currency and dates follow the locale too (`2.300.000 ₫` vs `2,300,000 ₫`).
+
+Translations live in `apps/web/messages/{en,vi}.json`. Three tests keep them
+honest:
+
+| Test | Catches |
+|---|---|
+| `test_every_emittable_key_has_a_translation` | a key the engine can emit with no string in one of the locales |
+| `test_the_locales_describe_exactly_the_same_things` | the two files drifting apart |
+| `test_vietnamese_is_actually_translated` | `vi.json` being largely a copy of `en.json` |
+
+A missing Vietnamese string is a **test failure**, not a blank line discovered
+during a client demo.
+
+**What is deliberately not translated:** property, competitor and event names,
+and operator-written notes — translating real-world data would be a bug. Two
+gaps remain in English and are documented rather than hidden: Settings
+validation messages and API error details. See **D30** in
+[docs/DECISIONS.md](docs/DECISIONS.md).
+
+---
+
 ## Demo mode
 
 Default, no credentials, no network. Seeded on first run:
@@ -234,7 +272,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 148 tests
+make test    # 233 tests
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15

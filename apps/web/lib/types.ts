@@ -56,7 +56,11 @@ export interface Adjustment {
   price_before: number;
   price_after: number;
   delta: number;
-  reason: string;
+  /** Message key for the label and its sentence; null when the wording is
+   *  operator-authored and must be shown verbatim. */
+  label_key: string | null;
+  /** The figures the sentence interpolates. Never pre-formatted. */
+  params: Record<string, unknown>;
   is_neutral: boolean;
   is_ignored: boolean;
 }
@@ -141,11 +145,14 @@ export interface Recommendation {
   market_ignored_count: number;
 
   status: Status;
-  explanation: string;
   engine_version: string;
   config_version: number;
   created_at: string;
   missing_signals: string[];
+  pace_label_key: string | null;
+  pickup_label_key: string | null;
+  pace_label: string | null;
+  pickup_label: string | null;
   clamp_applied: string | null;
 }
 
@@ -238,7 +245,6 @@ export interface Preview {
   change_pct: number;
   total_adjustment_pct: number;
   adjustments: Adjustment[];
-  explanation: string;
   engine_version: string;
 }
 
@@ -248,8 +254,10 @@ export interface HistoryEntry {
   property_name: string;
   room_type_name: string;
   room_category_label: string;
+  room_category: string | null;
   stay_date: string;
   season_label: string | null;
+  season_key: string | null;
   decision: string;
   recommended_net_rate: number;
   final_net_rate: number;

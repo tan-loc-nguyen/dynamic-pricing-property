@@ -50,14 +50,18 @@ DEMO_DEFAULTS: dict[str, Any] = {
     # Pace position: on-the-books occupancy vs the booking curve's expectation.
     # This is the PRIMARY demand signal. Bands are on pace_gap (fraction:
     # 0.10 = 10 percentage points ahead of expectation).
+    # ``key`` is the stable identity of a SHIPPED band -- it is what the message
+    # files translate. ``label`` is the operator-facing English wording and can
+    # be renamed freely; a band an operator invents has no key, and its own
+    # wording is shown verbatim rather than mistranslated.
     "pace": {
         "enabled": True,
         "bands": [
-            {"label": "Well behind pace", "max_gap": -0.20, "adjustment_pct": -8.0},
-            {"label": "Behind pace", "max_gap": -0.08, "adjustment_pct": -4.0},
-            {"label": "On pace", "max_gap": 0.08, "adjustment_pct": 0.0},
-            {"label": "Ahead of pace", "max_gap": 0.20, "adjustment_pct": 4.0},
-            {"label": "Well ahead of pace", "max_gap": 99.0, "adjustment_pct": 8.0},
+            {"key": "well_behind", "label": "Well behind pace", "max_gap": -0.20, "adjustment_pct": -8.0},
+            {"key": "behind", "label": "Behind pace", "max_gap": -0.08, "adjustment_pct": -4.0},
+            {"key": "on_pace", "label": "On pace", "max_gap": 0.08, "adjustment_pct": 0.0},
+            {"key": "ahead", "label": "Ahead of pace", "max_gap": 0.20, "adjustment_pct": 4.0},
+            {"key": "well_ahead", "label": "Well ahead of pace", "max_gap": 99.0, "adjustment_pct": 8.0},
         ],
     },
 
@@ -69,11 +73,11 @@ DEMO_DEFAULTS: dict[str, Any] = {
         "lookback_days": 7,
         "expected_pickup_per_week": 1.0,
         "bands": [
-            {"label": "Pickup stalled", "max_delta": -1.0, "adjustment_pct": -3.0},
-            {"label": "Pickup slowing", "max_delta": -0.25, "adjustment_pct": -1.5},
-            {"label": "Pickup as expected", "max_delta": 0.5, "adjustment_pct": 0.0},
-            {"label": "Pickup accelerating", "max_delta": 2.0, "adjustment_pct": 2.0},
-            {"label": "Pickup surging", "max_delta": 999.0, "adjustment_pct": 4.0},
+            {"key": "stalled", "label": "Pickup stalled", "max_delta": -1.0, "adjustment_pct": -3.0},
+            {"key": "slowing", "label": "Pickup slowing", "max_delta": -0.25, "adjustment_pct": -1.5},
+            {"key": "as_expected", "label": "Pickup as expected", "max_delta": 0.5, "adjustment_pct": 0.0},
+            {"key": "accelerating", "label": "Pickup accelerating", "max_delta": 2.0, "adjustment_pct": 2.0},
+            {"key": "surging", "label": "Pickup surging", "max_delta": 999.0, "adjustment_pct": 4.0},
         ],
     },
 

@@ -156,7 +156,11 @@ def test_every_recommendation_is_explainable(client):
         detail = client.get(f"/api/recommendations/{rec['id']}").json()
         assert detail["adjustments"], "recommendation with no breakdown"
         assert detail["adjustments"][0]["code"] == "rate_band", "band must be shown first"
-        assert detail["explanation"]
+        for adj in detail["adjustments"]:
+            # Either a translatable key, or operator-authored wording to show
+            # verbatim -- a step with neither renders as a blank line.
+            assert adj["label_key"] or adj["label"], f"unlabelled step: {adj['code']}"
+            assert isinstance(adj["params"], dict)
         running = detail["base_net_rate"]
         for adj in detail["adjustments"]:
             assert adj["price_before"] == pytest.approx(running, abs=0.02)
@@ -497,3 +501,20 @@ def test_outcome_readiness_is_visible_to_the_operator(client):
     # ones. (An earlier test in this module records a real outcome, so the flag
     # may legitimately be True by the time this runs.)
     assert readiness["ready_for_evaluation"] is (readiness["real_outcomes"] > 0)
+
+
+# --------------------------------------- codes must travel with their labels
+def test_history_rows_carry_the_codes_their_labels_come_from(client):
+    """A label can only be translated if the code that produced it is present.
+
+    History served `room_category_label` and `season_label` as English strings
+    with no accompanying code, so the frontend had nothing to look the
+    Vietnamese wording up by -- the one screen that would have stayed English.
+    """
+    rec = client.get("/api/recommendations?status=pending&limit=1").json()[0]
+    client.post(f"/api/recommendations/{rec['id']}/accept", json={"note": "i18n"})
+    rows = client.get("/api/history").json()
+    assert rows, "expected a decision to have been recorded"
+    for row in rows:
+        assert row["room_category"], "room_category code missing"
+        assert row["season_key"], "season_key code missing"

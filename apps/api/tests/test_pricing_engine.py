@@ -23,8 +23,9 @@ def test_the_band_is_the_first_and_explicit_step(engine, config):
     result = engine.calculate(make_context(), config)
     first = result.adjustments[0]
     assert first.code == "rate_band"
-    assert "CLIENT_VALIDATED" in first.reason
-    assert "NET" in first.reason
+    assert first.label_key == "adjustments.rate_band"
+    assert first.params["source"] == "CLIENT_VALIDATED"
+    assert first.params["rate_basis"] == "NET"
 
 
 @pytest.mark.parametrize(
@@ -64,7 +65,8 @@ def test_identical_inputs_produce_identical_output(engine, config):
     ctx = make_context(pace_gap=0.15, pickup_delta=1.0)
     a, b = engine.calculate(ctx, config), engine.calculate(ctx, config)
     assert a.recommended_net_rate == b.recommended_net_rate
-    assert a.explanation == b.explanation
+    assert [x.label_key for x in a.adjustments] == [x.label_key for x in b.adjustments]
+    assert [x.params for x in a.adjustments] == [x.params for x in b.adjustments]
     assert [x.adjustment_pct for x in a.adjustments] == [x.adjustment_pct for x in b.adjustments]
 
 
@@ -121,14 +123,14 @@ def test_same_occupancy_prices_differently_at_different_lead_times(engine, confi
     assert far.recommended_net_rate > near.recommended_net_rate
 
 
-def test_missing_pace_is_neutral_and_explained(engine, config):
+def test_missing_pace_is_neutral_and_says_which_signal_is_blind(engine, config):
     result = engine.calculate(
         make_context(pace_gap=None, expected_occupancy=None, missing=("pace_gap",)), config
     )
     pace = next(a for a in result.adjustments if a.code == "pace")
     assert pace.adjustment_pct == 0.0
     assert pace.is_neutral
-    assert "unavailable" in pace.reason.lower()
+    assert pace.label_key == "adjustments.pace.unavailable"
     assert result.recommended_net_rate == pytest.approx(result.base_net_rate)
 
 
@@ -186,7 +188,7 @@ def test_event_specific_override_wins_over_impact_level(engine, config):
     )
     event = next(a for a in result.adjustments if a.code == "event")
     assert event.adjustment_pct == pytest.approx(12.0)
-    assert "override" in event.reason
+    assert event.label_key == "adjustments.event.override"
 
 
 def test_no_event_step_when_not_an_event_date(engine, config):
@@ -219,11 +221,12 @@ def test_low_confidence_market_is_shown_but_never_applied(engine, config):
     assert market.is_ignored is True
     assert market.adjustment_pct == 0.0
     assert market.delta == 0.0
-    assert "confidence" in market.reason.lower()
+    assert market.label_key == "adjustments.market.ignored_low_confidence"
+    assert market.params["gate"] == "MEDIUM"
     assert result.recommended_net_rate == pytest.approx(result.base_net_rate)
 
 
-def test_ignored_market_is_visible_in_the_explanation(engine, config):
+def test_ignored_market_stays_a_visible_step(engine, config):
     result = engine.calculate(
         make_context(
             market_price_index=None, market_qualified_count=0,
@@ -231,11 +234,14 @@ def test_ignored_market_is_visible_in_the_explanation(engine, config):
         ),
         config,
     )
-    assert "confidence" in result.explanation.lower()
+    market = next(a for a in result.adjustments if a.code == "market")
+    assert market.is_ignored, "an excluded observation must remain a visible step"
+    assert market.label_key == "adjustments.market.ignored_low_confidence"
+    assert market.params["ignored_count"] == 3
     assert "market" in result.metadata["ignored_signals"]
 
 
-def test_missing_market_data_is_neutral_and_says_so(engine, config):
+def test_missing_market_data_is_neutral_and_recorded_as_missing(engine, config):
     result = engine.calculate(
         make_context(
             market_price_index=None, market_observation_count=0,
@@ -245,8 +251,8 @@ def test_missing_market_data_is_neutral_and_says_so(engine, config):
     )
     market = next(a for a in result.adjustments if a.code == "market")
     assert market.adjustment_pct == 0.0 and market.is_neutral
-    assert "unavailable" in market.reason.lower()
-    assert "market signal unavailable" in result.explanation.lower()
+    assert market.label_key == "adjustments.market.unavailable"
+    assert "market" in result.metadata["missing_signals"]
 
 
 def test_market_below_minimum_observations_is_ignored(engine, config):
@@ -256,7 +262,9 @@ def test_market_below_minimum_observations_is_ignored(engine, config):
     )
     market = next(a for a in result.adjustments if a.code == "market")
     assert market.adjustment_pct == 0.0
-    assert "minimum" in market.reason.lower()
+    assert market.label_key == "adjustments.market.insufficient"
+    assert market.params["qualified_count"] == 1
+    assert market.params["min_observations"] == 3
 
 
 def test_market_adjustment_is_capped(engine, config):
@@ -344,13 +352,13 @@ def test_maximum_band_rate_is_enforced(engine, config):
     assert any(a.code == "band_max_clamp" for a in result.adjustments)
 
 
-def test_clamp_explanation_names_the_validated_bound(engine, config):
+def test_clamp_step_names_the_validated_bound(engine, config):
     config["dynamic"]["min_total_adjustment_pct"] = -90.0
     config["pace"]["bands"][0]["adjustment_pct"] = -80.0
     result = engine.calculate(make_context(pace_gap=-0.9), config)
     clamp = next(a for a in result.adjustments if a.code == "band_min_clamp")
-    assert "floor" in clamp.reason.lower()
-    assert "1,800,000" in clamp.reason
+    assert clamp.label_key == "adjustments.band_min_clamp"
+    assert clamp.params["bound_net_rate"] == pytest.approx(1_800_000)
 
 
 # ------------------------------------------------------------------ rounding
@@ -390,7 +398,7 @@ def test_rounding_never_breaks_the_band_ceiling(engine, config):
     assert result.recommended_net_rate <= 2_300_000
 
 
-# -------------------------------------------------------------- explanation
+# --------------------------------------------------------------- breakdown
 def test_breakdown_is_arithmetically_consistent(engine, config):
     result = engine.calculate(
         make_context(pace_gap=0.3, pickup_delta=2.5, is_event=True,
@@ -404,16 +412,17 @@ def test_breakdown_is_arithmetically_consistent(engine, config):
     assert result.recommended_net_rate == pytest.approx(running, abs=0.02)
 
 
-def test_explanation_names_the_season_band_and_signals(engine, config):
+def test_the_breakdown_identifies_the_season_band_and_each_signal(engine, config):
     result = engine.calculate(
         make_context(pace_gap=0.3, is_event=True, event_name="Marathon",
                      event_impact_level="high"),
         config,
     )
-    assert "Low Season 2" in result.explanation
-    assert "NET" in result.explanation or "2,100,000" in result.explanation
-    assert "Marathon" in result.explanation
-    assert "pace" in result.explanation.lower()
+    by_code = {a.code: a for a in result.adjustments}
+    assert by_code["rate_band"].params["season_key"] == "low_2"
+    assert by_code["rate_band"].params["base_net_rate"] == pytest.approx(2_100_000)
+    assert by_code["event"].params["event_name"] == "Marathon"
+    assert by_code["pace"].label_key == "adjustments.pace.well_ahead"
 
 
 def test_change_is_measured_against_the_current_net_rate(engine, config):

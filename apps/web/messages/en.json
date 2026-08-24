@@ -1,0 +1,548 @@
+{
+  "app": {
+    "name": "Dynamic Pricing Property",
+    "tagline": "Revenue intelligence above Blue Jay PMS",
+    "shadowMode": "Shadow mode — nothing is pushed to Blue Jay or any OTA",
+    "shortName": "Dynamic Pricing",
+    "shadowModeTitle": "Shadow Mode",
+    "shadowModeBody": "Recommendations only. Nothing is pushed to Blue Jay or any OTA.",
+    "unvalidatedTitle": "Dynamic layer unvalidated",
+    "unvalidatedBody": "Seasonal NET rates are client-validated. Pace, pickup, event and market settings are not."
+  },
+  "nav": {
+    "rateReview": "Rate Review",
+    "rateBook": "Rate Book",
+    "dynamicRules": "Dynamic Rules",
+    "market": "Market",
+    "events": "Events",
+    "history": "History",
+    "language": "Language"
+  },
+  "adjustments": {
+    "rate_band": {
+      "label": "Seasonal base rate",
+      "reason": "{room_category} in {season}: BASE {base_net_rate, number} ₫ NET (band {min_net_rate, number}–{max_net_rate, number}). Source: {source}."
+    },
+    "pace": {
+      "well_behind": {
+        "label": "Well behind",
+        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+      },
+      "behind": {
+        "label": "Behind",
+        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+      },
+      "on_pace": {
+        "label": "On pace",
+        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+      },
+      "ahead": {
+        "label": "Ahead",
+        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+      },
+      "well_ahead": {
+        "label": "Well ahead",
+        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+      },
+      "unavailable": {
+        "label": "Pace position",
+        "reason": "Booking pace unavailable; no pace adjustment applied."
+      },
+      "occupancy_unavailable": {
+        "label": "Pace position",
+        "reason": "Occupancy unavailable; no pace adjustment applied."
+      },
+      "no_band": {
+        "label": "Pace position",
+        "reason": "No pace band configured."
+      }
+    },
+    "recent_pickup": {
+      "stalled": {
+        "label": "Stalled",
+        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+      },
+      "slowing": {
+        "label": "Slowing",
+        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+      },
+      "as_expected": {
+        "label": "As expected",
+        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+      },
+      "accelerating": {
+        "label": "Accelerating",
+        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+      },
+      "surging": {
+        "label": "Surging",
+        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+      },
+      "unavailable": {
+        "label": "Recent pickup",
+        "reason": "No booking history for this room type; no pickup adjustment applied."
+      },
+      "no_band": {
+        "label": "Recent pickup",
+        "reason": "No pickup band configured."
+      }
+    },
+    "event": {
+      "level": {
+        "label": "Event: {event_name}",
+        "reason": "'{event_name}' falls on this stay date ({impact_level, select, low {low} medium {medium} high {high} other {unspecified}} impact level)."
+      },
+      "override": {
+        "label": "Event: {event_name}",
+        "reason": "'{event_name}' falls on this stay date (event-specific override)."
+      }
+    },
+    "market": {
+      "applied": {
+        "label": "Market signal",
+        "reason": "Comparable rate {reference_net_rate, number} ₫ is {delta_pct, number}% {direction, select, above {above} other {below}} the comp-set baseline ({qualified_count, number} × {confidence, select, HIGH {high} MEDIUM {medium} LOW {low} other {unknown}}-confidence observation(s), sensitivity {sensitivity, number})."
+      },
+      "ignored_low_confidence": {
+        "label": "Market signal (ignored — low confidence)",
+        "reason": "{ignored_count, number} observation(s) found but none met the {gate} confidence bar, so the market did not move this rate."
+      },
+      "unavailable": {
+        "label": "Market signal",
+        "reason": "Market signal unavailable; no market adjustment applied."
+      },
+      "insufficient": {
+        "label": "Market signal",
+        "reason": "Only {qualified_count, number} qualified observation(s) (minimum {min_observations, number}); no market adjustment applied."
+      }
+    },
+    "day_of_week": {
+      "label": "{day}",
+      "reason": "{day} carries a structural adjustment."
+    },
+    "dynamic_bound": {
+      "label": "Total adjustment bound",
+      "reason": "Signals totalled {raw_pct, number}%, beyond the configured limit of {min_pct, number}%…{max_pct, number}%. Scaled back to {bounded_pct, number}% so no single run can move the rate too far."
+    },
+    "band_min_clamp": {
+      "label": "Seasonal MIN floor",
+      "reason": "The dynamic layer would have priced below the validated seasonal floor of {bound_net_rate, number} ₫ NET. Raised to the floor."
+    },
+    "band_max_clamp": {
+      "label": "Seasonal MAX ceiling",
+      "reason": "The dynamic layer would have priced above the validated seasonal ceiling of {bound_net_rate, number} ₫ NET. Reduced to the ceiling."
+    },
+    "rounding": {
+      "label": "Rounding",
+      "reason": "Rounded to the nearest {increment, number} ₫."
+    }
+  },
+  "vocab": {
+    "seasons": {
+      "low_1": "Low Season 1 (May–Jun)",
+      "high_1": "High Season 1 (Jul–Aug)",
+      "low_2": "Low Season 2 (Sep–Oct)",
+      "high_2": "High Season 2 (Nov–Jan)",
+      "medium": "Medium Season (Feb–Apr)"
+    },
+    "seasonNotes": {
+      "low_1": "Mostly business travel, little tourism.",
+      "high_1": "Summer tourism — international and family travel.",
+      "low_2": "Predominantly business travel.",
+      "high_2": "Holiday season.",
+      "medium": ""
+    },
+    "roomCategories": {
+      "2br_regular": "2BR Regular",
+      "2br_premium": "2BR Premium",
+      "3br": "3BR"
+    },
+    "confidence": {
+      "HIGH": "High",
+      "MEDIUM": "Medium",
+      "LOW": "Low",
+      "UNUSABLE": "Unusable"
+    },
+    "eventImpact": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "eventTypes": {
+      "holiday": "Public holiday",
+      "concert": "Concert",
+      "conference": "Conference",
+      "festival": "Festival",
+      "sport": "Sporting event",
+      "other": "Other"
+    },
+    "priceBasis": {
+      "NET": "NET to property",
+      "OTA_SELL": "OTA sell price",
+      "UNKNOWN": "Unknown"
+    },
+    "overrideReasons": {
+      "pace_strategy": "Booking pace strategy",
+      "competitor_pricing": "Competitor pricing",
+      "property_knowledge": "Property-specific knowledge",
+      "promotion": "Promotion",
+      "special_event": "Special event",
+      "owner_constraint": "Owner constraint",
+      "channel_mix": "Channel / OTA mix",
+      "my_judgment": "My judgment",
+      "other": "Other"
+    },
+    "status": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "overridden": "Overridden",
+      "error": "Unpriced"
+    },
+    "source": {
+      "CLIENT_VALIDATED": "Client-validated",
+      "OPERATOR_EDITED": "Operator-edited"
+    },
+    "days": {
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday",
+      "sunday": "Sunday"
+    },
+    "seasonsShort": {
+      "low_1": "Low Season 1",
+      "high_1": "High Season 1",
+      "low_2": "Low Season 2",
+      "high_2": "High Season 2",
+      "medium": "Medium Season"
+    }
+  },
+  "navHints": {
+    "rateReview": "Recommendations to action",
+    "rateBook": "Validated seasonal rates",
+    "dynamicRules": "Experimental layer",
+    "market": "Comp set & evidence",
+    "events": "Demand calendar",
+    "history": "Past decisions"
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "add": "Add",
+    "delete": "Delete",
+    "edit": "Edit",
+    "noData": "No data",
+    "source": "Source",
+    "notes": "Notes",
+    "notesOptional": "Notes (optional)",
+    "roomCategory": "Room category",
+    "stayDate": "Stay date",
+    "apiUnreachable": "Cannot reach the pricing API. Is the backend running on port 8000?"
+  },
+  "status": {
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "overridden": "Overridden",
+    "error": "Could not price"
+  },
+  "table": {
+    "stayDate": "Stay date",
+    "roomCategory": "Room category",
+    "avail": "Avail",
+    "onTheBooks": "On the books",
+    "daysToArrival": "D–",
+    "pace": "Pace",
+    "pickup": "Pickup",
+    "currentNet": "Current NET",
+    "recommendedNet": "Recommended NET",
+    "dynamic": "Dynamic",
+    "inBand": "In band",
+    "market": "Market",
+    "event": "Event",
+    "status": "Status",
+    "review": "Review →",
+    "noData": "No data",
+    "expected": "exp",
+    "paceGapTitle": "Pace gap {gap}",
+    "marketTitle": "{count, number} qualified observation(s) at {confidence} confidence",
+    "noMarket": "No market observations for this date",
+    "marketIgnored": "{count, number} ignored",
+    "marketBucket": {
+      "none": "No data",
+      "soft": "Soft",
+      "below": "Below market",
+      "inLine": "In line",
+      "above": "Above market",
+      "strong": "Strong"
+    }
+  },
+  "dashboard": {
+    "title": "Rate review",
+    "recalculate": "Recalculate",
+    "recalculating": "Recalculating…",
+    "recalculationFailed": "Recalculation failed.",
+    "loading": "Loading recommendations…",
+    "empty": "No recommendations match these filters",
+    "emptyHint": "Try widening the date range or clearing the room category filter.",
+    "subtitle": "Recommended NET rates by room category and stay date, anchored to Luminous' validated seasonal rate book. Review the reasoning, then accept or set your own.",
+    "showing": "Showing {shown, number} of {total, number} room-type nights",
+    "showMore": "Show {count, number} more"
+  },
+  "summary": {
+    "upcomingNights": "Upcoming nights",
+    "apartments": "Apartments",
+    "avgOccupancy": "Avg occupancy",
+    "onTheBooks": "On the books",
+    "avgPace": "Avg pace position",
+    "avgRateChange": "Avg rate change",
+    "vsCurrent": "Recommended vs current NET",
+    "pendingReview": "Pending review",
+    "categoriesPriced": "{count, number} room categories priced",
+    "vsCurveExpectation": "vs booking curve expectation",
+    "decisionSplit": "{accepted, number} accepted · {overridden, number} overridden"
+  },
+  "filters": {
+    "from": "From",
+    "to": "To",
+    "roomCategory": "Room category",
+    "allRoomCategories": "All room categories",
+    "status": "Status",
+    "allStatuses": "All statuses",
+    "search": "Search",
+    "searchPlaceholder": "Room category or season…",
+    "allDecisions": "All decisions",
+    "decision": "Decision",
+    "categoryOption": "{category} ({units, number} units)"
+  },
+  "banner": {
+    "demoData": "Demo data",
+    "demoCurve": "Demo booking curve — not Luminous data.",
+    "shadowTitle": "Recommendations only — nothing is written to Blue Jay or any OTA.",
+    "shadowMode": "Shadow Mode",
+    "rateBookValidated": "Rate book: client-validated",
+    "rateBookTitle": "{count, number} seasonal NET bands supplied by Luminous.",
+    "bookingCurveDemo": "Booking curve: demo",
+    "pms": "PMS: {mode}",
+    "blueJayUnavailable": "Blue Jay unavailable",
+    "market": "Market: {mode}",
+    "engine": "Engine {version}",
+    "rules": "Rules v{version}",
+    "outcomes": "Outcomes: {real, number} real",
+    "outcomesSynthetic": " · {count, number} synthetic"
+  },
+  "drawer": {
+    "loading": "Loading recommendation…",
+    "close": "Close",
+    "netRates": "NET rates",
+    "clientValidated": "Client-validated",
+    "band": {
+      "min": "MIN",
+      "base": "BASE",
+      "max": "MAX",
+      "note": "NET rates supplied by Luminous. Season selects this band — no seasonality multiplier is applied on top."
+    },
+    "chip": {
+      "validated": "Validated",
+      "bandLimit": "Band limit",
+      "bounded": "Bounded",
+      "ignored": "Ignored",
+      "noEffect": "No effect"
+    },
+    "demandSignals": "Demand signals",
+    "signal": {
+      "pace": "Pace position",
+      "pickup": "Recent pickup",
+      "occupancy": "On the books",
+      "daysToArrival": "Days to arrival",
+      "noData": "No data",
+      "curveExpects": "curve expects {value}",
+      "noCurve": "no curve",
+      "bookingsInWindow": "{count, number} booking(s) in window",
+      "noBookingData": "no booking data"
+    },
+    "market": {
+      "label": "Market",
+      "observations": "{count, number} × {confidence}",
+      "bucket": {
+        "none": "No data",
+        "soft": "soft",
+        "below": "below market",
+        "inLine": "in line",
+        "above": "above market",
+        "strong": "strong"
+      },
+      "ignored": "{count, number} market observation(s) ignored — low confidence",
+      "none": "No market evidence"
+    },
+    "blindSpots": "Blind spots:",
+    "blindSpotsBody": "no adjustment was applied for these",
+    "calculation": "How this rate was calculated",
+    "currentNet": "Current NET",
+    "recommendedNet": "Recommended NET rate",
+    "change": "Change",
+    "engineLine": "Engine {engine} · dynamic rules v{config} · rate band",
+    "validatedTag": "CLIENT-VALIDATED",
+    "unvalidatedTag": "UNVALIDATED",
+    "dynamicLayer": "dynamic layer",
+    "accept": "Accept",
+    "override": "Override",
+    "yourNetRate": "Your NET rate (VND)",
+    "reason": "Reason",
+    "note": "Note (optional)",
+    "notePlaceholder": "What does the system not know?",
+    "decisionsOnDate": "Decisions on this date",
+    "actionFailed": "Action failed",
+    "outcome": "Outcome",
+    "synthetic": "Synthetic",
+    "shadow": "Shadow",
+    "unpriced": "This stay date could not be priced.",
+    "netRatesNote": "These are <term>NET rates</term> — what Luminous receives. They are not guest-facing OTA prices.",
+    "acceptRate": "Accept {rate}",
+    "overrideEllipsis": "Override…",
+    "unitsSold": "{sold, number}/{total, number} units · {left, number} left",
+    "otaOnFile": " Current OTA price on file: {price}."
+  },
+  "rateBook": {
+    "title": "Seasonal rate book",
+    "subtitle": "NET rates — what Luminous receives",
+    "clientValidated": "Client-validated",
+    "loading": "Loading rate book…",
+    "empty": "No rate bands loaded",
+    "reset": "Reset to client values",
+    "resetDone": "Restored every band to the client-validated values and recalculated.",
+    "sourceClient": "Client",
+    "sourceEdited": "Edited",
+    "season": "Season",
+    "subtitleLong": "Luminous' own MIN / BASE / MAX NET rates by season and room category. This is validated business data — the pricing engine anchors on it rather than modelling seasonality itself.",
+    "updated": "Updated {season} · {category}. Recalculate to apply."
+  },
+  "events": {
+    "title": "Demand calendar",
+    "subtitle": "Manual curation",
+    "loading": "Loading events…",
+    "empty": "No events yet",
+    "emptyHint": "Add the dates you know will move demand.",
+    "add": "Add an event",
+    "name": "Event",
+    "namePlaceholder": "e.g. HCMC Marathon",
+    "starts": "Starts",
+    "ends": "Ends",
+    "dates": "Dates",
+    "impact": "Impact",
+    "impactLevel": "Impact level",
+    "override": "Override",
+    "overridePct": "Adjustment override (%)",
+    "overrideHint": "Leave blank to use the configured value for this impact level",
+    "overridePlaceholder": "e.g. 12",
+    "notesPlaceholder": "Why this matters for demand…",
+    "saved": "Event saved. Recalculate on Rate Review to fold it into recommendations.",
+    "unvalidated": "Event impact sizes are UNVALIDATED",
+    "subtitleLong": "Known exceptional-demand dates. Events are curated by you, not scraped — a wrong event moves real money, so a human decides what counts.",
+    "saveEvent": "Save event",
+    "onlyExceptional": "Normal seasonality is already handled by the rate book — add only exceptional dates."
+  },
+  "market": {
+    "title": "Market evidence",
+    "loading": "Loading observations…",
+    "competitors": "Comparable properties",
+    "noCompetitors": "No comparable properties yet",
+    "addCompetitor": "Add a comparable property",
+    "propertyName": "Property name",
+    "propertyPlaceholder": "e.g. The Riverside Residences",
+    "location": "Location",
+    "locationPlaceholder": "e.g. District 1",
+    "comparableTo": "Comparable to",
+    "comparableToHint": "Comparable to which category",
+    "observations": "Observations",
+    "noObservations": "No observations for this filter",
+    "record": "Record an observation",
+    "competitor": "Competitor",
+    "property": "Property",
+    "price": "Price",
+    "observedPrice": "Observed price (VND)",
+    "priceBasis": "Price basis",
+    "basis": "Basis",
+    "category": "Category",
+    "lengthOfStay": "Length of stay",
+    "guests": "Guests",
+    "taxes": "Taxes",
+    "promotion": "Promotion",
+    "confidence": "Confidence",
+    "allConfidence": "All confidence",
+    "highOnly": "High only",
+    "mediumUp": "Medium and above",
+    "lowUp": "Low and above (not advised)",
+    "willInfluence": "This can influence recommended rates.",
+    "willNotInfluence": "This will be shown but will not move rates.",
+    "uninterpretable": "A price you cannot interpret is not evidence.",
+    "subtitle": "Competitor rates and how much they can be trusted. Only observations you can interpret — known basis, category and stay date — are allowed to move a recommended NET rate.",
+    "uninterpretableBody": "The same number can be a refundable OTA sell price including taxes for a 3-night stay, or a one-night NET rate — only one is comparable to a Luminous NET rate. Confidence is derived from the metadata you supply, and LOW-confidence observations never move a rate.",
+    "tabObservations": "Observations ({count, number})",
+    "tabCompset": "Comp set ({count, number})",
+    "observationsHeading": "Observations",
+    "saveObservation": "Save observation",
+    "basisNote": "The more basis you can state, the higher the confidence — and only you can state it.",
+    "tryPublicCollector": "Try public collector"
+  },
+  "history": {
+    "title": "Decision history",
+    "loading": "Loading history…",
+    "empty": "No decisions recorded yet",
+    "emptyHint": "Accept or override a recommendation on the dashboard and it will appear here.",
+    "decision": "Decision",
+    "recommendedNet": "Recommended NET",
+    "operatorNet": "Operator NET",
+    "difference": "Difference",
+    "reason": "Reason",
+    "engine": "Engine",
+    "subtitle": "Every accept and override the operator has made, with the system's recommendation alongside it. This record is what will eventually tell us where the engine is wrong."
+  },
+  "settings": {
+    "title": "Dynamic rules",
+    "loading": "Loading dynamic rules…",
+    "unvalidated": "Everything here is unvalidated",
+    "save": "Save & recalculate",
+    "saving": "Saving…",
+    "noChanges": "No changes",
+    "reset": "Reset to demo defaults",
+    "livePreview": "Live preview",
+    "previewEffect": "Effect of your edits",
+    "previewFailed": "Could not price a preview for this configuration.",
+    "noSample": "No sample stay date available.",
+    "validatedBase": "Validated BASE",
+    "recommendedNet": "Recommended NET",
+    "pace": "Pace position",
+    "recentPickup": "Recent pickup",
+    "events": "Events",
+    "marketSignal": "Market signal",
+    "dayOfWeek": "Day of week",
+    "boundsRounding": "Bounds & rounding",
+    "band": "Band",
+    "adjustment": "Adjustment",
+    "upToGap": "Up to gap",
+    "upToDelta": "Up to delta",
+    "lookbackDays": "Lookback window (days)",
+    "expectedPickup": "Expected pickup per week (units)",
+    "sensitivity": "Sensitivity",
+    "maxAdjustment": "Max adjustment",
+    "minObservations": "Min observations",
+    "minConfidence": "Minimum confidence",
+    "minConfidenceHint": "Evidence below this is ignored",
+    "maxTotal": "Max total adjustment",
+    "minTotal": "Min total adjustment",
+    "roundingIncrement": "Rounding increment (VND)",
+    "enableDow": "Enable day-of-week adjustments",
+    "disabled": "Disabled",
+    "subtitle": "The experimental layer that sits on top of the validated rate book: pace, pickup, events and market. None of these values has been validated with Luminous.",
+    "sensitivityHint": "0 ignores the market entirely",
+    "confHigh": "High only",
+    "confMedium": "Medium and above",
+    "confLow": "Low and above (not advised)",
+    "paceDesc": "The primary demand signal: on-the-books occupancy versus what the booking curve expects for this lead time. Thresholds are gaps in fractions (0.20 = 20 percentage points).",
+    "pickupDesc": "Booking acceleration over the recent window — deliberately a smaller lever than pace, because the two must not double-count the same demand.",
+    "eventsDesc": "Applied only on dates you have flagged in the demand calendar. Normal seasonality is already in the rate book.",
+    "marketDesc": "Only observations at or above the confidence bar can move a rate. Generic web prices are LOW confidence and are shown but never applied."
+  }
+}

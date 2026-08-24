@@ -5,16 +5,14 @@ import { api } from "@/lib/api";
 import {
   confidenceTone,
   formatAdjPct,
-  formatLongDate,
   formatOccupancy,
   formatPaceGap,
   formatPct,
-  formatSignedVND,
-  formatVND,
-  marketLabel,
-  paceLabel,
-  pickupLabel,
+  marketBucket,
 } from "@/lib/format";
+import { useFormat } from "@/lib/useFormat";
+import { useAdjustmentText, useBandLabel } from "@/lib/adjustments";
+import { useTranslations } from "next-intl";
 import type { RecommendationDetail, SystemStatus } from "@/lib/types";
 import { Button, Chip, Field, StatusBadge, inputClass } from "./ui";
 
@@ -42,6 +40,9 @@ function SignalTile({
 
 /** The validated seasonal band, and where the recommendation sits inside it. */
 function RateBandStrip({ detail }: { detail: RecommendationDetail }) {
+  const { formatVND } = useFormat();
+  const t = useTranslations("drawer");
+  const tv = useTranslations("vocab");
   const lo = detail.band_min_net_rate;
   const hi = detail.band_max_net_rate;
   const base = detail.band_base_net_rate;
@@ -53,10 +54,10 @@ function RateBandStrip({ detail }: { detail: RecommendationDetail }) {
     <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-3.5 py-3">
       <div className="flex items-center justify-between mb-2">
         <div className="text-[11.5px] font-semibold text-emerald-900">
-          {detail.season_label}
-          <span className="font-normal text-emerald-700"> · {detail.room_category_label}</span>
+          {tv(`seasons.${detail.season_key}`)}
+          <span className="font-normal text-emerald-700"> · {tv(`roomCategories.${detail.room_category}`)}</span>
         </div>
-        <Chip tone="up">Client-validated</Chip>
+        <Chip tone="up">{t("clientValidated")}</Chip>
       </div>
 
       <div className="relative h-8 mt-3 mb-1">
@@ -74,12 +75,12 @@ function RateBandStrip({ detail }: { detail: RecommendationDetail }) {
       </div>
 
       <div className="flex justify-between text-[10.5px] tnum text-emerald-800">
-        <span>MIN {formatVND(lo)}</span>
-        <span className="text-emerald-600">BASE {formatVND(base)}</span>
-        <span>MAX {formatVND(hi)}</span>
+        <span>{t("band.min")} {formatVND(lo)}</span>
+        <span className="text-emerald-600">{t("band.base")} {formatVND(base)}</span>
+        <span>{t("band.max")} {formatVND(hi)}</span>
       </div>
       <div className="text-[10.5px] text-emerald-700 mt-1.5">
-        NET rates supplied by Luminous. Season selects this band — no seasonality multiplier is applied on top.
+        {t("band.note")}
       </div>
     </div>
   );
@@ -87,6 +88,9 @@ function RateBandStrip({ detail }: { detail: RecommendationDetail }) {
 
 /** The calculation: validated band -> dynamic layer -> clamp -> rounding. */
 function Breakdown({ detail }: { detail: RecommendationDetail }) {
+  const { formatVND, formatSignedVND } = useFormat();
+  const t = useTranslations("drawer");
+  const adjustmentText = useAdjustmentText();
   return (
     <div className="rounded-xl border border-ink-200 overflow-hidden">
       <div className="divide-y divide-ink-100">
@@ -96,6 +100,7 @@ function Breakdown({ detail }: { detail: RecommendationDetail }) {
           const isBand = adj.code === "rate_band";
           const isClamp = adj.code === "band_min_clamp" || adj.code === "band_max_clamp";
           const isBound = adj.code === "dynamic_bound";
+          const text = adjustmentText(adj);
 
           return (
             <div
@@ -114,16 +119,18 @@ function Breakdown({ detail }: { detail: RecommendationDetail }) {
                             : "text-ink-900"
                       }`}
                     >
-                      {adj.label}
+                      {text.label}
                     </span>
-                    {isBand && <Chip tone="up">Validated</Chip>}
-                    {isClamp && <Chip tone="warn">Band limit</Chip>}
-                    {isBound && <Chip tone="warn">Bounded</Chip>}
-                    {adj.is_ignored && <Chip tone="warn">Ignored</Chip>}
-                    {adj.is_neutral && !adj.is_ignored && !isBand && <Chip tone="neutral">No effect</Chip>}
+                    {isBand && <Chip tone="up">{t("chip.validated")}</Chip>}
+                    {isClamp && <Chip tone="warn">{t("chip.bandLimit")}</Chip>}
+                    {isBound && <Chip tone="warn">{t("chip.bounded")}</Chip>}
+                    {adj.is_ignored && <Chip tone="warn">{t("chip.ignored")}</Chip>}
+                    {adj.is_neutral && !adj.is_ignored && !isBand && (
+                      <Chip tone="neutral">{t("chip.noEffect")}</Chip>
+                    )}
                   </div>
-                  {adj.reason && (
-                    <div className="text-[11px] text-ink-500 mt-1 leading-snug">{adj.reason}</div>
+                  {text.reason && (
+                    <div className="text-[11px] text-ink-500 mt-1 leading-snug">{text.reason}</div>
                   )}
                 </div>
 
@@ -156,7 +163,7 @@ function Breakdown({ detail }: { detail: RecommendationDetail }) {
       </div>
 
       <div className="flex items-center justify-between px-3.5 py-3 bg-brand-50 border-t border-brand-200">
-        <span className="text-[12px] font-semibold text-brand-700">Recommended NET rate</span>
+        <span className="text-[12px] font-semibold text-brand-700">{t("recommendedNet")}</span>
         <span className="tnum text-[16px] font-bold text-brand-700">
           {formatVND(detail.recommended_net_rate)}
         </span>
@@ -176,6 +183,10 @@ export function RecommendationDrawer({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const { formatLongDate, formatSignedVND, formatVND } = useFormat();
+  const t = useTranslations("drawer");
+  const tv = useTranslations("vocab");
+  const bandLabel = useBandLabel();
   const [detail, setDetail] = useState<RecommendationDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -220,13 +231,13 @@ export function RecommendationDrawer({
       setMode("view");
       onChanged();
     } catch (e: any) {
-      setError(e.message || "Action failed");
+      setError(e.message || t("actionFailed"));
     } finally {
       setBusy(false);
     }
   };
 
-  const reasons = status?.override_reasons || [{ code: "my_judgment", label: "My judgment" }];
+  const reasons = status?.override_reasons || [{ code: "my_judgment", label: "" }];
   const outOfBand =
     detail && detail.band_min_net_rate !== null && detail.band_max_net_rate !== null
       ? Number(overrideRate) < detail.band_min_net_rate ||
@@ -237,7 +248,7 @@ export function RecommendationDrawer({
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-ink-950/25" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-white shadow-2xl overflow-y-auto animate-slide-in">
-        {loading && <div className="p-6 text-[13px] text-ink-400">Loading recommendation…</div>}
+        {loading && <div className="p-6 text-[13px] text-ink-400">{t("loading")}</div>}
 
         {detail && (
           <>
@@ -246,10 +257,10 @@ export function RecommendationDrawer({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-[16px] font-semibold text-ink-900 leading-tight">
-                      {detail.room_category_label}
+                      {tv(`roomCategories.${detail.room_category}`)}
                     </h2>
                     <StatusBadge status={detail.status} />
-                    <Chip tone="up">Shadow</Chip>
+                    <Chip tone="up">{t("shadow")}</Chip>
                   </div>
                   <div className="text-[12px] text-ink-500 mt-1">
                     {formatLongDate(detail.stay_date)}
@@ -259,7 +270,7 @@ export function RecommendationDrawer({
                   </div>
                 </div>
                 <Button variant="ghost" size="sm" onClick={onClose}>
-                  Close
+                  {t("close")}
                 </Button>
               </div>
             </div>
@@ -268,21 +279,21 @@ export function RecommendationDrawer({
               {/* headline */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-xl border border-ink-200 px-3.5 py-3">
-                  <div className="text-[10px] uppercase tracking-wide text-ink-400 font-medium">Current NET</div>
+                  <div className="text-[10px] uppercase tracking-wide text-ink-400 font-medium">{t("currentNet")}</div>
                   <div className="text-[17px] font-semibold text-ink-700 tnum mt-1">
                     {formatVND(detail.current_net_rate)}
                   </div>
                 </div>
                 <div className="rounded-xl border-2 border-brand-300 bg-brand-50 px-3.5 py-3">
                   <div className="text-[10px] uppercase tracking-wide text-brand-500 font-medium">
-                    Recommended NET
+                    {t("recommendedNet")}
                   </div>
                   <div className="text-[17px] font-bold text-brand-700 tnum mt-1">
                     {formatVND(detail.recommended_net_rate)}
                   </div>
                 </div>
                 <div className="rounded-xl border border-ink-200 px-3.5 py-3">
-                  <div className="text-[10px] uppercase tracking-wide text-ink-400 font-medium">Change</div>
+                  <div className="text-[10px] uppercase tracking-wide text-ink-400 font-medium">{t("change")}</div>
                   <div
                     className={`text-[17px] font-semibold tnum mt-1 ${
                       detail.change_pct > 0 ? "text-emerald-600" : detail.change_pct < 0 ? "text-rose-600" : "text-ink-400"
@@ -297,11 +308,11 @@ export function RecommendationDrawer({
               </div>
 
               <div className="rounded-lg bg-ink-50 border border-ink-200 px-3 py-2 text-[11px] text-ink-600">
-                These are <span className="font-semibold">NET rates</span> — what Luminous receives.
-                They are not guest-facing OTA prices.
-                {detail.current_ota_price !== null && (
-                  <> Current OTA price on file: {formatVND(detail.current_ota_price)}.</>
-                )}
+                {t.rich("netRatesNote", {
+                  term: (chunks) => <span className="font-semibold">{chunks}</span>,
+                })}
+                {detail.current_ota_price !== null &&
+                  t("otaOnFile", { price: formatVND(detail.current_ota_price) })}
               </div>
 
               {/* 1-2. which band, and why the base is what it is */}
@@ -309,41 +320,45 @@ export function RecommendationDrawer({
 
               {/* 3-6. the demand signals */}
               <div>
-                <div className="text-[12px] font-semibold text-ink-700 mb-2">Demand signals</div>
+                <div className="text-[12px] font-semibold text-ink-700 mb-2">{t("demandSignals")}</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <SignalTile
-                    label="On the books"
+                    label={t("signal.occupancy")}
                     value={formatOccupancy(detail.occupancy)}
                     hint={
                       detail.units_sold !== null
-                        ? `${detail.units_sold}/${detail.units_total} units · ${detail.units_available} left`
+                        ? t("unitsSold", {
+                            sold: detail.units_sold ?? 0,
+                            total: detail.units_total ?? 0,
+                            left: detail.units_available ?? 0,
+                          })
                         : undefined
                     }
                     muted={detail.occupancy === null}
                   />
                   <SignalTile
-                    label="Days to arrival"
+                    label={t("signal.daysToArrival")}
                     value={detail.days_to_arrival !== null ? `D-${detail.days_to_arrival}` : "—"}
                     hint={
                       detail.expected_occupancy !== null
-                        ? `curve expects ${formatOccupancy(detail.expected_occupancy)}`
-                        : "no curve"
+                        ? t("signal.curveExpects", { value: formatOccupancy(detail.expected_occupancy) })
+                        : t("signal.noCurve")
                     }
                     muted={detail.days_to_arrival === null}
                   />
                   <SignalTile
-                    label="Pace position"
-                    value={paceLabel(detail.pace_gap)}
+                    label={t("signal.pace")}
+                    value={bandLabel(detail.pace_label_key, detail.pace_label || t("signal.noData"))}
                     hint={detail.pace_gap !== null ? formatPaceGap(detail.pace_gap) : "no data"}
                     muted={detail.pace_gap === null}
                   />
                   <SignalTile
-                    label="Recent pickup"
-                    value={pickupLabel(detail.pickup_delta)}
+                    label={t("signal.pickup")}
+                    value={bandLabel(detail.pickup_label_key, detail.pickup_label || t("signal.noData"))}
                     hint={
                       detail.recent_pickup !== null
-                        ? `${detail.recent_pickup} booking(s) in window`
-                        : "no booking data"
+                        ? t("signal.bookingsInWindow", { count: detail.recent_pickup ?? 0 })
+                        : t("signal.noBookingData")
                     }
                     muted={detail.pickup_delta === null}
                   />
@@ -352,15 +367,18 @@ export function RecommendationDrawer({
                 <div className="mt-2 flex flex-wrap gap-2">
                   {detail.market_qualified_count > 0 ? (
                     <Chip tone={confidenceTone(detail.market_confidence)}>
-                      Market {marketLabel(detail.market_price_index)} ·{" "}
-                      {detail.market_qualified_count} × {detail.market_confidence}
+                      {t("market.label")} {t(`market.bucket.${marketBucket(detail.market_price_index)}`)} ·{" "}
+                      {t("market.observations", {
+                        count: detail.market_qualified_count,
+                        confidence: tv(`confidence.${detail.market_confidence ?? "UNUSABLE"}`),
+                      })}
                     </Chip>
                   ) : detail.market_ignored_count > 0 ? (
                     <Chip tone="warn">
-                      {detail.market_ignored_count} market observation(s) ignored — low confidence
+                      {t("market.ignored", { count: detail.market_ignored_count })}
                     </Chip>
                   ) : (
-                    <Chip tone="neutral">No market evidence</Chip>
+                    <Chip tone="neutral">{t("market.none")}</Chip>
                   )}
                   {detail.is_event && (
                     <Chip tone="warn">
@@ -371,8 +389,8 @@ export function RecommendationDrawer({
 
                 {detail.missing_signals.length > 0 && (
                   <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800">
-                    <span className="font-semibold">Blind spots:</span>{" "}
-                    {detail.missing_signals.join(", ")} — no adjustment was applied for these.
+                    <span className="font-semibold">{t("blindSpots")}</span>{" "}
+                    {detail.missing_signals.join(", ")} — {t("blindSpotsBody")}.
                   </div>
                 )}
               </div>
@@ -380,21 +398,23 @@ export function RecommendationDrawer({
               {/* 3-9. the full calculation */}
               <div>
                 <div className="text-[12px] font-semibold text-ink-700 mb-2">
-                  How this rate was calculated
+                  {t("calculation")}
                 </div>
                 <Breakdown detail={detail} />
-                <p className="text-[11.5px] text-ink-500 mt-2.5 leading-relaxed">{detail.explanation}</p>
                 <div className="text-[10.5px] text-ink-400 mt-2">
-                  Engine {detail.engine_version} · dynamic rules v{detail.config_version} · rate band{" "}
-                  <span className="text-emerald-600 font-medium">CLIENT-VALIDATED</span> · dynamic layer{" "}
-                  <span className="text-amber-600 font-medium">UNVALIDATED</span>
+                  {t("engineLine", {
+                    engine: detail.engine_version,
+                    config: detail.config_version,
+                  })}{" "}
+                  <span className="text-emerald-600 font-medium">{t("validatedTag")}</span> · dynamic layer{" "}
+                  <span className="text-amber-600 font-medium">{t("unvalidatedTag")}</span>
                 </div>
               </div>
 
               {/* outcomes */}
               {detail.outcomes.length > 0 && (
                 <div>
-                  <div className="text-[12px] font-semibold text-ink-700 mb-2">Outcome</div>
+                  <div className="text-[12px] font-semibold text-ink-700 mb-2">{t("outcome")}</div>
                   {detail.outcomes.map((o) => (
                     <div
                       key={o.id}
@@ -403,7 +423,7 @@ export function RecommendationDrawer({
                       <span className="text-ink-600">
                         {o.units_booked} booked · realised {formatVND(o.realized_net_rate)}
                       </span>
-                      {o.is_synthetic && <Chip tone="warn">Synthetic</Chip>}
+                      {o.is_synthetic && <Chip tone="warn">{t("synthetic")}</Chip>}
                     </div>
                   ))}
                 </div>
@@ -412,7 +432,7 @@ export function RecommendationDrawer({
               {/* decisions */}
               {detail.decisions.length > 0 && (
                 <div>
-                  <div className="text-[12px] font-semibold text-ink-700 mb-2">Decisions on this date</div>
+                  <div className="text-[12px] font-semibold text-ink-700 mb-2">{t("decisionsOnDate")}</div>
                   <div className="space-y-1.5">
                     {detail.decisions.map((d) => (
                       <div key={d.id} className="rounded-lg border border-ink-200 px-3 py-2 text-[11.5px]">
@@ -444,10 +464,10 @@ export function RecommendationDrawer({
                     disabled={busy}
                     onClick={() => act(() => api.accept(detail.id, note || undefined))}
                   >
-                    Accept {formatVND(detail.recommended_net_rate)}
+                    {t("acceptRate", { rate: formatVND(detail.recommended_net_rate) })}
                   </Button>
                   <Button disabled={busy} onClick={() => setMode("override")}>
-                    Override…
+                    {t("overrideEllipsis")}
                   </Button>
                   {detail.status !== "pending" && (
                     <Button variant="ghost" size="sm" disabled={busy} onClick={() => act(() => api.resetDecision(detail.id))}>
@@ -458,7 +478,7 @@ export function RecommendationDrawer({
               ) : (
                 <div className="space-y-2.5">
                   <div className="grid grid-cols-2 gap-2.5">
-                    <Field label="Your NET rate (VND)">
+                    <Field label={t("yourNetRate")}>
                       <input
                         className={inputClass}
                         type="number"
@@ -467,11 +487,11 @@ export function RecommendationDrawer({
                         onChange={(e) => setOverrideRate(e.target.value)}
                       />
                     </Field>
-                    <Field label="Reason">
+                    <Field label={t("reason")}>
                       <select className={inputClass} value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
                         {reasons.map((r) => (
                           <option key={r.code} value={r.code}>
-                            {r.label}
+                            {tv(`overrideReasons.${r.code}`)}
                           </option>
                         ))}
                       </select>
@@ -484,10 +504,10 @@ export function RecommendationDrawer({
                       That is allowed — the override is recorded as-is.
                     </div>
                   )}
-                  <Field label="Note (optional)">
+                  <Field label={t("note")}>
                     <input
                       className={inputClass}
-                      placeholder="What does the system not know?"
+                      placeholder={t("notePlaceholder")}
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
                     />

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Card } from "./ui";
 import { formatOccupancy, formatPaceGap, formatPct } from "@/lib/format";
 import type { Summary } from "@/lib/types";
@@ -31,6 +32,7 @@ function Stat({
 }
 
 export function SummaryCards({ summary }: { summary: Summary | null }) {
+  const t = useTranslations("summary");
   if (!summary) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
@@ -46,12 +48,12 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
       <Stat
-        label="Apartments"
+        label={t("apartments")}
         value={String(summary.total_units)}
-        sub={`${summary.room_types} room categories priced`}
+        sub={t("categoriesPriced", { count: summary.room_types })}
       />
       <Stat
-        label="Upcoming nights"
+        label={t("upcomingNights")}
         value={summary.upcoming_nights.toLocaleString()}
         sub={
           summary.horizon_start && summary.horizon_end
@@ -59,9 +61,9 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
             : undefined
         }
       />
-      <Stat label="Avg occupancy" value={formatOccupancy(summary.average_occupancy)} sub="On the books" />
+      <Stat label={t("avgOccupancy")} value={formatOccupancy(summary.average_occupancy)} sub={t("onTheBooks")} />
       <Stat
-        label="Avg rate change"
+        label={t("avgRateChange")}
         value={formatPct(summary.average_recommended_change_pct)}
         tone={
           summary.average_recommended_change_pct > 0.05
@@ -70,20 +72,20 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
               ? "down"
               : "neutral"
         }
-        sub="Recommended vs current NET"
+        sub={t("vsCurrent")}
       />
       <Stat
-        label="Avg pace position"
+        label={t("avgPace")}
         value={formatPaceGap(gap)}
         tone={gap === null ? "neutral" : gap < -0.03 ? "down" : gap > 0.03 ? "up" : "neutral"}
-        sub="vs booking curve expectation"
+        sub={t("vsCurveExpectation")}
       />
       <Stat
-        label="Pending review"
+        label={t("pendingReview")}
         value={summary.pending_recommendations.toLocaleString()}
         tone={summary.pending_recommendations > 0 ? "warn" : "neutral"}
         sub={
-          `${summary.accepted_recommendations} accepted · ${summary.overridden_recommendations} overridden` +
+          t("decisionSplit", { accepted: summary.accepted_recommendations, overridden: summary.overridden_recommendations }) +
           (summary.unpriced_recommendations > 0
             ? ` · ${summary.unpriced_recommendations} could not be priced`
             : "")

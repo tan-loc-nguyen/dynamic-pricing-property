@@ -365,7 +365,6 @@ class PricingRecommendation(Base):
     change_pct: Mapped[float] = mapped_column(Float, default=0.0)
     total_adjustment_pct: Mapped[float] = mapped_column(Float, default=0.0)
 
-    explanation: Mapped[str] = mapped_column(Text, default="")
     engine_version: Mapped[str] = mapped_column(String(48), default="1.0.0")
     config_version: Mapped[int] = mapped_column(Integer, default=1)
 
@@ -393,8 +392,13 @@ class PricingRecommendation(Base):
 class PricingAdjustment(Base):
     """One explainable step of the calculation.
 
-    V2 is additive: ``adjustment_pct`` is the contribution in percentage
-    points. ``factor`` is retained so V1 breakdowns still render.
+    The engine is additive: ``adjustment_pct`` is the contribution in
+    percentage points.
+
+    ``label_key`` + ``params`` are what make the step translatable: the row
+    stores the message key and the figures it interpolates, never a finished
+    sentence. ``label`` is the English fallback, and the only text shown for a
+    band an operator named themselves (``label_key`` is then NULL).
     """
 
     __tablename__ = "pricing_adjustments"
@@ -413,7 +417,8 @@ class PricingAdjustment(Base):
     price_after: Mapped[float] = mapped_column(Float)
     delta: Mapped[float] = mapped_column(Float, default=0.0)
 
-    reason: Mapped[str] = mapped_column(Text, default="")
+    label_key: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
     is_neutral: Mapped[bool] = mapped_column(Boolean, default=False)
     is_ignored: Mapped[bool] = mapped_column(Boolean, default=False)
 

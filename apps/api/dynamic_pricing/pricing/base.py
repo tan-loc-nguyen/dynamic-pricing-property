@@ -1,12 +1,16 @@
 """Pricing engine interface + result types.
 
-Any future engine (FinancePricingEngine, PricingEngineV3, ...) subclasses
+Any future engine (FinancePricingEngine, ...) subclasses
 ``PricingEngine`` and returns a ``PricingResult``. Nothing else in the system —
 UI, API, persistence, providers — needs to change.
 
-V2 is **additive**: each step contributes a percentage of the validated BASE
-net rate. ``factor`` is retained so legacy multiplicative breakdowns still
-render in the same UI.
+The engine is **additive**: each step contributes a percentage of the validated
+BASE net rate.
+
+Steps carry a message KEY and the numbers that key interpolates -- never a
+finished sentence. The sentence is composed at render time in whichever
+language is being viewed, which is the only way the explanation (this
+product's entire value) can exist in Vietnamese as well as English.
 """
 
 from __future__ import annotations
@@ -29,7 +33,15 @@ class Adjustment:
     delta: float
     adjustment_pct: float = 0.0
     factor: float = 1.0
-    reason: str = ""
+    # Message key for the label and its sentence, e.g. "adjustments.pace.behind".
+    # None when the text is operator-authored (a renamed or invented band): there
+    # is no shipped translation for wording a human typed, so ``label`` is shown
+    # verbatim instead of being mistranslated into a neighbouring band's copy.
+    label_key: str | None = None
+    # The figures the sentence interpolates. Numbers and codes only -- anything
+    # pre-formatted here (a date, a thousands separator) is a decision made in
+    # the wrong language.
+    params: dict[str, Any] = field(default_factory=dict)
     is_neutral: bool = False
     # True when a signal was observed but deliberately NOT applied — e.g. a
     # low-confidence market price. The operator still sees it.
@@ -47,7 +59,6 @@ class PricingResult:
     net_rate_before_clamp: float
     total_adjustment_pct: float
     adjustments: list[Adjustment]
-    explanation: str
     engine_version: str
     metadata: dict[str, Any] = field(default_factory=dict)
 

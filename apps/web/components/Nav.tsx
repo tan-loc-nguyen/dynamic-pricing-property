@@ -1,19 +1,23 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link, usePathname } from "@/i18n/navigation";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 const LINKS = [
-  { href: "/", label: "Rate Review", hint: "Recommendations to action" },
-  { href: "/rate-book", label: "Rate Book", hint: "Validated seasonal rates" },
-  { href: "/settings", label: "Dynamic Rules", hint: "Experimental layer" },
-  { href: "/market", label: "Market", hint: "Comp set & evidence" },
-  { href: "/events", label: "Events", hint: "Demand calendar" },
-  { href: "/history", label: "History", hint: "Past decisions" },
-];
+  { href: "/", key: "rateReview" },
+  { href: "/rate-book", key: "rateBook" },
+  { href: "/settings", key: "dynamicRules" },
+  { href: "/market", key: "market" },
+  { href: "/events", key: "events" },
+  { href: "/history", key: "history" },
+] as const;
 
 export function Nav() {
   const pathname = usePathname();
+  const t = useTranslations("nav");
+  const tn = useTranslations("navHints");
+  const ta = useTranslations("app");
 
   return (
     <aside className="w-60 shrink-0 border-r border-ink-200 bg-white flex flex-col">
@@ -23,7 +27,7 @@ export function Nav() {
             D
           </div>
           <div className="min-w-0">
-            <div className="text-[13px] font-semibold leading-tight text-ink-900">Dynamic Pricing</div>
+            <div className="text-[13px] font-semibold leading-tight text-ink-900">{ta("shortName")}</div>
             {/* The operator whose portfolio is being priced. */}
             <div className="text-[11px] text-ink-500 leading-tight">Luminous Luxury Apartments</div>
           </div>
@@ -41,9 +45,9 @@ export function Nav() {
                 active ? "bg-brand-50 text-brand-700" : "text-ink-600 hover:bg-ink-50 hover:text-ink-900"
               }`}
             >
-              <div className="text-[13px] font-medium leading-tight">{link.label}</div>
+              <div className="text-[13px] font-medium leading-tight">{t(link.key)}</div>
               <div className={`text-[11px] leading-tight mt-0.5 ${active ? "text-brand-500" : "text-ink-400"}`}>
-                {link.hint}
+                {tn(link.key)}
               </div>
             </Link>
           );
@@ -51,19 +55,18 @@ export function Nav() {
       </nav>
 
       <div className="p-3 border-t border-ink-100 space-y-2">
+        <LanguageSwitcher />
         <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2.5">
-          <div className="text-[11px] font-semibold text-emerald-900 leading-tight">Shadow Mode</div>
-          <div className="text-[11px] text-emerald-700 leading-snug mt-1">
-            Recommendations only. Nothing is pushed to Blue Jay or any OTA.
+          <div className="text-[11px] font-semibold text-emerald-900 leading-tight">
+            {ta("shadowModeTitle")}
           </div>
+          <div className="text-[11px] text-emerald-700 leading-snug mt-1">{ta("shadowModeBody")}</div>
         </div>
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
           <div className="text-[11px] font-semibold text-amber-900 leading-tight">
-            Dynamic layer unvalidated
+            {ta("unvalidatedTitle")}
           </div>
-          <div className="text-[11px] text-amber-700 leading-snug mt-1">
-            Seasonal NET rates are client-validated. Pace, pickup, event and market settings are not.
-          </div>
+          <div className="text-[11px] text-amber-700 leading-snug mt-1">{ta("unvalidatedBody")}</div>
         </div>
       </div>
     </aside>

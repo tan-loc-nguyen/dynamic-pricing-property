@@ -431,7 +431,8 @@ def test_a_rare_failure_is_reported_per_date_and_the_run_still_commits(session):
     errored = [r for r in rows if r.status == "error"]
     assert len(errored) == 1, "the unpriced date must be VISIBLE, not omitted"
     assert errored[0].stay_date == today + timedelta(days=5)
-    assert "could not be priced" in errored[0].explanation
+    assert errored[0].extra["unpriced"] is True, "the row must SAY it is unpriced, structurally"
+    assert "this one row is bad" in errored[0].extra["error"]
     # ...and it must be distinguishable from a date that was never in scope.
     assert errored[0].id is not None
 
@@ -604,6 +605,9 @@ def test_the_percentage_in_the_explanation_describes_the_rate_it_is_attached_to(
     """The closing sentence quoted the pre-clamp figure while the table column
     showed the realised one, and both were labelled "dynamic".
 
+    The prose is gone now, but the two figures remain and something still has to
+    choose between them, so the invariant outlived its original wording.
+
     On 184 of 273 rows they differed; on clamped rows the sentence contradicted
     itself — "raised to the floor ... (-11.2% dynamic on base)" for a rate that
     is -8.7% of base. It survived six rounds because BOTH numbers are
@@ -611,8 +615,6 @@ def test_the_percentage_in_the_explanation_describes_the_rate_it_is_attached_to(
     them side by side exposes it. So this asserts the relationship between two
     fields, not the correctness of either.
     """
-    import re
-
     from conftest import make_context
     from dynamic_pricing.pricing import default_config, get_engine
 
@@ -628,19 +630,25 @@ def test_the_percentage_in_the_explanation_describes_the_rate_it_is_attached_to(
 
     result = get_engine().calculate(make_context(**overrides), config)
 
-    quoted = re.findall(r"realised ([+-][\d.]+)%", result.explanation)
-    if not quoted:
-        quoted = re.findall(r"\(([+-][\d.]+)% on base\)", result.explanation)
+    # The sentence is gone; the contradiction it caused is not. Both figures
+    # still exist and the frontend picks one, so the invariant is now: the
+    # percentage advertised as the row's adjustment must actually describe the
+    # recommended rate, and the pre-clamp figure must be separately named so it
+    # cannot be mistaken for it.
+    realised = result.total_adjustment_pct
 
-    assert quoted, f"[{scenario}] the explanation must quote a percentage: {result.explanation}"
-    assert float(quoted[-1]) == pytest.approx(result.total_adjustment_pct, abs=0.06), (
-        f"[{scenario}] the explanation quotes {quoted[-1]}% but the recommended rate is "
-        f"{result.total_adjustment_pct:.2f}% of base — the drawer would contradict the "
-        f"table column beside it."
+    implied = result.base_net_rate * (1 + realised / 100.0)
+    assert implied == pytest.approx(result.recommended_net_rate, rel=1e-6), (
+        f"[{scenario}] total_adjustment_pct ({realised:.2f}%) does not describe the "
+        f"recommended rate {result.recommended_net_rate:,.0f} — the field the drawer "
+        f"and the table column both read would be lying."
+    )
+    assert "bounded_dynamic_pct" in result.metadata and "raw_dynamic_pct" in result.metadata, (
+        f"[{scenario}] the signals figure must stay separately named from the realised one"
     )
 
 
-def test_a_clamped_explanation_names_both_the_wanted_and_realised_figures():
+def test_a_clamped_row_keeps_both_the_wanted_and_realised_figures():
     """On a clamped row the pre-clamp figure IS informative — the operator wants
     to know the signals asked for more than the band allowed. It just cannot be
     the only number quoted, or presented as describing the final rate."""
@@ -653,9 +661,13 @@ def test_a_clamped_explanation_names_both_the_wanted_and_realised_figures():
     result = get_engine().calculate(make_context(pace_gap=-0.9), config)
 
     assert result.metadata["clamp_applied"] == "min"
-    assert "Signals totalled" in result.explanation
-    assert "realised" in result.explanation
-    assert "dynamic on base" not in result.explanation, "the ambiguous label must be gone"
+    signalled = result.metadata["bounded_dynamic_pct"]
+    realised = result.total_adjustment_pct
+    assert signalled < realised, (
+        "a floor-clamped row realises less of a discount than its signals asked for; "
+        "if these collapse to one number the operator loses the reason for the gap"
+    )
+    assert result.metadata["clamp_applied"] is not None
 
 
 def test_a_clamp_is_not_described_as_a_dynamic_signal():
@@ -674,7 +686,19 @@ def test_a_clamp_is_not_described_as_a_dynamic_signal():
     result = get_engine().calculate(make_context(pace_gap=-0.9), config)
 
     assert result.metadata["clamp_applied"] == "min"
-    signals = result.explanation.split("Dynamic signals: ")[1].split(". ")[0]
-    assert "floor" not in signals.lower(), f"clamp listed as a signal: {signals}"
-    # ...but it must still be explained.
-    assert "floor" in result.explanation.lower()
+
+    clamp = next(a for a in result.adjustments if a.code == "band_min_clamp")
+    # The bug was a 0% adjustment attributed to a line that moved the rate.
+    assert clamp.adjustment_pct == pytest.approx(0.0)
+    assert clamp.delta != pytest.approx(0.0), "the clamp DID move the rate"
+
+    # So a clamp must never be summed with, or presented among, the signals.
+    signal_codes = {"pace", "recent_pickup", "event", "market", "day_of_week"}
+    signals_total = sum(
+        a.adjustment_pct for a in result.adjustments if a.code in signal_codes and not a.is_ignored
+    )
+    assert signals_total == pytest.approx(result.metadata["bounded_dynamic_pct"], abs=0.01), (
+        "the signal lines must add up to the signals figure, with the clamp outside it"
+    )
+    # ...but it must still be its own explicit, translatable step.
+    assert clamp.label_key == "adjustments.band_min_clamp"

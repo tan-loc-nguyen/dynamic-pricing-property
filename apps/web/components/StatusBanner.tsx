@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { Chip } from "./ui";
 import type { SystemStatus } from "@/lib/types";
 
@@ -8,6 +10,7 @@ import type { SystemStatus } from "@/lib/types";
  * are degraded — rather than a silently-empty product.
  */
 export function StatusBanner({ status }: { status: SystemStatus | null }) {
+  const t = useTranslations("banner");
   if (!status) return null;
 
   const pmsDegraded = !status.pms.healthy;
@@ -15,31 +18,31 @@ export function StatusBanner({ status }: { status: SystemStatus | null }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
-      <Chip tone="up" title="Recommendations only — nothing is written to Blue Jay or any OTA.">
-        Shadow Mode
+      <Chip tone="up" title={t("shadowTitle")}>
+        {t("shadowMode")}
       </Chip>
-      <Chip tone="up" title={`${status.rate_book.bands} seasonal NET bands supplied by Luminous.`}>
-        Rate book: client-validated
+      <Chip tone="up" title={t("rateBookTitle", { count: status.rate_book.bands })}>
+        {t("rateBookValidated")}
       </Chip>
       <Chip
         tone="warn"
-        title={status.booking_curve.note || "Demo booking curve — not Luminous data."}
+        title={status.booking_curve.note || t("demoCurve")}
       >
-        Booking curve: demo
+        {t("bookingCurveDemo")}
       </Chip>
       <Chip tone={status.demo_mode ? "info" : "neutral"} title={status.pms.detail}>
-        {status.demo_mode ? "Demo data" : `PMS: ${status.pms.mode}`}
+        {status.demo_mode ? t("demoData") : t("pms", { mode: status.pms.mode })}
       </Chip>
       {pmsDegraded && (
         <Chip tone="warn" title={status.pms.detail}>
-          Blue Jay unavailable
+          {t("blueJayUnavailable")}
         </Chip>
       )}
       <Chip tone={marketDegraded ? "warn" : "neutral"} title={status.market.detail}>
-        Market: {status.market.mode}
+        {t("market", { mode: status.market.mode })}
       </Chip>
-      <Chip tone="neutral">Engine {status.engine.version}</Chip>
-      <Chip tone="neutral">Rules v{status.config_version}</Chip>
+      <Chip tone="neutral">{t("engine", { version: status.engine.version })}</Chip>
+      <Chip tone="neutral">{t("rules", { version: status.config_version })}</Chip>
       {/* Outcome readiness. Deliberately a status chip, not an analytics screen:
           the operator needs to know whether the evaluation dataset is real yet,
           and elaborate analytics is an explicit non-goal for this phase. */}
@@ -47,9 +50,9 @@ export function StatusBanner({ status }: { status: SystemStatus | null }) {
         tone={status.outcome_readiness?.ready_for_evaluation ? "up" : "warn"}
         title={String(status.outcome_readiness?.note || "")}
       >
-        Outcomes: {status.outcome_readiness?.real_outcomes ?? 0} real
+        {t("outcomes", { real: status.outcome_readiness?.real_outcomes ?? 0 })}
         {(status.outcome_readiness?.synthetic_outcomes ?? 0) > 0 &&
-          ` · ${status.outcome_readiness.synthetic_outcomes} synthetic`}
+          t("outcomesSynthetic", { count: status.outcome_readiness.synthetic_outcomes })}
       </Chip>
       {(pmsDegraded || marketDegraded) && (
         <span className="text-ink-400">

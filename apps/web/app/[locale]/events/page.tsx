@@ -1,12 +1,18 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Chip, Empty, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatStayDate, todayISO } from "@/lib/format";
+import { todayISO } from "@/lib/format";
+import { useFormat } from "@/lib/useFormat";
 import type { EventItem } from "@/lib/types";
 
 export default function EventsPage() {
+  const t = useTranslations("events");
+  const tc = useTranslations("common");
+  const { formatStayDate } = useFormat();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [meta, setMeta] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -49,7 +55,7 @@ export default function EventsPage() {
         notes: form.notes || null,
       });
       setForm({ ...form, name: "", adjustment_pct: "", notes: "" });
-      setMessage("Event saved. Recalculate on Rate Review to fold it into recommendations.");
+      setMessage(t("saved"));
       await load();
     } catch (e: any) {
       setMessage(e.message);
@@ -69,33 +75,33 @@ export default function EventsPage() {
   return (
     <div className="px-7 py-6 space-y-5 max-w-[1400px]">
       <PageHeader
-        title="Demand calendar"
-        subtitle="Known exceptional-demand dates. Events are curated by you, not scraped — a wrong event moves real money, so a human decides what counts."
+        title={t("title")}
+        subtitle={t("subtitleLong")}
       />
 
       <div className="flex flex-wrap gap-2">
-        <Chip tone="info">Manual curation</Chip>
-        <Chip tone="warn">Event impact sizes are UNVALIDATED</Chip>
+        <Chip tone="info">{t("subtitle")}</Chip>
+        <Chip tone="warn">{t("unvalidated")}</Chip>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-5 items-start">
         <Card className="p-5">
-          <h2 className="text-[14px] font-semibold text-ink-900">Add an event</h2>
+          <h2 className="text-[14px] font-semibold text-ink-900">{t("add")}</h2>
           <p className="text-[12px] text-ink-500 mt-0.5 leading-snug">
-            Normal seasonality is already handled by the rate book — add only exceptional dates.
+            {t("onlyExceptional")}
           </p>
 
           <div className="mt-4 space-y-3">
             <Field label="Name">
               <input
                 className={inputClass}
-                placeholder="e.g. HCMC Marathon"
+                placeholder={t("namePlaceholder")}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Starts">
+              <Field label={t("starts")}>
                 <input
                   type="date"
                   className={inputClass}
@@ -113,7 +119,7 @@ export default function EventsPage() {
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Impact level">
+              <Field label={t("impactLevel")}>
                 <select
                   className={inputClass}
                   value={form.impact_level}
@@ -141,29 +147,29 @@ export default function EventsPage() {
               </Field>
             </div>
             <Field
-              label="Adjustment override (%)"
-              hint="Leave blank to use the configured value for this impact level"
+              label={t("overridePct")}
+              hint={t("overrideHint")}
             >
               <input
                 type="number"
                 step={0.5}
                 className={inputClass}
-                placeholder="e.g. 12"
+                placeholder={t("overridePlaceholder")}
                 value={form.adjustment_pct}
                 onChange={(e) => setForm({ ...form, adjustment_pct: e.target.value })}
               />
             </Field>
-            <Field label="Notes (optional)">
+            <Field label={tc("notesOptional")}>
               <input
                 className={inputClass}
-                placeholder="Why this matters for demand…"
+                placeholder={t("notesPlaceholder")}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </Field>
 
             <Button variant="primary" onClick={submit} disabled={busy || !form.name}>
-              Save event
+              {t("saveEvent")}
             </Button>
 
             {message && (
@@ -179,14 +185,14 @@ export default function EventsPage() {
             Events <span className="text-ink-400 font-normal">({events.length})</span>
           </div>
           {loading ? (
-            <Spinner label="Loading events…" />
+            <Spinner label={t("loading")} />
           ) : events.length === 0 ? (
-            <Empty title="No events yet" hint="Add the dates you know will move demand." />
+            <Empty title={t("empty")} hint={t("emptyHint")} />
           ) : (
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-ink-200 bg-ink-50/60">
-                  {["Event", "Dates", "Impact", "Type", "Override", "Source", ""].map((h) => (
+                  {[t("name"), t("dates"), t("impact"), "Type", t("override"), tc("source"), ""].map((h) => (
                     <th
                       key={h}
                       className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 text-left"

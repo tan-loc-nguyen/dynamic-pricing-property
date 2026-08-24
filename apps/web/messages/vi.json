@@ -1,0 +1,548 @@
+{
+  "app": {
+    "name": "Dynamic Pricing Property",
+    "tagline": "Trí tuệ doanh thu trên nền Blue Jay PMS",
+    "shadowMode": "Chế độ theo dõi — không đẩy dữ liệu sang Blue Jay hay bất kỳ OTA nào",
+    "shortName": "Dynamic Pricing",
+    "shadowModeTitle": "Chế độ theo dõi",
+    "shadowModeBody": "Chỉ đưa ra đề xuất. Không ghi bất kỳ dữ liệu nào sang Blue Jay hay OTA.",
+    "unvalidatedTitle": "Lớp điều chỉnh chưa được xác thực",
+    "unvalidatedBody": "Bảng giá NET theo mùa đã được khách hàng xác nhận. Các thiết lập về tiến độ, lượng đặt, sự kiện và thị trường thì chưa."
+  },
+  "nav": {
+    "rateReview": "Duyệt giá",
+    "rateBook": "Bảng giá mùa",
+    "dynamicRules": "Quy tắc động",
+    "market": "Thị trường",
+    "events": "Sự kiện",
+    "history": "Lịch sử",
+    "language": "Ngôn ngữ"
+  },
+  "adjustments": {
+    "rate_band": {
+      "label": "Giá cơ sở theo mùa",
+      "reason": "{room_category} trong {season}: giá CƠ SỞ {base_net_rate, number} ₫ NET (khung {min_net_rate, number}–{max_net_rate, number}). Nguồn: {source}."
+    },
+    "pace": {
+      "well_behind": {
+        "label": "Chậm hơn nhiều",
+        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+      },
+      "behind": {
+        "label": "Chậm hơn",
+        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+      },
+      "on_pace": {
+        "label": "Đúng tiến độ",
+        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+      },
+      "ahead": {
+        "label": "Nhanh hơn",
+        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+      },
+      "well_ahead": {
+        "label": "Nhanh hơn nhiều",
+        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+      },
+      "unavailable": {
+        "label": "Tiến độ đặt phòng",
+        "reason": "Không có dữ liệu tiến độ đặt phòng; không áp dụng điều chỉnh theo tiến độ."
+      },
+      "occupancy_unavailable": {
+        "label": "Tiến độ đặt phòng",
+        "reason": "Không có dữ liệu công suất phòng; không áp dụng điều chỉnh theo tiến độ."
+      },
+      "no_band": {
+        "label": "Tiến độ đặt phòng",
+        "reason": "Chưa cấu hình khung tiến độ."
+      }
+    },
+    "recent_pickup": {
+      "stalled": {
+        "label": "Chững hẳn",
+        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+      },
+      "slowing": {
+        "label": "Chậm lại",
+        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+      },
+      "as_expected": {
+        "label": "Đúng kỳ vọng",
+        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+      },
+      "accelerating": {
+        "label": "Tăng tốc",
+        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+      },
+      "surging": {
+        "label": "Tăng mạnh",
+        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+      },
+      "unavailable": {
+        "label": "Lượng đặt mới gần đây",
+        "reason": "Không có lịch sử đặt phòng cho hạng phòng này; không áp dụng điều chỉnh theo lượng đặt mới."
+      },
+      "no_band": {
+        "label": "Lượng đặt mới gần đây",
+        "reason": "Chưa cấu hình khung lượng đặt mới."
+      }
+    },
+    "event": {
+      "level": {
+        "label": "Sự kiện: {event_name}",
+        "reason": "'{event_name}' rơi vào ngày lưu trú này (mức tác động {impact_level, select, low {thấp} medium {trung bình} high {cao} other {chưa xác định}})."
+      },
+      "override": {
+        "label": "Sự kiện: {event_name}",
+        "reason": "'{event_name}' rơi vào ngày lưu trú này (điều chỉnh riêng cho sự kiện)."
+      }
+    },
+    "market": {
+      "applied": {
+        "label": "Tín hiệu thị trường",
+        "reason": "Giá tham chiếu {reference_net_rate, number} ₫ {direction, select, above {cao hơn} other {thấp hơn}} mặt bằng của nhóm so sánh {delta_pct, number}% ({qualified_count, number} quan sát độ tin cậy {confidence, select, HIGH {cao} MEDIUM {trung bình} LOW {thấp} other {không rõ}}, độ nhạy {sensitivity, number})."
+      },
+      "ignored_low_confidence": {
+        "label": "Tín hiệu thị trường (bỏ qua — độ tin cậy thấp)",
+        "reason": "Tìm thấy {ignored_count, number} quan sát nhưng không quan sát nào đạt ngưỡng tin cậy {gate}, nên thị trường không làm thay đổi giá này."
+      },
+      "unavailable": {
+        "label": "Tín hiệu thị trường",
+        "reason": "Không có tín hiệu thị trường; không áp dụng điều chỉnh theo thị trường."
+      },
+      "insufficient": {
+        "label": "Tín hiệu thị trường",
+        "reason": "Chỉ có {qualified_count, number} quan sát đạt chuẩn (tối thiểu {min_observations, number}); không áp dụng điều chỉnh theo thị trường."
+      }
+    },
+    "day_of_week": {
+      "label": "{day}",
+      "reason": "{day} có điều chỉnh cố định theo thứ trong tuần."
+    },
+    "dynamic_bound": {
+      "label": "Giới hạn tổng điều chỉnh",
+      "reason": "Tổng tín hiệu là {raw_pct, number}%, vượt giới hạn cấu hình {min_pct, number}%…{max_pct, number}%. Đã thu về {bounded_pct, number}% để một lần chạy không làm giá thay đổi quá xa."
+    },
+    "band_min_clamp": {
+      "label": "Giá sàn theo mùa",
+      "reason": "Lớp điều chỉnh động sẽ đưa giá xuống dưới giá sàn đã xác thực {bound_net_rate, number} ₫ NET. Đã nâng lên bằng giá sàn."
+    },
+    "band_max_clamp": {
+      "label": "Giá trần theo mùa",
+      "reason": "Lớp điều chỉnh động sẽ đưa giá lên trên giá trần đã xác thực {bound_net_rate, number} ₫ NET. Đã hạ xuống bằng giá trần."
+    },
+    "rounding": {
+      "label": "Làm tròn",
+      "reason": "Làm tròn đến bội số {increment, number} ₫ gần nhất."
+    }
+  },
+  "vocab": {
+    "seasons": {
+      "low_1": "Mùa thấp điểm 1 (T5–T6)",
+      "high_1": "Mùa cao điểm 1 (T7–T8)",
+      "low_2": "Mùa thấp điểm 2 (T9–T10)",
+      "high_2": "Mùa cao điểm 2 (T11–T1)",
+      "medium": "Mùa trung bình (T2–T4)"
+    },
+    "seasonNotes": {
+      "low_1": "Chủ yếu là khách công tác, ít khách du lịch.",
+      "high_1": "Du lịch hè — khách quốc tế và khách gia đình.",
+      "low_2": "Chủ yếu là khách công tác.",
+      "high_2": "Mùa lễ hội.",
+      "medium": ""
+    },
+    "roomCategories": {
+      "2br_regular": "2 phòng ngủ thường",
+      "2br_premium": "2 phòng ngủ premium",
+      "3br": "3 phòng ngủ"
+    },
+    "confidence": {
+      "HIGH": "Cao",
+      "MEDIUM": "Trung bình",
+      "LOW": "Thấp",
+      "UNUSABLE": "Không dùng được"
+    },
+    "eventImpact": {
+      "low": "Thấp",
+      "medium": "Trung bình",
+      "high": "Cao"
+    },
+    "eventTypes": {
+      "holiday": "Ngày lễ",
+      "concert": "Hòa nhạc",
+      "conference": "Hội nghị",
+      "festival": "Lễ hội",
+      "sport": "Sự kiện thể thao",
+      "other": "Khác"
+    },
+    "priceBasis": {
+      "NET": "NET về cho chủ nhà",
+      "OTA_SELL": "Giá bán trên OTA",
+      "UNKNOWN": "Không rõ"
+    },
+    "overrideReasons": {
+      "pace_strategy": "Chiến lược theo tiến độ đặt phòng",
+      "competitor_pricing": "Giá của đối thủ",
+      "property_knowledge": "Hiểu biết riêng về toà nhà",
+      "promotion": "Khuyến mãi",
+      "special_event": "Sự kiện đặc biệt",
+      "owner_constraint": "Ràng buộc từ chủ nhà",
+      "channel_mix": "Cơ cấu kênh / OTA",
+      "my_judgment": "Đánh giá của tôi",
+      "other": "Khác"
+    },
+    "status": {
+      "pending": "Chờ duyệt",
+      "accepted": "Đã chấp nhận",
+      "overridden": "Đã điều chỉnh",
+      "error": "Chưa định giá"
+    },
+    "source": {
+      "CLIENT_VALIDATED": "Khách hàng đã xác thực",
+      "OPERATOR_EDITED": "Người vận hành đã sửa"
+    },
+    "days": {
+      "monday": "Thứ Hai",
+      "tuesday": "Thứ Ba",
+      "wednesday": "Thứ Tư",
+      "thursday": "Thứ Năm",
+      "friday": "Thứ Sáu",
+      "saturday": "Thứ Bảy",
+      "sunday": "Chủ Nhật"
+    },
+    "seasonsShort": {
+      "low_1": "Mùa thấp điểm 1",
+      "high_1": "Mùa cao điểm 1",
+      "low_2": "Mùa thấp điểm 2",
+      "high_2": "Mùa cao điểm 2",
+      "medium": "Mùa trung bình"
+    }
+  },
+  "navHints": {
+    "rateReview": "Đề xuất cần xử lý",
+    "rateBook": "Giá mùa đã xác thực",
+    "dynamicRules": "Lớp thử nghiệm",
+    "market": "Đối thủ & dữ liệu",
+    "events": "Lịch nhu cầu",
+    "history": "Quyết định đã ra"
+  },
+  "common": {
+    "loading": "Đang tải…",
+    "save": "Lưu",
+    "cancel": "Huỷ",
+    "add": "Thêm",
+    "delete": "Xoá",
+    "edit": "Sửa",
+    "noData": "Chưa có dữ liệu",
+    "source": "Nguồn",
+    "notes": "Ghi chú",
+    "notesOptional": "Ghi chú (không bắt buộc)",
+    "roomCategory": "Hạng căn hộ",
+    "stayDate": "Ngày lưu trú",
+    "apiUnreachable": "Không kết nối được tới API định giá. Backend đã chạy ở cổng 8000 chưa?"
+  },
+  "status": {
+    "pending": "Chờ duyệt",
+    "accepted": "Đã chấp nhận",
+    "overridden": "Đã điều chỉnh",
+    "error": "Không định giá được"
+  },
+  "table": {
+    "stayDate": "Ngày lưu trú",
+    "roomCategory": "Hạng căn hộ",
+    "avail": "Trống",
+    "onTheBooks": "Đã đặt",
+    "daysToArrival": "Còn (ngày)",
+    "pace": "Tiến độ",
+    "pickup": "Lượng đặt",
+    "currentNet": "NET hiện tại",
+    "recommendedNet": "NET đề xuất",
+    "dynamic": "Điều chỉnh",
+    "inBand": "Vị trí trong khung",
+    "market": "Thị trường",
+    "event": "Sự kiện",
+    "status": "Trạng thái",
+    "review": "Xem →",
+    "noData": "Chưa có",
+    "expected": "kỳ vọng",
+    "paceGapTitle": "Chênh lệch tiến độ {gap}",
+    "marketTitle": "{count, number} quan sát đạt chuẩn, độ tin cậy {confidence}",
+    "noMarket": "Không có quan sát thị trường cho ngày này",
+    "marketIgnored": "Bỏ qua {count, number}",
+    "marketBucket": {
+      "none": "Chưa có",
+      "soft": "Yếu",
+      "below": "Dưới mặt bằng",
+      "inLine": "Ngang mặt bằng",
+      "above": "Trên mặt bằng",
+      "strong": "Mạnh"
+    }
+  },
+  "dashboard": {
+    "title": "Duyệt giá",
+    "recalculate": "Tính lại",
+    "recalculating": "Đang tính lại…",
+    "recalculationFailed": "Tính lại không thành công.",
+    "loading": "Đang tải đề xuất…",
+    "empty": "Không có đề xuất nào khớp bộ lọc",
+    "emptyHint": "Thử mở rộng khoảng ngày hoặc bỏ lọc theo hạng căn hộ.",
+    "subtitle": "Giá NET đề xuất theo hạng căn hộ và ngày lưu trú, dựa trên bảng giá mùa đã được Luminous xác thực. Xem lý do đằng sau mỗi mức giá, rồi chấp nhận hoặc tự đặt giá của bạn.",
+    "showing": "Đang hiển thị {shown, number} trên {total, number} đêm theo hạng căn hộ",
+    "showMore": "Xem thêm {count, number}"
+  },
+  "summary": {
+    "upcomingNights": "Số đêm sắp tới",
+    "apartments": "Số căn hộ",
+    "avgOccupancy": "Công suất trung bình",
+    "onTheBooks": "Đã đặt",
+    "avgPace": "Tiến độ trung bình",
+    "avgRateChange": "Thay đổi giá trung bình",
+    "vsCurrent": "NET đề xuất so với hiện tại",
+    "pendingReview": "Chờ duyệt",
+    "categoriesPriced": "Đã định giá {count, number} hạng căn hộ",
+    "vsCurveExpectation": "so với kỳ vọng của đường cong đặt phòng",
+    "decisionSplit": "{accepted, number} đã chấp nhận · {overridden, number} đã điều chỉnh"
+  },
+  "filters": {
+    "from": "Từ ngày",
+    "to": "Đến ngày",
+    "roomCategory": "Hạng căn hộ",
+    "allRoomCategories": "Tất cả hạng căn hộ",
+    "status": "Trạng thái",
+    "allStatuses": "Tất cả trạng thái",
+    "search": "Tìm kiếm",
+    "searchPlaceholder": "Hạng căn hộ hoặc mùa…",
+    "allDecisions": "Tất cả quyết định",
+    "decision": "Quyết định",
+    "categoryOption": "{category} ({units, number} căn)"
+  },
+  "banner": {
+    "demoData": "Dữ liệu mẫu",
+    "demoCurve": "Đường cong đặt phòng mẫu — không phải dữ liệu thật của Luminous.",
+    "shadowTitle": "Chỉ đề xuất — không ghi gì sang Blue Jay hay OTA.",
+    "shadowMode": "Chế độ theo dõi",
+    "rateBookValidated": "Bảng giá: khách hàng đã xác thực",
+    "rateBookTitle": "{count, number} khung giá NET theo mùa do Luminous cung cấp.",
+    "bookingCurveDemo": "Đường cong đặt phòng: dữ liệu mẫu",
+    "pms": "PMS: {mode}",
+    "blueJayUnavailable": "Không kết nối được Blue Jay",
+    "market": "Thị trường: {mode}",
+    "engine": "Bộ tính giá {version}",
+    "rules": "Quy tắc v{version}",
+    "outcomes": "Kết quả thực: {real, number} thật",
+    "outcomesSynthetic": " · {count, number} mẫu"
+  },
+  "drawer": {
+    "loading": "Đang tải đề xuất…",
+    "close": "Đóng",
+    "netRates": "Giá NET",
+    "clientValidated": "Khách hàng đã xác thực",
+    "band": {
+      "min": "SÀN",
+      "base": "CƠ SỞ",
+      "max": "TRẦN",
+      "note": "Giá NET do Luminous cung cấp. Mùa chỉ dùng để chọn khung giá, không nhân thêm hệ số mùa vụ."
+    },
+    "chip": {
+      "validated": "Đã xác thực",
+      "bandLimit": "Chạm khung",
+      "bounded": "Đã giới hạn",
+      "ignored": "Bỏ qua",
+      "noEffect": "Không tác động"
+    },
+    "demandSignals": "Tín hiệu nhu cầu",
+    "signal": {
+      "pace": "Tiến độ đặt phòng",
+      "pickup": "Lượng đặt gần đây",
+      "occupancy": "Đã đặt",
+      "daysToArrival": "Số ngày đến ngày nhận",
+      "noData": "Chưa có dữ liệu",
+      "curveExpects": "kỳ vọng {value}",
+      "noCurve": "chưa có đường cong",
+      "bookingsInWindow": "{count, number} lượt đặt trong kỳ",
+      "noBookingData": "chưa có dữ liệu đặt phòng"
+    },
+    "market": {
+      "label": "Thị trường",
+      "observations": "{count, number} × {confidence}",
+      "bucket": {
+        "none": "Chưa có",
+        "soft": "yếu",
+        "below": "dưới mặt bằng",
+        "inLine": "ngang mặt bằng",
+        "above": "trên mặt bằng",
+        "strong": "mạnh"
+      },
+      "ignored": "Bỏ qua {count, number} quan sát thị trường — độ tin cậy thấp",
+      "none": "Không có dữ liệu thị trường"
+    },
+    "blindSpots": "Điểm mù:",
+    "blindSpotsBody": "không áp dụng điều chỉnh cho các tín hiệu này",
+    "calculation": "Cách tính ra mức giá này",
+    "currentNet": "NET hiện tại",
+    "recommendedNet": "Giá NET đề xuất",
+    "change": "Thay đổi",
+    "engineLine": "Bộ tính giá {engine} · quy tắc động v{config} · khung giá",
+    "validatedTag": "KHÁCH HÀNG XÁC THỰC",
+    "unvalidatedTag": "CHƯA XÁC THỰC",
+    "dynamicLayer": "lớp điều chỉnh",
+    "accept": "Chấp nhận",
+    "override": "Điều chỉnh",
+    "yourNetRate": "Giá NET của bạn (VND)",
+    "reason": "Lý do",
+    "note": "Ghi chú (không bắt buộc)",
+    "notePlaceholder": "Hệ thống chưa biết điều gì?",
+    "decisionsOnDate": "Quyết định cho ngày này",
+    "actionFailed": "Thao tác không thành công",
+    "outcome": "Kết quả thực tế",
+    "synthetic": "Dữ liệu mẫu",
+    "shadow": "Theo dõi",
+    "unpriced": "Không định giá được ngày lưu trú này.",
+    "netRatesNote": "Đây là <term>giá NET</term> — số tiền Luminous thực nhận, không phải giá khách nhìn thấy trên OTA.",
+    "acceptRate": "Chấp nhận {rate}",
+    "overrideEllipsis": "Tự đặt giá…",
+    "unitsSold": "{sold, number}/{total, number} căn · còn {left, number}",
+    "otaOnFile": " Giá OTA đang lưu: {price}."
+  },
+  "rateBook": {
+    "title": "Bảng giá theo mùa",
+    "subtitle": "Giá NET — số tiền Luminous thực nhận",
+    "clientValidated": "Khách hàng đã xác thực",
+    "loading": "Đang tải bảng giá…",
+    "empty": "Chưa nạp khung giá nào",
+    "reset": "Khôi phục giá gốc của khách hàng",
+    "resetDone": "Đã khôi phục toàn bộ khung giá về giá khách hàng xác thực và tính lại.",
+    "sourceClient": "Khách hàng",
+    "sourceEdited": "Đã sửa",
+    "season": "Mùa",
+    "subtitleLong": "Giá NET SÀN / CƠ SỞ / TRẦN của chính Luminous theo mùa và hạng căn hộ. Đây là dữ liệu kinh doanh đã được xác thực — bộ tính giá lấy đây làm gốc thay vì tự mô hình hoá yếu tố mùa vụ.",
+    "updated": "Đã cập nhật {season} · {category}. Bấm Tính lại để áp dụng."
+  },
+  "events": {
+    "title": "Lịch nhu cầu",
+    "subtitle": "Nhập thủ công",
+    "loading": "Đang tải sự kiện…",
+    "empty": "Chưa có sự kiện nào",
+    "emptyHint": "Thêm những ngày bạn biết chắc sẽ ảnh hưởng đến nhu cầu.",
+    "add": "Thêm sự kiện",
+    "name": "Sự kiện",
+    "namePlaceholder": "ví dụ: Giải Marathon TP.HCM",
+    "starts": "Bắt đầu",
+    "ends": "Kết thúc",
+    "dates": "Thời gian",
+    "impact": "Mức tác động",
+    "impactLevel": "Mức tác động",
+    "override": "Ghi đè",
+    "overridePct": "Ghi đè mức điều chỉnh (%)",
+    "overrideHint": "Để trống nếu muốn dùng giá trị cấu hình sẵn cho mức tác động này",
+    "overridePlaceholder": "ví dụ: 12",
+    "notesPlaceholder": "Vì sao điều này ảnh hưởng đến nhu cầu…",
+    "saved": "Đã lưu sự kiện. Vào Duyệt giá và bấm Tính lại để đưa sự kiện vào đề xuất.",
+    "unvalidated": "Mức tác động của sự kiện CHƯA ĐƯỢC XÁC THỰC",
+    "subtitleLong": "Những ngày có nhu cầu đột biến đã biết trước. Sự kiện do bạn tự nhập chứ không thu thập tự động — một sự kiện sai sẽ ảnh hưởng đến tiền thật, nên con người phải là người quyết định.",
+    "saveEvent": "Lưu sự kiện",
+    "onlyExceptional": "Yếu tố mùa vụ thông thường đã nằm trong bảng giá — chỉ thêm những ngày thực sự bất thường."
+  },
+  "market": {
+    "title": "Dữ liệu thị trường",
+    "loading": "Đang tải quan sát…",
+    "competitors": "Toà nhà so sánh",
+    "noCompetitors": "Chưa có toà nhà so sánh nào",
+    "addCompetitor": "Thêm toà nhà so sánh",
+    "propertyName": "Tên toà nhà",
+    "propertyPlaceholder": "ví dụ: The Riverside Residences",
+    "location": "Khu vực",
+    "locationPlaceholder": "ví dụ: Quận 1",
+    "comparableTo": "So sánh với hạng",
+    "comparableToHint": "Tương đương với hạng căn hộ nào",
+    "observations": "Quan sát",
+    "noObservations": "Không có quan sát nào khớp bộ lọc",
+    "record": "Ghi nhận một quan sát",
+    "competitor": "Đối thủ",
+    "property": "Toà nhà",
+    "price": "Giá",
+    "observedPrice": "Giá quan sát được (VND)",
+    "priceBasis": "Cơ sở giá",
+    "basis": "Cơ sở",
+    "category": "Hạng",
+    "lengthOfStay": "Số đêm lưu trú",
+    "guests": "Số khách",
+    "taxes": "Thuế",
+    "promotion": "Khuyến mãi",
+    "confidence": "Độ tin cậy",
+    "allConfidence": "Mọi độ tin cậy",
+    "highOnly": "Chỉ mức cao",
+    "mediumUp": "Từ trung bình trở lên",
+    "lowUp": "Từ thấp trở lên (không khuyến nghị)",
+    "willInfluence": "Quan sát này có thể tác động đến giá đề xuất.",
+    "willNotInfluence": "Quan sát này sẽ được hiển thị nhưng không làm thay đổi giá.",
+    "uninterpretable": "Một mức giá không rõ cơ sở thì không phải là bằng chứng.",
+    "subtitle": "Giá của đối thủ và mức độ đáng tin của từng quan sát. Chỉ những quan sát bạn hiểu rõ — biết cơ sở giá, hạng căn hộ và ngày lưu trú — mới được phép làm thay đổi giá NET đề xuất.",
+    "uninterpretableBody": "Cùng một con số có thể là giá bán OTA đã gồm thuế, cho phép hoàn huỷ, tính cho 3 đêm — hoặc là giá NET của một đêm. Chỉ một trong hai là so sánh được với giá NET của Luminous. Độ tin cậy được suy ra từ thông tin bạn nhập, và quan sát có độ tin cậy THẤP không bao giờ làm thay đổi giá.",
+    "tabObservations": "Quan sát ({count, number})",
+    "tabCompset": "Nhóm so sánh ({count, number})",
+    "observationsHeading": "Quan sát",
+    "saveObservation": "Lưu quan sát",
+    "basisNote": "Bạn nêu được càng nhiều thông tin về cơ sở giá thì độ tin cậy càng cao — và chỉ bạn mới nêu được.",
+    "tryPublicCollector": "Thử thu thập từ web"
+  },
+  "history": {
+    "title": "Lịch sử quyết định",
+    "loading": "Đang tải lịch sử…",
+    "empty": "Chưa ghi nhận quyết định nào",
+    "emptyHint": "Chấp nhận hoặc điều chỉnh một đề xuất ở màn Duyệt giá, quyết định sẽ xuất hiện tại đây.",
+    "decision": "Quyết định",
+    "recommendedNet": "NET đề xuất",
+    "operatorNet": "NET đã chọn",
+    "difference": "Chênh lệch",
+    "reason": "Lý do",
+    "engine": "Bộ tính giá",
+    "subtitle": "Toàn bộ các lần chấp nhận và điều chỉnh của người vận hành, đặt cạnh đề xuất của hệ thống. Chính dữ liệu này sau sẽ cho biết bộ tính giá đang sai ở đâu."
+  },
+  "settings": {
+    "title": "Quy tắc điều chỉnh giá",
+    "loading": "Đang tải quy tắc…",
+    "unvalidated": "Toàn bộ phần này chưa được xác thực",
+    "save": "Lưu và tính lại",
+    "saving": "Đang lưu…",
+    "noChanges": "Chưa có thay đổi",
+    "reset": "Khôi phục thiết lập mặc định",
+    "livePreview": "Xem trước trực tiếp",
+    "previewEffect": "Tác động của thay đổi bạn vừa nhập",
+    "previewFailed": "Không tính được bản xem trước cho cấu hình này.",
+    "noSample": "Không có ngày lưu trú mẫu.",
+    "validatedBase": "Giá CƠ SỞ đã xác thực",
+    "recommendedNet": "NET đề xuất",
+    "pace": "Tiến độ đặt phòng",
+    "recentPickup": "Lượng đặt gần đây",
+    "events": "Sự kiện",
+    "marketSignal": "Tín hiệu thị trường",
+    "dayOfWeek": "Thứ trong tuần",
+    "boundsRounding": "Giới hạn & làm tròn",
+    "band": "Khung",
+    "adjustment": "Điều chỉnh",
+    "upToGap": "Chênh lệch tối đa",
+    "upToDelta": "Mức chênh tối đa",
+    "lookbackDays": "Cửa sổ theo dõi (ngày)",
+    "expectedPickup": "Lượng đặt kỳ vọng mỗi tuần (căn)",
+    "sensitivity": "Độ nhạy",
+    "maxAdjustment": "Điều chỉnh tối đa",
+    "minObservations": "Số quan sát tối thiểu",
+    "minConfidence": "Độ tin cậy tối thiểu",
+    "minConfidenceHint": "Dữ liệu dưới mức này sẽ bị bỏ qua",
+    "maxTotal": "Tổng điều chỉnh tối đa",
+    "minTotal": "Tổng điều chỉnh tối thiểu",
+    "roundingIncrement": "Bước làm tròn (VND)",
+    "enableDow": "Bật điều chỉnh theo thứ trong tuần",
+    "disabled": "Đang tắt",
+    "subtitle": "Lớp thử nghiệm nằm trên bảng giá đã xác thực: tiến độ đặt phòng, lượng đặt gần đây, sự kiện và thị trường. Chưa có giá trị nào ở đây được Luminous xác nhận.",
+    "sensitivityHint": "Để 0 nếu muốn bỏ qua hoàn toàn tín hiệu thị trường",
+    "confHigh": "Chỉ mức cao",
+    "confMedium": "Từ trung bình trở lên",
+    "confLow": "Từ thấp trở lên (không khuyến nghị)",
+    "paceDesc": "Tín hiệu nhu cầu chính: công suất đã đặt so với mức mà đường cong đặt phòng kỳ vọng ở thời điểm này. Ngưỡng được nhập dưới dạng phân số (0,20 = 20 điểm phần trăm).",
+    "pickupDesc": "Mức tăng tốc đặt phòng trong kỳ gần đây — cố ý để tác động nhỏ hơn tiến độ, vì hai tín hiệu này không được tính trùng cùng một nhu cầu.",
+    "eventsDesc": "Chỉ áp dụng cho những ngày bạn đã đánh dấu trong lịch nhu cầu. Yếu tố mùa vụ thông thường đã nằm sẵn trong bảng giá.",
+    "marketDesc": "Chỉ những quan sát đạt từ ngưỡng tin cậy trở lên mới được phép làm thay đổi giá. Giá lấy chung từ web có độ tin cậy THẤP, được hiển thị nhưng không bao giờ áp dụng."
+  }
+}

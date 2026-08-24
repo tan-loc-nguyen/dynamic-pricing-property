@@ -1,12 +1,21 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useCallback, useEffect, useState } from "react";
 import { Card, Empty, PageHeader, Spinner, StatusBadge, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatDateTime, formatPct, formatSignedVND, formatStayDate, formatVND } from "@/lib/format";
+import { formatPct } from "@/lib/format";
+import { useFormat } from "@/lib/useFormat";
 import type { HistoryEntry, Property } from "@/lib/types";
 
 export default function HistoryPage() {
+  const t = useTranslations("history");
+  const tv = useTranslations("vocab");
+  const tc = useTranslations("common");
+  const tf = useTranslations("filters");
+  const tst = useTranslations("status");
+  const { formatDateTime, formatSignedVND, formatStayDate, formatVND } = useFormat();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [decision, setDecision] = useState("all");
@@ -32,28 +41,28 @@ export default function HistoryPage() {
   return (
     <div className="px-7 py-6 space-y-5 max-w-[1500px]">
       <PageHeader
-        title="Decision history"
-        subtitle="Every accept and override the operator has made, with the system's recommendation alongside it. This record is what will eventually tell us where the engine is wrong."
+        title={t("title")}
+        subtitle={t("subtitle")}
       />
 
       <Card className="p-4">
         <div className="flex flex-wrap items-end gap-2.5">
           <div className="w-48">
-            <div className="text-[11px] font-medium text-ink-500 mb-1">Decision</div>
+            <div className="text-[11px] font-medium text-ink-500 mb-1">{tf("decision")}</div>
             <select className={inputClass} value={decision} onChange={(e) => setDecision(e.target.value)}>
-              <option value="all">All decisions</option>
-              <option value="accepted">Accepted</option>
-              <option value="overridden">Overridden</option>
+              <option value="all">{tf("allDecisions")}</option>
+              <option value="accepted">{tst("accepted")}</option>
+              <option value="overridden">{tst("overridden")}</option>
             </select>
           </div>
           <div className="w-56">
-            <div className="text-[11px] font-medium text-ink-500 mb-1">Room category</div>
+            <div className="text-[11px] font-medium text-ink-500 mb-1">{tf("roomCategory")}</div>
             <select
               className={inputClass}
               value={roomTypeId ?? ""}
               onChange={(e) => setRoomTypeId(e.target.value ? Number(e.target.value) : null)}
             >
-              <option value="">All room categories</option>
+              <option value="">{tf("allRoomCategories")}</option>
               {properties.flatMap((p) => p.room_types).map((rt) => (
                 <option key={rt.id} value={rt.id}>{rt.category_label}</option>
               ))}
@@ -64,23 +73,23 @@ export default function HistoryPage() {
 
       <Card>
         {loading ? (
-          <Spinner label="Loading history…" />
+          <Spinner label={t("loading")} />
         ) : entries.length === 0 ? (
           <Empty
-            title="No decisions recorded yet"
-            hint="Accept or override a recommendation on the dashboard and it will appear here."
+            title={t("empty")}
+            hint={t("emptyHint")}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-ink-200 bg-ink-50/60">
-                  {["When", "Room category", "Stay date", "Recommended NET", "Operator NET", "Difference", "Decision", "Reason", "Engine"].map(
+                  {["When", tc("roomCategory"), tc("stayDate"), t("recommendedNet"), t("operatorNet"), t("difference"), t("decision"), t("reason"), t("engine")].map(
                     (h) => (
                       <th
                         key={h}
                         className={`px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 ${
-                          ["Recommended NET", "Operator NET", "Difference"].includes(h) ? "text-right" : "text-left"
+                          [t("recommendedNet"), t("operatorNet"), t("difference")].includes(h) ? "text-right" : "text-left"
                         }`}
                       >
                         {h}
@@ -96,8 +105,8 @@ export default function HistoryPage() {
                       {formatDateTime(e.created_at)}
                     </td>
                     <td className="px-3 py-2.5">
-                      <div className="font-medium text-ink-900 leading-tight">{e.room_category_label}</div>
-                      <div className="text-[11px] text-ink-400 leading-tight mt-0.5">{e.season_label}</div>
+                      <div className="font-medium text-ink-900 leading-tight">{tv(`roomCategories.${e.room_category}`)}</div>
+                      <div className="text-[11px] text-ink-400 leading-tight mt-0.5">{e.season_key ? tv(`seasonsShort.${e.season_key}`) : ""}</div>
                     </td>
                     <td className="px-3 py-2.5 text-ink-700">{formatStayDate(e.stay_date)}</td>
                     <td className="px-3 py-2.5 text-right tnum text-ink-500">{formatVND(e.recommended_net_rate)}</td>
@@ -126,7 +135,7 @@ export default function HistoryPage() {
                     <td className="px-3 py-2.5">
                       {e.reason_label ? (
                         <div>
-                          <div className="text-[12px] text-ink-700">{e.reason_label}</div>
+                          <div className="text-[12px] text-ink-700">{e.reason_code ? tv(`overrideReasons.${e.reason_code}`) : e.reason_label}</div>
                           {e.note && <div className="text-[11px] text-ink-400 italic mt-0.5">“{e.note}”</div>}
                         </div>
                       ) : e.note ? (

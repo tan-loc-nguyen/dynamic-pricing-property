@@ -1,9 +1,12 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Chip, Empty, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
-import { confidenceTone, formatDateTime, formatStayDate, formatVND, todayISO } from "@/lib/format";
+import { confidenceTone, todayISO } from "@/lib/format";
+import { useFormat } from "@/lib/useFormat";
 import type { Competitor, MarketObservation, Property } from "@/lib/types";
 
 interface ProviderInfo {
@@ -17,6 +20,9 @@ interface ProviderInfo {
 }
 
 export default function MarketPage() {
+  const t = useTranslations("market");
+  const tc = useTranslations("common");
+  const { formatDateTime, formatStayDate, formatVND } = useFormat();
   const [observations, setObservations] = useState<MarketObservation[]>([]);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -95,8 +101,8 @@ export default function MarketPage() {
         ok: true,
         text: `Saved at ${created.confidence} confidence. ${
           created.confidence === "HIGH" || created.confidence === "MEDIUM"
-            ? "This can influence recommended rates."
-            : "This will be shown but will not move rates."
+            ? t("willInfluence")
+            : t("willNotInfluence")
         }`,
       });
       await load();
@@ -149,8 +155,8 @@ export default function MarketPage() {
   return (
     <div className="px-7 py-6 space-y-5 max-w-[1600px]">
       <PageHeader
-        title="Market evidence"
-        subtitle="Competitor rates and how much they can be trusted. Only observations you can interpret — known basis, category and stay date — are allowed to move a recommended NET rate."
+        title={t("title")}
+        subtitle={t("subtitle")}
       />
 
       <div className="flex flex-wrap gap-2">
@@ -167,25 +173,24 @@ export default function MarketPage() {
 
       <Card className="p-4 bg-amber-50 border-amber-200">
         <p className="text-[12px] text-amber-900 leading-relaxed">
-          <span className="font-semibold">A price you cannot interpret is not evidence.</span> The same
-          number can be a refundable OTA sell price including taxes for a 3-night stay, or a one-night NET
-          rate — only one is comparable to a Luminous NET rate. Confidence is derived from the metadata you
-          supply, and LOW-confidence observations never move a rate.
+          <span className="font-semibold">{t("uninterpretable")}</span> {t("uninterpretableBody")}
         </p>
       </Card>
 
       <div className="flex gap-1 border-b border-ink-200">
-        {(["observations", "compset"] as const).map((t) => (
+        {(["observations", "compset"] as const).map((tabKey) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tabKey}
+            onClick={() => setTab(tabKey)}
             className={`px-4 py-2 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
-              tab === t
+              tab === tabKey
                 ? "border-brand-500 text-brand-700"
                 : "border-transparent text-ink-500 hover:text-ink-800"
             }`}
           >
-            {t === "observations" ? `Observations (${observations.length})` : `Comp set (${competitors.length})`}
+            {tabKey === "observations"
+              ? t("tabObservations", { count: observations.length })
+              : t("tabCompset", { count: competitors.length })}
           </button>
         ))}
       </div>
@@ -193,28 +198,28 @@ export default function MarketPage() {
       {tab === "compset" ? (
         <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-5 items-start">
           <Card className="p-5">
-            <h2 className="text-[14px] font-semibold text-ink-900">Add a comparable property</h2>
+            <h2 className="text-[14px] font-semibold text-ink-900">{t("addCompetitor")}</h2>
             <p className="text-[12px] text-ink-500 mt-0.5 leading-snug">
               A comp set is a deliberate choice, not a search result. Pick properties a Luminous guest
               would genuinely consider instead.
             </p>
             <div className="mt-4 space-y-3">
-              <Field label="Property name">
+              <Field label={t("propertyName")}>
                 <input
                   className={inputClass}
                   value={compForm.name}
                   onChange={(e) => setCompForm({ ...compForm, name: e.target.value })}
                 />
               </Field>
-              <Field label="Location">
+              <Field label={t("location")}>
                 <input
                   className={inputClass}
-                  placeholder="e.g. District 1"
+                  placeholder={t("locationPlaceholder")}
                   value={compForm.location}
                   onChange={(e) => setCompForm({ ...compForm, location: e.target.value })}
                 />
               </Field>
-              <Field label="Comparable to which category">
+              <Field label={t("comparableToHint")}>
                 <select
                   className={inputClass}
                   value={compForm.comparable_category}
@@ -236,12 +241,12 @@ export default function MarketPage() {
 
           <Card>
             {competitors.length === 0 ? (
-              <Empty title="No comparable properties yet" />
+              <Empty title={t("noCompetitors")} />
             ) : (
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-ink-200 bg-ink-50/60">
-                    {["Property", "Location", "Comparable to", "Observations", "Source", ""].map((h) => (
+                    {[t("property"), t("location"), t("comparableTo"), t("observations"), tc("source"), ""].map((h) => (
                       <th key={h} className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 text-left">
                         {h}
                       </th>
@@ -274,13 +279,13 @@ export default function MarketPage() {
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-5 items-start">
           <Card className="p-5">
-            <h2 className="text-[14px] font-semibold text-ink-900">Record an observation</h2>
+            <h2 className="text-[14px] font-semibold text-ink-900">{t("record")}</h2>
             <p className="text-[12px] text-ink-500 mt-0.5 leading-snug">
-              The more basis you can state, the higher the confidence — and only you can state it.
+              {t("basisNote")}
             </p>
 
             <div className="mt-4 space-y-3">
-              <Field label="Room category">
+              <Field label={tc("roomCategory")}>
                 <select
                   className={inputClass}
                   value={form.room_type_id}
@@ -295,7 +300,7 @@ export default function MarketPage() {
                 </select>
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Stay date">
+                <Field label={tc("stayDate")}>
                   <input
                     type="date"
                     className={inputClass}
@@ -303,7 +308,7 @@ export default function MarketPage() {
                     onChange={(e) => setForm({ ...form, stay_date: e.target.value })}
                   />
                 </Field>
-                <Field label="Observed price (VND)">
+                <Field label={t("observedPrice")}>
                   <input
                     type="number"
                     step={10000}
@@ -313,10 +318,10 @@ export default function MarketPage() {
                   />
                 </Field>
               </div>
-              <Field label="Competitor">
+              <Field label={t("competitor")}>
                 <input
                   className={inputClass}
-                  placeholder="e.g. The Riverside Residences"
+                  placeholder={t("propertyPlaceholder")}
                   value={form.competitor_name}
                   onChange={(e) => setForm({ ...form, competitor_name: e.target.value })}
                   list="comp-list"
@@ -329,7 +334,7 @@ export default function MarketPage() {
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Price basis">
+                <Field label={t("priceBasis")}>
                   <select
                     className={inputClass}
                     value={form.price_basis}
@@ -338,7 +343,7 @@ export default function MarketPage() {
                     {options(meta?.price_bases)}
                   </select>
                 </Field>
-                <Field label="Promotion">
+                <Field label={t("promotion")}>
                   <select
                     className={inputClass}
                     value={form.promotion_status}
@@ -347,7 +352,7 @@ export default function MarketPage() {
                     {options(meta?.promotion_options)}
                   </select>
                 </Field>
-                <Field label="Taxes">
+                <Field label={t("taxes")}>
                   <select
                     className={inputClass}
                     value={form.tax_inclusion}
@@ -365,7 +370,7 @@ export default function MarketPage() {
                     {options(meta?.inclusion_options)}
                   </select>
                 </Field>
-                <Field label="Length of stay">
+                <Field label={t("lengthOfStay")}>
                   <input
                     type="number"
                     className={inputClass}
@@ -373,7 +378,7 @@ export default function MarketPage() {
                     onChange={(e) => setForm({ ...form, length_of_stay: e.target.value })}
                   />
                 </Field>
-                <Field label="Guests">
+                <Field label={t("guests")}>
                   <input
                     type="number"
                     className={inputClass}
@@ -383,7 +388,7 @@ export default function MarketPage() {
                 </Field>
               </div>
 
-              <Field label="Notes (optional)">
+              <Field label={tc("notesOptional")}>
                 <input
                   className={inputClass}
                   value={form.notes}
@@ -397,10 +402,10 @@ export default function MarketPage() {
                   onClick={submit}
                   disabled={busy || !form.competitor_name || !form.observed_price}
                 >
-                  Save observation
+                  {t("saveObservation")}
                 </Button>
                 <Button onClick={runCollector} disabled={busy}>
-                  Try public collector
+                  {t("tryPublicCollector")}
                 </Button>
               </div>
 
@@ -421,34 +426,35 @@ export default function MarketPage() {
           <Card>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">
               <div className="text-[13px] font-semibold text-ink-900">
-                Observations <span className="text-ink-400 font-normal">({observations.length})</span>
+                {t("observationsHeading")}{" "}
+                <span className="text-ink-400 font-normal">({observations.length})</span>
               </div>
               <select
                 className={`${inputClass} w-44`}
                 value={confidenceFilter}
                 onChange={(e) => setConfidenceFilter(e.target.value)}
               >
-                <option value="all">All confidence</option>
-                <option value="HIGH">High only</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="LOW">Low</option>
+                <option value="all">{t("allConfidence")}</option>
+                <option value="HIGH">{t("highOnly")}</option>
+                <option value="MEDIUM">{t("mediumUp")}</option>
+                <option value="LOW">{t("lowUp")}</option>
               </select>
             </div>
 
             {loading ? (
-              <Spinner label="Loading observations…" />
+              <Spinner label={t("loading")} />
             ) : observations.length === 0 ? (
-              <Empty title="No observations for this filter" />
+              <Empty title={t("noObservations")} />
             ) : (
               <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
                 <table className="w-full text-[13px]">
                   <thead className="sticky top-0 bg-ink-50">
                     <tr className="border-b border-ink-200">
-                      {["Stay date", "Competitor", "Category", "Price", "Basis", "Confidence", "Source", ""].map((h) => (
+                      {[tc("stayDate"), t("competitor"), t("category"), t("price"), t("basis"), t("confidence"), tc("source"), ""].map((h) => (
                         <th
                           key={h}
                           className={`px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 ${
-                            h === "Price" ? "text-right" : "text-left"
+                            h === t("price") ? "text-right" : "text-left"
                           }`}
                         >
                           {h}

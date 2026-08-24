@@ -125,7 +125,7 @@ What it will **not** do, by design:
 `MARKET_PUBLIC_SOURCES` is a static, operator-curated list. The system never
 searches for competitors, because automated discovery means scraping search
 results or OTA listings — precisely the prohibited territory. Choosing a
-comparable set is a judgement call anyway (see A22).
+comparable set is a judgement call anyway (see ASSUMPTIONS U12).
 
 ### Known limitation 1 — the URL is fetched verbatim, so the price is not date-specific
 

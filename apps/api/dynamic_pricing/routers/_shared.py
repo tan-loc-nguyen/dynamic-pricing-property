@@ -119,12 +119,17 @@ def recommendation_dict(
         "market_qualified_count": f.get("market_qualified_count", 0) or 0,
         "market_ignored_count": f.get("market_ignored_count", 0) or 0,
         "status": rec.status,
-        "explanation": rec.explanation,
         "engine_version": rec.engine_version,
         "config_version": rec.config_version,
         "created_at": rec.created_at,
         "missing_signals": f.get("missing", []) or [],
         "clamp_applied": meta.get("clamp_applied"),
+        # The band the ENGINE selected, so the table cannot disagree with the
+        # drawer by re-deriving it from thresholds in TypeScript (D28).
+        "pace_label_key": meta.get("pace_label_key"),
+        "pickup_label_key": meta.get("pickup_label_key"),
+        "pace_label": meta.get("pace_label"),
+        "pickup_label": meta.get("pickup_label"),
     }
     if detail:
         payload["adjustments"] = [
@@ -132,12 +137,13 @@ def recommendation_dict(
                 "sequence": a.sequence,
                 "code": a.code,
                 "label": a.label,
+                "label_key": a.label_key,
+                "params": a.params or {},
                 "adjustment_pct": a.adjustment_pct,
                 "factor": a.factor,
                 "price_before": a.price_before,
                 "price_after": a.price_after,
                 "delta": a.delta,
-                "reason": a.reason,
                 "is_neutral": a.is_neutral,
                 "is_ignored": a.is_ignored,
             }

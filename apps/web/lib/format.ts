@@ -1,17 +1,30 @@
-/** Presentation helpers. VND is rendered without decimals — nobody prices in xu. */
+/** Presentation helpers. VND is rendered without decimals — nobody prices in xu.
+ *
+ * Every formatter takes a locale, because the same rate is not written the same
+ * way in both: 2,300,000 ₫ in English, 2.300.000 ₫ in Vietnamese. Dates go
+ * through Intl rather than hardcoded month arrays for the same reason.
+ */
 
-export function formatVND(value: number | null | undefined, opts: { compact?: boolean } = {}): string {
+export type FormatLocale = "en" | "vi";
+
+const intlLocale = (locale: FormatLocale) => (locale === "vi" ? "vi-VN" : "en-US");
+
+export function formatVND(
+  value: number | null | undefined,
+  locale: FormatLocale,
+  opts: { compact?: boolean } = {},
+): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   if (opts.compact && Math.abs(value) >= 1_000_000) {
     return `${(value / 1_000_000).toFixed(1)}M ₫`;
   }
-  return `${Math.round(value).toLocaleString("en-US")} ₫`;
+  return `${Math.round(value).toLocaleString(intlLocale(locale))} ₫`;
 }
 
-export function formatSignedVND(value: number | null | undefined): string {
+export function formatSignedVND(value: number | null | undefined, locale: FormatLocale): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   const sign = value > 0 ? "+" : value < 0 ? "−" : "";
-  return `${sign}${Math.abs(Math.round(value)).toLocaleString("en-US")} ₫`;
+  return `${sign}${Math.abs(Math.round(value)).toLocaleString(intlLocale(locale))} ₫`;
 }
 
 export function formatPct(value: number | null | undefined, digits = 1): string {
@@ -25,9 +38,6 @@ export function formatOccupancy(value: number | null | undefined): string {
   return `${Math.round(value * 100)}%`;
 }
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 function parseISODate(iso: string): Date {
   // Parse as LOCAL time. `new Date("2026-08-22")` is parsed as UTC and can
   // render as the previous day in negative-offset timezones.
@@ -35,21 +45,32 @@ function parseISODate(iso: string): Date {
   return new Date(y, (m || 1) - 1, d || 1);
 }
 
-export function formatStayDate(iso: string): string {
-  const date = parseISODate(iso);
-  return `${DAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]}`;
+export function formatStayDate(iso: string, locale: FormatLocale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(parseISODate(iso));
 }
 
-export function formatLongDate(iso: string): string {
-  const date = parseISODate(iso);
-  return `${DAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+export function formatLongDate(iso: string, locale: FormatLocale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(parseISODate(iso));
 }
 
-export function formatDateTime(iso: string): string {
+export function formatDateTime(iso: string, locale: FormatLocale): string {
   const date = new Date(iso.endsWith("Z") ? iso : `${iso}Z`);
-  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}, ${String(
-    date.getHours(),
-  ).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 export function isWeekend(iso: string): boolean {
@@ -68,23 +89,6 @@ export function addDaysISO(iso: string, days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/**
- * Pace gap (fraction) -> operator-readable label.
- *
- * Boundaries MUST match the engine's _band_for, which uses a strict `<`.
- * At exactly +0.08 the engine picks "Ahead of pace" and applies +4%, so a
- * `<=` here would label the row "On pace" while the drawer showed a +4% line
- * for the same date.
- */
-export function paceLabel(gap: number | null | undefined): string {
-  if (gap === null || gap === undefined) return "No data";
-  if (gap < -0.2) return "Well behind";
-  if (gap < -0.08) return "Behind";
-  if (gap < 0.08) return "On pace";
-  if (gap < 0.2) return "Ahead";
-  return "Well ahead";
-}
-
 export function paceTone(gap: number | null | undefined): "up" | "down" | "info" | "neutral" {
   if (gap === null || gap === undefined) return "neutral";
   if (gap < -0.08) return "down";
@@ -99,25 +103,21 @@ export function formatPaceGap(gap: number | null | undefined): string {
   return `${pts > 0 ? "+" : pts < 0 ? "−" : ""}${Math.abs(pts)}pp`;
 }
 
-/** Recent pickup delta -> label. */
-/** Pickup bands are INCLUSIVE in the engine (see _band_for inclusive=true). */
-export function pickupLabel(delta: number | null | undefined): string {
-  if (delta === null || delta === undefined) return "No data";
-  if (delta <= -1.0) return "Stalled";
-  if (delta <= -0.25) return "Slowing";
-  if (delta <= 0.5) return "As expected";
-  if (delta <= 2.0) return "Accelerating";
-  return "Surging";
-}
-
-/** Market price index -> operator-readable label. */
-export function marketLabel(index: number | null | undefined): string {
-  if (index === null || index === undefined) return "No data";
-  if (index < 0.92) return "Soft";
-  if (index < 0.98) return "Below market";
-  if (index <= 1.02) return "In line";
-  if (index <= 1.1) return "Above market";
-  return "Strong";
+/** Market price index -> display bucket.
+ *
+ * Unlike pace and pickup, this has no counterpart band in the engine — the
+ * market factor is a continuous sensitivity calculation, so this bucket is
+ * presentation only and cannot contradict a backend band.
+ */
+export function marketBucket(
+  index: number | null | undefined,
+): "none" | "soft" | "below" | "inLine" | "above" | "strong" {
+  if (index === null || index === undefined) return "none";
+  if (index < 0.92) return "soft";
+  if (index < 0.98) return "below";
+  if (index <= 1.02) return "inLine";
+  if (index <= 1.1) return "above";
+  return "strong";
 }
 
 export function confidenceTone(c: string | null | undefined): "up" | "info" | "warn" | "neutral" {

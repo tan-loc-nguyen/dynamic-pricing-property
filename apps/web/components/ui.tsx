@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import type { ReactNode } from "react";
 
 export function Card({ children, className = "" }: { children?: ReactNode; className?: string }) {
@@ -34,21 +36,24 @@ const STATUS_STYLES: Record<string, string> = {
   overridden: "bg-violet-50 text-violet-700 border-violet-200",
   error: "bg-rose-50 text-rose-700 border-rose-200",
 };
+// status -> message key. The English used to live here; it lives in the
+// message files now, so the badge reads the same word the rest of the UI does.
 const STATUS_LABELS: Record<string, string> = {
-  pending: "Pending",
-  accepted: "Accepted",
-  overridden: "Overridden",
-  error: "Could not price",
+  pending: "pending",
+  accepted: "accepted",
+  overridden: "overridden",
+  error: "error",
 };
 
 export function StatusBadge({ status }: { status: string }) {
+  const t = useTranslations("status");
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
         STATUS_STYLES[status] || "bg-ink-100 text-ink-600 border-ink-200"
       }`}
     >
-      {STATUS_LABELS[status] || status}
+      {STATUS_LABELS[status] ? t(STATUS_LABELS[status]) : status}
     </span>
   );
 }
@@ -137,11 +142,12 @@ export function Empty({ title, hint }: { title: string; hint?: string }) {
   );
 }
 
-export function Spinner({ label = "Loading…" }: { label?: string }) {
+export function Spinner({ label }: { label?: string }) {
+  const t = useTranslations("common");
   return (
     <div className="py-16 text-center text-[13px] text-ink-400">
       <div className="inline-block h-4 w-4 rounded-full border-2 border-ink-200 border-t-brand-500 animate-spin mr-2 align-middle" />
-      {label}
+      {label ?? t("loading")}
     </div>
   );
 }

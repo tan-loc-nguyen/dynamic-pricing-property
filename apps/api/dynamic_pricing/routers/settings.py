@@ -122,17 +122,17 @@ def preview(body: PreviewIn, session: Session = Depends(get_session)):
                 "sequence": i,
                 "code": a.code,
                 "label": a.label,
+                "label_key": a.label_key,
+                "params": a.params,
                 "adjustment_pct": a.adjustment_pct,
                 "factor": a.factor,
                 "price_before": a.price_before,
                 "price_after": a.price_after,
                 "delta": a.delta,
-                "reason": a.reason,
                 "is_neutral": a.is_neutral,
                 "is_ignored": a.is_ignored,
             }
             for i, a in enumerate(result.adjustments)
         ],
-        explanation=result.explanation,
         engine_version=result.engine_version,
     )
