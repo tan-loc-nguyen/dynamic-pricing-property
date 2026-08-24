@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..constants import CONFIDENCE_LEVELS, INCLUSION_OPTIONS, PRICE_BASES, PROMOTION_OPTIONS
 from ..db import get_session
+from ..lookup import UnknownRegistryKey
 from ..models import Competitor, MarketObservation, Property, RoomType
 from ..providers.market import get_market_provider, score_confidence
 from ..providers.market.base import MarketObservationDTO
@@ -277,7 +278,11 @@ def collect(
         prop = session.get(Property, rt.property_id)
         property_external_id = prop.external_id if prop else None
 
-    market = get_market_provider(provider)
+    try:
+        market = get_market_provider(provider)
+    except UnknownRegistryKey as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     try:
         observations = market.collect(
             body.stay_date,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,7 @@ from ..constants import (
     PROMOTION_OPTIONS,
 )
 from ..db import get_session
+from ..lookup import UnknownRegistryKey
 from ..models import (
     Booking,
     Competitor,
@@ -38,6 +39,7 @@ from ..models import (
 from ..pricing import DEFAULT_ENGINE, RATE_BOOK_SOURCE, ROOM_CATEGORIES, SEASONS, get_engine, list_engines
 from ..providers.market import get_market_provider
 from ..providers.pms import get_pms_provider
+from ..providers.pms.base import ProviderStatus
 from ..providers.pms.mock import HISTORY_DAYS, HORIZON_DAYS
 from ..schemas import PropertyOut, SystemStatusOut
 from ..services.configuration import get_active_configuration
@@ -108,8 +110,28 @@ def status(session: Session = Depends(get_session)):
     config = get_active_configuration(session)
     engine = get_engine(DEFAULT_ENGINE)
 
-    pms_status = get_pms_provider().status()
-    market_status = get_market_provider().status()
+    def _provider_status(getter, kind: str, configured: str):
+        """Report an unrecognised provider name instead of crashing on it.
+
+        /api/status must stay available precisely when the configuration is
+        wrong -- it is where an operator looks to find out that it is.
+        """
+        try:
+            return getter().status()
+        except UnknownRegistryKey as exc:
+            return ProviderStatus(
+                name=f"unknown ({configured})",
+                healthy=False,
+                mode="unconfigured",
+                detail=str(exc),
+                remediation=f"Set a valid {kind} in .env, then restart the API.",
+            )
+
+    settings_ = get_settings()
+    pms_status = _provider_status(get_pms_provider, "DATA_PROVIDER", settings_.data_provider)
+    market_status = _provider_status(
+        get_market_provider, "MARKET_PROVIDER", settings_.market_provider
+    )
 
     def count(model) -> int:
         return int(session.scalar(select(func.count()).select_from(model)) or 0)
@@ -204,7 +226,11 @@ def sync(session: Session = Depends(get_session), regenerate: bool = True):
     today = date.today()
     start, end = default_window(today, HISTORY_DAYS, HORIZON_DAYS)
 
-    pms = get_pms_provider(today=today)
+    try:
+        pms = get_pms_provider(today=today)
+    except UnknownRegistryKey as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     pms_report = sync_pms(session, pms, start=start, end=end)
     fallback_used = False
     if not pms_report.ok:
@@ -212,7 +238,11 @@ def sync(session: Session = Depends(get_session), regenerate: bool = True):
         fallback_used = True
         pms_report = sync_pms(session, get_pms_provider("mock", today=today), start=start, end=end)
 
-    market = get_market_provider(today=today)
+    try:
+        market = get_market_provider(today=today)
+    except UnknownRegistryKey as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     market_report = sync_market(session, market, start=start, end=end)
 
     run = None

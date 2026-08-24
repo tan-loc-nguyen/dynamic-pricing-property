@@ -50,7 +50,7 @@ Booking / Pace Intelligence        (expected occupancy → pace gap)
    ↓
 Seasonal Rate Book                 (CLIENT-VALIDATED MIN/BASE/MAX NET)
    ↓
-The pricing engine                  (bounded dynamic layer, clamped to band)
+Pricing Engine                     (bounded dynamic layer, clamped to band)
    ↓
 Recommendation                     (with a reproducible snapshot)
    ↓

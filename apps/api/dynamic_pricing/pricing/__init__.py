@@ -12,9 +12,8 @@ from .rate_book import (
     SeasonalRateBook,
     season_for,
 )
-from .registry import get_engine, list_engines, register_engine
+from .registry import DEFAULT_ENGINE, get_engine, list_engines, register_engine
 
-DEFAULT_ENGINE = "default"
 
 __all__ = [
     "Adjustment", "CATEGORY_LABELS", "CLIENT_RATE_TABLE", "CONFIG_SCHEMA_VERSION",

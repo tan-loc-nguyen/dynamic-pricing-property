@@ -13,6 +13,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from .db import SessionLocal, init_db
+from .lookup import UnknownRegistryKey
 from .models import (
     Booking,
     Competitor,
@@ -131,7 +132,16 @@ def bootstrap(force: bool = False, today: date | None = None, quiet: bool = Fals
         log(f"Dynamic strategy v{config.version} ({config.label}) — UNVALIDATED.")
 
         # --- 3. portfolio ---------------------------------------------------
-        pms = get_pms_provider(today=today)
+        try:
+            pms = get_pms_provider(today=today)
+        except UnknownRegistryKey as exc:
+            # Say it out loud, then keep the demo working. Silently running the
+            # mock is how a typo in DATA_PROVIDER goes unnoticed for a week.
+            log(f"! {exc}")
+            log("  Falling back to the mock provider.")
+            summary["pms_key_error"] = str(exc)
+            pms = get_pms_provider("mock", today=today)
+
         pms_report = sync_pms(session, pms, start=start, end=end)
         summary["pms"] = pms_report.as_dict()
         if not pms_report.ok:
@@ -152,7 +162,14 @@ def bootstrap(force: bool = False, today: date | None = None, quiet: bool = Fals
         log(f"Events: {events} demo events (manually curated).")
 
         # --- 5. market -------------------------------------------------------
-        market = get_market_provider(today=today)
+        try:
+            market = get_market_provider(today=today)
+        except UnknownRegistryKey as exc:
+            log(f"! {exc}")
+            log("  Falling back to the mock market provider.")
+            summary["market_key_error"] = str(exc)
+            market = get_market_provider("mock", today=today)
+
         market_report = sync_market(session, market, start=start, end=end)
         summary["market"] = market_report.as_dict()
         if market_report.ok:

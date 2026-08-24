@@ -434,3 +434,62 @@ def test_a_rare_failure_is_reported_per_date_and_the_run_still_commits(session):
     assert "could not be priced" in errored[0].explanation
     # ...and it must be distinguishable from a date that was never in scope.
     assert errored[0].id is not None
+
+
+# --- round 5: one resolution behaviour for every registry -----------------
+def test_the_documented_no_argument_engine_lookup_works():
+    """registry.py's own default key and its own usage example both went stale
+    at the rename, so the documented `get_engine()` call raised."""
+    from dynamic_pricing.pricing import DEFAULT_ENGINE, get_engine, list_engines
+
+    assert DEFAULT_ENGINE in {e["key"] for e in list_engines()}
+    assert get_engine() is not None
+    assert get_engine("") is not None, "a blank key means 'the default', not an error"
+
+
+def test_there_is_only_one_default_engine_constant():
+    """The fallback was hardcoded in registry.py AND declared in __init__, and
+    the two drifted."""
+    import inspect
+
+    from dynamic_pricing.pricing import DEFAULT_ENGINE, registry
+
+    source = inspect.getsource(registry)
+    assert source.count('DEFAULT_ENGINE = "') == 1
+    assert f'"{DEFAULT_ENGINE}"' in source
+
+
+@pytest.mark.parametrize(
+    "resolver,kind",
+    [
+        ("dynamic_pricing.pricing.get_engine", "pricing engine"),
+        ("dynamic_pricing.providers.market.get_market_provider", "market provider"),
+        ("dynamic_pricing.providers.pms.get_pms_provider", "PMS provider"),
+    ],
+)
+def test_every_registry_rejects_an_unknown_key_the_same_way(resolver, kind):
+    """The registries had opposite failure modes: one raised (500), two silently
+    substituted a default. The same operator typo therefore either crashed the
+    API or quietly fabricated data depending on which one it hit."""
+    import importlib
+
+    from dynamic_pricing.lookup import UnknownRegistryKey
+
+    module_path, name = resolver.rsplit(".", 1)
+    getter = getattr(importlib.import_module(module_path), name)
+
+    with pytest.raises(UnknownRegistryKey) as caught:
+        getter("definitely-not-registered")
+    assert kind in str(caught.value)
+    assert "Valid options:" in str(caught.value), "must name the valid keys"
+    assert caught.value.registered, "must carry the registered keys for a 422 body"
+
+
+def test_an_unknown_market_provider_cannot_fabricate_observations():
+    """A hyphen-for-underscore typo persisted 9 synthetic mock observations and
+    reported them as a successful public-web collection."""
+    from dynamic_pricing.lookup import UnknownRegistryKey
+    from dynamic_pricing.providers.market import get_market_provider
+
+    with pytest.raises(UnknownRegistryKey):
+        get_market_provider("public-web")

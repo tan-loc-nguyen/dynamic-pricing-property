@@ -392,3 +392,17 @@ proves we kept a dead engine.
 
 `engine_version` is still recorded on every recommendation and decision, so a
 past price remains traceable to the logic that produced it.
+
+**Version equivalence, for anyone auditing an older database.** The recorded
+value changed with the rename and denotes the same logic on both sides:
+
+| Recorded `engine_version` | Means |
+|---|---|
+| `v2.0.0` | `PricingEngineV2`, pre-rename |
+| `1.0.0` | `RateBandPricingEngine`, post-rename — **identical pricing logic** |
+| `v1.0.0` | the deleted legacy multiplicative engine — NOT equivalent |
+
+Nothing migrates old rows, because the demo database is rebuilt by `make
+reseed`. This table is the mapping, and it is written down because
+`engine_version` IS the traceability mechanism: an auditor holding a `v2.0.0`
+row has no other way to connect it to the code.

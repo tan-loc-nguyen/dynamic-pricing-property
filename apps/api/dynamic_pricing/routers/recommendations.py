@@ -21,6 +21,7 @@ from ..constants import (
     STATUS_OVERRIDDEN,
 )
 from ..db import get_session
+from ..lookup import UnknownRegistryKey
 from ..models import OperatorDecision, PricingRecommendation, RoomType, StayDateInventory
 from ..pricing import DEFAULT_ENGINE
 from ..schemas import (
@@ -198,6 +199,10 @@ def summary(
 def generate(session: Session = Depends(get_session), engine_key: str = DEFAULT_ENGINE):
     try:
         return generate_recommendations(session, engine_key=engine_key).as_dict()
+    except UnknownRegistryKey as exc:
+        # The message already names every valid key -- that is exactly the body
+        # a 422 wants, and it was being discarded into a 500.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except PricingRunFailed as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

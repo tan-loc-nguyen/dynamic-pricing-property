@@ -3,12 +3,20 @@
 Swapping the active engine is a lookup, not a code change:
 
     from dynamic_pricing.pricing import get_engine
-    engine = get_engine("v1")
+    engine = get_engine()          # the default
+    engine = get_engine("finance") # or a specific one
 """
 
 from __future__ import annotations
 
+from ..lookup import resolve
 from .base import PricingEngine
+
+# The single source of truth for which engine is active. Previously duplicated
+# as a hardcoded fallback here AND as DEFAULT_ENGINE in __init__, and the two
+# drifted: this one still said "v1" after the rename, so the documented
+# no-argument call raised.
+DEFAULT_ENGINE = "default"
 
 _ENGINES: dict[str, type[PricingEngine]] = {}
 
@@ -19,10 +27,7 @@ def register_engine(key: str, engine_cls: type[PricingEngine]) -> type[PricingEn
 
 
 def get_engine(key: str | None = None) -> PricingEngine:
-    key = (key or "v1").lower()
-    if key not in _ENGINES:
-        raise KeyError(f"Unknown pricing engine '{key}'. Registered: {sorted(_ENGINES)}")
-    return _ENGINES[key]()
+    return resolve(_ENGINES, key, kind="pricing engine", default=DEFAULT_ENGINE)()
 
 
 def list_engines() -> list[dict[str, str]]:
