@@ -81,6 +81,7 @@ class RunReport:
     skipped: int
     first_error: str | None = None
     failures: list[dict] = field(default_factory=list)
+    config_degraded: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -93,6 +94,7 @@ class RunReport:
             "skipped": self.skipped,
             "first_error": self.first_error,
             "failures": self.failures,
+            "config_degraded": self.config_degraded,
         }
 
 
@@ -300,6 +302,7 @@ def generate_recommendations(
         skipped=skipped,
         first_error=first_error,
         failures=failures,
+        config_degraded=features.config_degraded,
     )
 
 

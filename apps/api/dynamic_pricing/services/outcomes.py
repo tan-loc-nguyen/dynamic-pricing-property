@@ -18,6 +18,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..constants import STATUS_ACCEPTED, STATUS_OVERRIDDEN
 from ..models import (
     PricingRecommendation,
     RecommendationOutcome,
@@ -132,7 +133,7 @@ def outcome_summary(session: Session) -> dict:
         session.scalar(
             select(func.count())
             .select_from(PricingRecommendation)
-            .where(PricingRecommendation.status.in_(("accepted", "overridden")))
+            .where(PricingRecommendation.status.in_((STATUS_ACCEPTED, STATUS_OVERRIDDEN)))
         )
         or 0
     )

@@ -25,10 +25,6 @@ export function formatOccupancy(value: number | null | undefined): string {
   return `${Math.round(value * 100)}%`;
 }
 
-export function formatFactor(value: number): string {
-  return `×${value.toFixed(3).replace(/0+$/, "").replace(/\.$/, ".0")}`;
-}
-
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

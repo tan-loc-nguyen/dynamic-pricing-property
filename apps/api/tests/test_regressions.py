@@ -390,14 +390,63 @@ def test_cleared_band_member_falls_back_to_the_default():
     assert all(b["max_gap"] is not None for b in coerced["pace"]["bands"])
 
 
-def test_a_rare_failure_is_reported_per_date_not_rolled_back():
-    """Repetition decides 'systemic'; the SHARE decides whether to discard the
-    run. Conflating them made one defect behave in opposite ways depending on
-    how the data happened to fall."""
-    from dynamic_pricing.services.recommendations import (
-        SYSTEMIC_ERROR_THRESHOLD,
-        SYSTEMIC_FAILURE_SHARE,
-    )
+def test_a_rare_failure_is_reported_per_date_and_the_run_still_commits(session):
+    """Repetition decides 'systemic'; the SHARE decides whether to discard.
 
-    assert SYSTEMIC_ERROR_THRESHOLD >= 3
-    assert 0 < SYSTEMIC_FAILURE_SHARE < 1, "a bare count has no denominator"
+    The previous version of this test asserted only that two module constants
+    had plausible values — the THIRD tautology to ship, after
+    `issubclass(PricingRunFailed, RuntimeError)` and this one. It passed with
+    the per-date error branch deleted. This version drives a real run where a
+    rare fault occurs and asserts the error rows exist AND the run committed.
+    """
+    from datetime import timedelta
+
+    from dynamic_pricing.models import RoomType, StayDateInventory
+    from dynamic_pricing.pricing import get_engine
+    from dynamic_pricing.pricing.base import PricingEngine
+    from dynamic_pricing.pricing.registry import register_engine
+    from dynamic_pricing.services.configuration import get_active_configuration
+    from dynamic_pricing.services.recommendations import generate_recommendations
+
+    today = date(2026, 9, 1)
+    room_type = session.query(RoomType).first()
+    for offset in range(20):
+        session.add(
+            StayDateInventory(
+                room_type_id=room_type.id,
+                stay_date=today + timedelta(days=offset),
+                units_total=10,
+                units_sold=4,
+                current_net_rate=2_100_000,
+            )
+        )
+    session.commit()
+    get_active_configuration(session)
+
+    class RareFailureEngine(PricingEngine):
+        """Fails on exactly one stay date — a genuinely row-local fault."""
+
+        name, version = "rare-failure", "test"
+
+        def calculate(self, context, configuration):
+            if context.stay_date == today + timedelta(days=5):
+                raise ValueError("this one row is bad")
+            return get_engine("v2").calculate(context, configuration)
+
+    register_engine("rare-failure", RareFailureEngine)
+    report = generate_recommendations(session, today=today, engine_key="rare-failure")
+
+    assert report.skipped == 1, "the one bad row should be skipped, not the run"
+    assert report.created > 15, "the rest of the portfolio must still be priced"
+    assert len(report.failures) == 1
+    assert report.failures[0]["stay_date"] == (today + timedelta(days=5)).isoformat()
+
+    from dynamic_pricing.services.recommendations import load_current_recommendations
+
+    rows = load_current_recommendations(session)
+    errored = [r for r in rows if r.status == "error"]
+    assert len(errored) == 1, "the unpriced date must be VISIBLE, not omitted"
+    assert errored[0].stay_date == today + timedelta(days=5)
+    assert "could not be priced" in errored[0].explanation
+    # ...and it must be distinguishable from a date that was never in scope.
+    assert errored[0].id is not None

@@ -279,6 +279,46 @@ NUMERIC_LEAVES: list[tuple[str, type]] = [
     ("day_of_week.adjustment_pct.*", float),
     ("booking_curve.anchors[].days", int),
     ("booking_curve.anchors[].expected", float),
+    # PricingEngineV1 casts every one of these. They were uncovered for a whole
+    # round: coercion passed them through, validation had nothing to say, and a
+    # bad value saved cleanly and stayed active while V1 broke permanently.
+    # test_numeric_leaf_coverage_is_complete now fails if this drifts again.
+    # Explicit, NOT a wildcard: legacy_v1.pricing also holds rounding_mode,
+    # a string. A wildcard in a spec is its own drift source -- it silently
+    # claims every future sibling is numeric too.
+    ("legacy_v1.pricing.rounding_increment", int),
+    ("legacy_v1.pricing.global_multiplier_min", float),
+    ("legacy_v1.pricing.global_multiplier_max", float),
+    ("legacy_v1.day_of_week.multipliers.*", float),
+    ("legacy_v1.occupancy.bands[].max", float),
+    ("legacy_v1.occupancy.bands[].multiplier", float),
+    ("legacy_v1.lead_time.bands[].max_days", float),
+    ("legacy_v1.lead_time.bands[].multiplier", float),
+    ("legacy_v1.lead_time.urgency_discount.within_days", int),
+    ("legacy_v1.lead_time.urgency_discount.occupancy_below", float),
+    ("legacy_v1.lead_time.urgency_discount.multiplier", float),
+    ("legacy_v1.booking_pace.bands[].max", float),
+    ("legacy_v1.booking_pace.bands[].multiplier", float),
+    ("legacy_v1.event.multiplier", float),
+    ("legacy_v1.market.sensitivity", float),
+    ("legacy_v1.market.min_multiplier", float),
+    ("legacy_v1.market.max_multiplier", float),
+    ("legacy_v1.market.min_observations", int),
+]
+
+# Numeric leaves that are genuinely never cast, so need no coercion. Anything
+# NOT here and NOT matched by NUMERIC_LEAVES fails the coverage test.
+UNCOERCED_NUMERIC_LEAVES = {"schema_version"}
+
+# String fields with a closed set of valid values. Unvalidated, these fail
+# silently: an unknown confidence level was treated as MEDIUM and rendered
+# straight into operator-facing copy ("below the BANANA confidence bar").
+ENUM_LEAVES: list[tuple[str, tuple[str, ...]]] = [
+    ("rounding.mode", ("nearest", "up", "down")),
+    ("market.min_confidence", ("HIGH", "MEDIUM", "LOW", "UNUSABLE")),
+    ("booking_curve.provider", ("demo", "historical")),
+    ("mode", ("shadow",)),
+    ("legacy_v1.pricing.rounding_mode", ("nearest", "up", "down")),
 ]
 
 
@@ -319,19 +359,38 @@ def _walk(node: Any, parts: list[str], trail: str = ""):
         yield node, head, f"{trail}{head}"
 
 
-def _default_at(path: str) -> Any:
-    """The shipped default for a concrete path, used to repair a cleared field."""
+def _default_at(path: str, config: dict[str, Any] | None = None) -> Any:
+    """The shipped default for a concrete path, used to repair a cleared field.
+
+    List members are matched by their ``label``, NEVER by index. The editor lets
+    an operator reorder bands, and index matching then restores a semantically
+    unrelated value -- clearing the premium on a reordered 'Well ahead of pace'
+    silently filled in 'Well behind pace''s -8% discount, with no problem
+    reported. Returns None when the label has no shipped counterpart, so the
+    field is reported as required instead of being guessed at.
+    """
     node: Any = DEMO_DEFAULTS
+    live: Any = config
     for part in path.replace("]", "").split("."):
         if "[" in part:
             name, index = part.split("[")
-            node = node.get(name) if isinstance(node, dict) else None
-            if not isinstance(node, list):
+            shipped = node.get(name) if isinstance(node, dict) else None
+            current = live.get(name) if isinstance(live, dict) else None
+            if not isinstance(shipped, list) or not isinstance(current, list):
                 return None
             idx = int(index)
-            node = node[idx] if idx < len(node) else None
+            if idx >= len(current) or not isinstance(current[idx], dict):
+                return None
+            label = current[idx].get("label")
+            match = next(
+                (b for b in shipped if isinstance(b, dict) and b.get("label") == label), None
+            )
+            if match is None:
+                return None  # operator-authored band: no shipped default exists
+            node, live = match, current[idx]
         else:
             node = node.get(part) if isinstance(node, dict) else None
+            live = live.get(part) if isinstance(live, dict) else None
         if node is None:
             return None
     return node
@@ -377,17 +436,16 @@ def coerce_config(config: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     too -- `_deep_merge` cannot do it there, because bands are a LIST and it only
     recurses into dicts.
     """
+    # Structural problems are reported ALONGSIDE type problems, not instead of
+    # them: prepare_config promises the operator every bad field path in one
+    # list, and an early return made that promise false.
     problems: list[str] = _required_key_problems(config)
-    if problems:
-        # Coercing a structurally wrong config would report confusing follow-on
-        # errors, so report the structure first.
-        return config, problems
 
     for expression, kind in NUMERIC_LEAVES:
         for container, key, path in _walk(config, expression.split(".")):
             value = container[key]
             if value is None:
-                fallback = _default_at(path)
+                fallback = _default_at(path, config)
                 if fallback is None:
                     problems.append(f"{path} is required and cannot be empty.")
                 else:
@@ -397,9 +455,33 @@ def coerce_config(config: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                 problems.append(f"{path} must be a number, got a boolean.")
                 continue
             try:
-                container[key] = kind(value)
+                coerced = float(value)
             except (TypeError, ValueError):
                 problems.append(f"{path} must be a number, got {value!r}.")
+                continue
+            if kind is int:
+                # Reject rather than truncate, and say why. Previously 7.5
+                # silently became 7 while "7.5" was rejected as "not a number",
+                # which is both wrong (7.5 IS a number) and asymmetric.
+                if coerced != int(coerced):
+                    problems.append(f"{path} must be a whole number, got {value!r}.")
+                    continue
+                container[key] = int(coerced)
+            else:
+                container[key] = coerced
+
+    for path, allowed in ENUM_LEAVES:
+        for container, key, resolved in _walk(config, path.split(".")):
+            value = container[key]
+            if value is None:
+                fallback = _default_at(resolved, config)
+                if fallback is not None:
+                    container[key] = fallback
+                continue
+            if value not in allowed:
+                problems.append(
+                    f"{resolved} must be one of {', '.join(allowed)}; got {value!r}."
+                )
     return config, problems
 
 

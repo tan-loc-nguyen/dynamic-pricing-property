@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "./ui";
-import { formatOccupancy, formatPaceGap } from "@/lib/format";
+import { formatOccupancy, formatPaceGap, formatPct } from "@/lib/format";
 import type { Summary } from "@/lib/types";
 
 function Stat({
@@ -33,8 +33,8 @@ function Stat({
 export function SummaryCards({ summary }: { summary: Summary | null }) {
   if (!summary) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {Array.from({ length: 5 }).map((_, i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        {Array.from({ length: 6 }).map((_, i) => (
           <Card key={i} className="px-4 py-3.5 h-[86px] animate-pulse" />
         ))}
       </div>
@@ -44,7 +44,7 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
   const gap = summary.average_pace_gap;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
       <Stat
         label="Apartments"
         value={String(summary.total_units)}
@@ -60,6 +60,18 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
         }
       />
       <Stat label="Avg occupancy" value={formatOccupancy(summary.average_occupancy)} sub="On the books" />
+      <Stat
+        label="Avg rate change"
+        value={formatPct(summary.average_recommended_change_pct)}
+        tone={
+          summary.average_recommended_change_pct > 0.05
+            ? "up"
+            : summary.average_recommended_change_pct < -0.05
+              ? "down"
+              : "neutral"
+        }
+        sub="Recommended vs current NET"
+      />
       <Stat
         label="Avg pace position"
         value={formatPaceGap(gap)}

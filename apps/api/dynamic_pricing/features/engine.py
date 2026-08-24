@@ -59,20 +59,37 @@ class FeatureEngine:
         # active. Saved configs are coerced at the boundary, but this layer also
         # runs against configs that never went through a save, so it degrades to
         # the default rather than trusting its input.
+        # Degradations are RECORDED, not just survived. The justification for
+        # this layer is configs that never went through a save -- which is
+        # exactly when no validator runs, so silently substituting a default
+        # would report the fault nowhere at all.
+        self.config_degraded: list[str] = []
+
         def _num(node: dict, key: str, default, kind):
+            value = node.get(key)
+            if value is None:
+                return default
             try:
-                value = node.get(key)
-                return kind(value) if value is not None else default
+                return kind(value)
             except (TypeError, ValueError):
+                self.config_degraded.append(
+                    f"{key}={value!r} is not a number; using {default}."
+                )
                 return default
 
+        # NOTE: no `or default` here. Coercion guarantees a number, so `or`
+        # is no longer defensive -- it is the only thing that could corrupt a
+        # legitimate 0. expected_pickup_per_week=0 means "expect no pickup",
+        # and silently reading it as 1.0 shifted pickup_delta by a full unit on
+        # every row while the UI displayed the 0 the operator saved.
         pickup_cfg = self.config.get("recent_pickup", {}) or {}
-        self.pickup_lookback_days = _num(pickup_cfg, "lookback_days", 7, int) or 7
-        self.expected_pickup_per_week = _num(pickup_cfg, "expected_pickup_per_week", 1.0, float) or 1.0
+        self.pickup_lookback_days = _num(pickup_cfg, "lookback_days", 7, int)
+        self.expected_pickup_per_week = _num(pickup_cfg, "expected_pickup_per_week", 1.0, float)
 
         market_cfg = self.config.get("market", {}) or {}
-        self.market_max_age_days = _num(market_cfg, "observation_max_age_days", 14, int) or 14
-        self.market_min_confidence = str(market_cfg.get("min_confidence", "MEDIUM") or "MEDIUM").upper()
+        self.market_max_age_days = _num(market_cfg, "observation_max_age_days", 14, int)
+        confidence = market_cfg.get("min_confidence") or "MEDIUM"
+        self.market_min_confidence = str(confidence).upper()
 
         self._loaded = False
         self._room_types: dict[int, RoomType] = {}
