@@ -12,6 +12,7 @@ import type { EventItem } from "@/lib/types";
 export default function EventsPage() {
   const t = useTranslations("events");
   const tc = useTranslations("common");
+  const tv = useTranslations("vocab");
   const { formatStayDate } = useFormat();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [meta, setMeta] = useState<any>(null);
@@ -109,7 +110,7 @@ export default function EventsPage() {
                   onChange={(e) => setForm({ ...form, start_date: e.target.value })}
                 />
               </Field>
-              <Field label="Ends">
+              <Field label={t("ends")}>
                 <input
                   type="date"
                   className={inputClass}
@@ -132,7 +133,7 @@ export default function EventsPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="Type">
+              <Field label={t("type")}>
                 <select
                   className={inputClass}
                   value={form.event_type}
@@ -192,7 +193,7 @@ export default function EventsPage() {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-ink-200 bg-ink-50/60">
-                  {[t("name"), t("dates"), t("impact"), "Type", t("override"), tc("source"), ""].map((h) => (
+                  {[t("name"), t("dates"), t("impact"), t("type"), t("override"), tc("source"), ""].map((h) => (
                     <th
                       key={h}
                       className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 text-left"
@@ -214,9 +215,9 @@ export default function EventsPage() {
                       {e.start_date !== e.end_date && <> → {formatStayDate(e.end_date)}</>}
                     </td>
                     <td className="px-3 py-2.5">
-                      <Chip tone={impactTone(e.impact_level) as any}>{e.impact_level}</Chip>
+                      <Chip tone={impactTone(e.impact_level) as any}>{tv(`eventImpact.${e.impact_level}`)}</Chip>
                     </td>
-                    <td className="px-3 py-2.5 text-ink-500 text-[12px]">{e.event_type}</td>
+                    <td className="px-3 py-2.5 text-ink-500 text-[12px]">{tv(`eventTypes.${e.event_type}`)}</td>
                     <td className="px-3 py-2.5 tnum text-ink-600">
                       {e.adjustment_pct !== null ? `${e.adjustment_pct > 0 ? "+" : ""}${e.adjustment_pct}%` : "—"}
                     </td>

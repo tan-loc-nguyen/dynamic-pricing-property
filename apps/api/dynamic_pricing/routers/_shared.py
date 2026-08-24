@@ -129,7 +129,14 @@ def recommendation_dict(
         "pace_label_key": meta.get("pace_label_key"),
         "pickup_label_key": meta.get("pickup_label_key"),
         "pace_label": meta.get("pace_label"),
+        "pace_tone": meta.get("pace_tone"),
         "pickup_label": meta.get("pickup_label"),
+        # An error row has no adjustments, so without this the drawer would show
+        # an empty breakdown and never say the engine had failed on this date.
+        # The reason itself stays English: it is an exception signature, aimed
+        # at whoever fixes it rather than at the operator.
+        "unpriced": bool(meta.get("unpriced")),
+        "unpriced_reason": meta.get("error"),
     }
     if detail:
         payload["adjustments"] = [

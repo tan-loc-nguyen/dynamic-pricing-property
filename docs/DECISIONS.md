@@ -427,9 +427,18 @@ system at all. Everything else the API returns is either already code-keyed
 in its own message file) or real-world data that must never be translated
 (property names, competitor names, operator notes).
 
-**What is deliberately NOT translated:** Settings validation messages and 422
-error details. Both are English, both are documented gaps, and neither is
-worth a second toolchain for an MVP.
+**Configuration problems go the same way.** They were initially left in English
+on the grounds that translating them needed a second (Python) i18n toolchain.
+That was the wrong constraint: the strings were already structured — a field
+path, a reason, a value — so `validate_config` and `coerce_config` now emit
+`{code, path, params, message}` and the UI renders them from the same message
+files. The English `message` stays, for logs and the 422 body. `PROBLEM_CODES`
+is checked against both locales the same way `EMITTABLE_MESSAGE_KEYS` is.
+
+**What is deliberately NOT translated:** provider remediation text, engine
+descriptions, and the exception signature recorded on a stay date the engine
+could not price. All three are aimed at whoever fixes the problem rather than
+at the operator.
 
 **Operator-authored text passes through.** Pace and pickup bands are editable,
 so a shipped band carries a stable `key` (`well_behind`, `stalled`) that the

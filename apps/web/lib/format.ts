@@ -16,7 +16,8 @@ export function formatVND(
 ): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   if (opts.compact && Math.abs(value) >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M ₫`;
+    const sign = value < 0 ? "−" : "";
+    return `${sign}${decimal(value / 1_000_000, locale, 1)}M ₫`;
   }
   return `${Math.round(value).toLocaleString(intlLocale(locale))} ₫`;
 }
@@ -27,10 +28,21 @@ export function formatSignedVND(value: number | null | undefined, locale: Format
   return `${sign}${Math.abs(Math.round(value)).toLocaleString(intlLocale(locale))} ₫`;
 }
 
-export function formatPct(value: number | null | undefined, digits = 1): string {
+function decimal(value: number, locale: FormatLocale, digits: number): string {
+  return Math.abs(value).toLocaleString(intlLocale(locale), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+export function formatPct(
+  value: number | null | undefined,
+  locale: FormatLocale,
+  digits = 1,
+): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   const sign = value > 0 ? "+" : value < 0 ? "−" : "";
-  return `${sign}${Math.abs(value).toFixed(digits)}%`;
+  return `${sign}${decimal(value, locale, digits)}%`;
 }
 
 export function formatOccupancy(value: number | null | undefined): string {
@@ -89,13 +101,6 @@ export function addDaysISO(iso: string, days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function paceTone(gap: number | null | undefined): "up" | "down" | "info" | "neutral" {
-  if (gap === null || gap === undefined) return "neutral";
-  if (gap < -0.08) return "down";
-  if (gap >= 0.08) return "up";
-  return "info";
-}
-
 /** Pace gap rendered in percentage points, e.g. "+14pp". */
 export function formatPaceGap(gap: number | null | undefined): string {
   if (gap === null || gap === undefined) return "—";
@@ -128,8 +133,8 @@ export function confidenceTone(c: string | null | undefined): "up" | "info" | "w
 }
 
 /** Additive percentage-point adjustment, e.g. "+4.0%". */
-export function formatAdjPct(value: number | null | undefined): string {
+export function formatAdjPct(value: number | null | undefined, locale: FormatLocale): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  if (Math.abs(value) < 0.05) return "0.0%";
-  return `${value > 0 ? "+" : "−"}${Math.abs(value).toFixed(1)}%`;
+  if (Math.abs(value) < 0.05) return decimal(0, locale, 1) + "%";
+  return `${value > 0 ? "+" : "−"}${decimal(value, locale, 1)}%`;
 }

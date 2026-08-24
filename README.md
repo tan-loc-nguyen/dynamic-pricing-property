@@ -35,7 +35,7 @@ Open **<http://localhost:3000>**.
 `make dev` alone is enough — it runs setup if needed and seeds the database on
 API startup. Prerequisites: Python 3.10+ and Node 18+; `make setup` tells you
 the exact install command for your platform, or `AUTO_INSTALL=1 make setup`
-installs them for you. `make test` runs 233 tests.
+installs them for you. `make test` runs 250 tests.
 
 ---
 
@@ -208,15 +208,24 @@ honest:
 | `test_every_emittable_key_has_a_translation` | a key the engine can emit with no string in one of the locales |
 | `test_the_locales_describe_exactly_the_same_things` | the two files drifting apart |
 | `test_vietnamese_is_actually_translated` | `vi.json` being largely a copy of `en.json` |
+| `test_every_placeholder_in_a_message_is_supplied_by_the_engine` | a sentence whose `{placeholder}` the engine never fills — ICU refuses the whole message, so the operator gets a raw key |
+| `test_every_translated_string_is_rendered_somewhere` | a key nobody renders — which always meant English or a raw code was showing in its place |
+| `test_every_key_the_frontend_asks_for_exists` | a key the UI asks for that does not exist, which renders as a dotted path |
 
 A missing Vietnamese string is a **test failure**, not a blank line discovered
 during a client demo.
 
+Configuration validation messages are translated too, by the same route: they
+were already structured (a field path, a reason, a value), so they are emitted
+as a code plus params and rendered from the same message files. A validation
+error is what an operator sees when they have already made a mistake, which is
+the worst place for a language barrier.
+
 **What is deliberately not translated:** property, competitor and event names,
-and operator-written notes — translating real-world data would be a bug. Two
-gaps remain in English and are documented rather than hidden: Settings
-validation messages and API error details. See **D30** in
-[docs/DECISIONS.md](docs/DECISIONS.md).
+and operator-written notes — translating real-world data would be a bug. The
+remaining English is developer-facing: provider remediation text, engine
+descriptions, and the exception signature on a stay date the engine could not
+price. See **D30** in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ---
 
@@ -272,7 +281,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 233 tests
+make test    # 250 tests
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15

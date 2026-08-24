@@ -2,7 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { Card } from "./ui";
-import { formatOccupancy, formatPaceGap, formatPct } from "@/lib/format";
+import { formatOccupancy, formatPaceGap } from "@/lib/format";
+import { useFormat } from "@/lib/useFormat";
 import type { Summary } from "@/lib/types";
 
 function Stat({
@@ -32,6 +33,7 @@ function Stat({
 }
 
 export function SummaryCards({ summary }: { summary: Summary | null }) {
+  const { formatPct } = useFormat();
   const t = useTranslations("summary");
   if (!summary) {
     return (
@@ -54,7 +56,7 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
       />
       <Stat
         label={t("upcomingNights")}
-        value={summary.upcoming_nights.toLocaleString()}
+        value={t("count", { count: summary.upcoming_nights })}
         sub={
           summary.horizon_start && summary.horizon_end
             ? `${summary.horizon_start} → ${summary.horizon_end}`
@@ -82,12 +84,12 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
       />
       <Stat
         label={t("pendingReview")}
-        value={summary.pending_recommendations.toLocaleString()}
+        value={t("count", { count: summary.pending_recommendations })}
         tone={summary.pending_recommendations > 0 ? "warn" : "neutral"}
         sub={
           t("decisionSplit", { accepted: summary.accepted_recommendations, overridden: summary.overridden_recommendations }) +
           (summary.unpriced_recommendations > 0
-            ? ` · ${summary.unpriced_recommendations} could not be priced`
+            ? t("unpricedSuffix", { count: summary.unpriced_recommendations })
             : "")
         }
       />

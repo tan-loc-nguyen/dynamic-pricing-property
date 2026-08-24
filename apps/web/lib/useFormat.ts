@@ -3,9 +3,11 @@
 import { useLocale } from "next-intl";
 import { useMemo } from "react";
 import {
+  formatAdjPct,
   formatDateTime,
   formatLongDate,
   formatSignedVND,
+  formatPct,
   formatStayDate,
   formatVND,
   type FormatLocale,
@@ -29,6 +31,9 @@ export function useFormat() {
       formatStayDate: (iso: string) => formatStayDate(iso, locale),
       formatLongDate: (iso: string) => formatLongDate(iso, locale),
       formatDateTime: (iso: string) => formatDateTime(iso, locale),
+      formatPct: (value: number | null | undefined, digits = 1) =>
+        formatPct(value, locale, digits),
+      formatAdjPct: (value: number | null | undefined) => formatAdjPct(value, locale),
     }),
     [locale],
   );

@@ -2,14 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import {
-  confidenceTone,
-  formatAdjPct,
-  formatOccupancy,
-  formatPaceGap,
-  formatPct,
-  marketBucket,
-} from "@/lib/format";
+import { confidenceTone, formatOccupancy, formatPaceGap, marketBucket } from "@/lib/format";
 import { useFormat } from "@/lib/useFormat";
 import { useAdjustmentText, useBandLabel } from "@/lib/adjustments";
 import { useTranslations } from "next-intl";
@@ -54,8 +47,8 @@ function RateBandStrip({ detail }: { detail: RecommendationDetail }) {
     <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-3.5 py-3">
       <div className="flex items-center justify-between mb-2">
         <div className="text-[11.5px] font-semibold text-emerald-900">
-          {tv(`seasons.${detail.season_key}`)}
-          <span className="font-normal text-emerald-700"> · {tv(`roomCategories.${detail.room_category}`)}</span>
+          {detail.season_key ? tv(`seasons.${detail.season_key}`) : "—"}
+          <span className="font-normal text-emerald-700"> · {detail.room_category ? tv(`roomCategories.${detail.room_category}`) : detail.room_type_name}</span>
         </div>
         <Chip tone="up">{t("clientValidated")}</Chip>
       </div>
@@ -65,12 +58,12 @@ function RateBandStrip({ detail }: { detail: RecommendationDetail }) {
         <div
           className="absolute top-2.5 h-3.5 w-0.5 bg-emerald-500"
           style={{ left: `${pos(base)}%` }}
-          title={`BASE ${base.toLocaleString()}`}
+          title={`${t("band.base")} ${formatVND(base)}`}
         />
         <div
           className="absolute top-1.5 -translate-x-1/2 h-5 w-5 rounded-full border-2 border-white bg-brand-600 shadow"
           style={{ left: `${pos(detail.recommended_net_rate)}%` }}
-          title={`Recommended ${detail.recommended_net_rate.toLocaleString()}`}
+          title={`${t("recommendedNet")} ${formatVND(detail.recommended_net_rate)}`}
         />
       </div>
 
@@ -88,7 +81,7 @@ function RateBandStrip({ detail }: { detail: RecommendationDetail }) {
 
 /** The calculation: validated band -> dynamic layer -> clamp -> rounding. */
 function Breakdown({ detail }: { detail: RecommendationDetail }) {
-  const { formatVND, formatSignedVND } = useFormat();
+  const { formatVND, formatSignedVND, formatAdjPct } = useFormat();
   const t = useTranslations("drawer");
   const adjustmentText = useAdjustmentText();
   return (
@@ -183,7 +176,7 @@ export function RecommendationDrawer({
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const { formatLongDate, formatSignedVND, formatVND } = useFormat();
+  const { formatLongDate, formatSignedVND, formatVND, formatPct } = useFormat();
   const t = useTranslations("drawer");
   const tv = useTranslations("vocab");
   const bandLabel = useBandLabel();
@@ -257,7 +250,7 @@ export function RecommendationDrawer({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-[16px] font-semibold text-ink-900 leading-tight">
-                      {tv(`roomCategories.${detail.room_category}`)}
+                      {detail.room_category ? tv(`roomCategories.${detail.room_category}`) : detail.room_type_name}
                     </h2>
                     <StatusBadge status={detail.status} />
                     <Chip tone="up">{t("shadow")}</Chip>
@@ -349,7 +342,7 @@ export function RecommendationDrawer({
                   <SignalTile
                     label={t("signal.pace")}
                     value={bandLabel(detail.pace_label_key, detail.pace_label || t("signal.noData"))}
-                    hint={detail.pace_gap !== null ? formatPaceGap(detail.pace_gap) : "no data"}
+                    hint={detail.pace_gap !== null ? formatPaceGap(detail.pace_gap) : t("signal.noData")}
                     muted={detail.pace_gap === null}
                   />
                   <SignalTile
@@ -400,13 +393,24 @@ export function RecommendationDrawer({
                 <div className="text-[12px] font-semibold text-ink-700 mb-2">
                   {t("calculation")}
                 </div>
-                <Breakdown detail={detail} />
+                {detail.unpriced ? (
+                  <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2.5 text-[12px] text-rose-900">
+                    <div className="font-semibold">{t("unpriced")}</div>
+                    {detail.unpriced_reason && (
+                      <div className="mt-1 font-mono text-[11px] text-rose-700 break-all">
+                        {detail.unpriced_reason}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Breakdown detail={detail} />
+                )}
                 <div className="text-[10.5px] text-ink-400 mt-2">
                   {t("engineLine", {
                     engine: detail.engine_version,
                     config: detail.config_version,
                   })}{" "}
-                  <span className="text-emerald-600 font-medium">{t("validatedTag")}</span> · dynamic layer{" "}
+                  <span className="text-emerald-600 font-medium">{t("validatedTag")}</span> · {t("dynamicLayer")}{" "}
                   <span className="text-amber-600 font-medium">{t("unvalidatedTag")}</span>
                 </div>
               </div>

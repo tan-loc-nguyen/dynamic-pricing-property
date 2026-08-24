@@ -80,7 +80,7 @@ export default function RateBookPage() {
         subtitle={t("subtitleLong")}
         actions={
           <Button onClick={reset} disabled={saving || edited === 0}>
-            Restore client values
+            {t("reset")}
           </Button>
         }
       />
@@ -124,7 +124,7 @@ export default function RateBookPage() {
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-ink-100">
-                    {[t("roomCategory"), "MIN NET", "BASE NET", "MAX NET", tc("source"), ""].map((h) => (
+                    {[t("roomCategory"), t("minNet"), t("baseNet"), t("maxNet"), tc("source"), ""].map((h) => (
                       <th
                         key={h}
                         className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400 text-left"

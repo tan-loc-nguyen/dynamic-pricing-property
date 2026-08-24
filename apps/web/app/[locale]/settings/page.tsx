@@ -6,8 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, Card, Chip, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatAdjPct } from "@/lib/format";
+
 import { useFormat } from "@/lib/useFormat";
+import { useAdjustmentText } from "@/lib/adjustments";
 import type { PricingConfig, Preview } from "@/lib/types";
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -142,7 +143,10 @@ function BandEditor({
 
 export default function DynamicRulesPage() {
   const t = useTranslations("settings");
-  const { formatSignedVND, formatVND } = useFormat();
+  const tval = useTranslations("validation");
+  const tc = useTranslations("common");
+  const adjustmentText = useAdjustmentText();
+  const { formatAdjPct, formatSignedVND, formatVND } = useFormat();
   const [config, setConfig] = useState<PricingConfig | null>(null);
   const [draft, setDraft] = useState<any>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -204,7 +208,7 @@ export default function DynamicRulesPage() {
       setBaseline(await api.preview(saved.payload));
       setMessage(`Saved as rules v${saved.version}. All recommendations were recalculated.`);
     } catch (e: any) {
-      setMessage(`Save failed: ${e.message}`);
+      setMessage(t("saveFailed", { reason: e.message }));
     } finally {
       setSaving(false);
     }
@@ -223,7 +227,7 @@ export default function DynamicRulesPage() {
       // /api/settings/reset can now 422. Without this the spinner clears and
       // nothing is shown -- the same silent-no-op shape as save() and
       // regenerate(), both already fixed. Third call site of the same class.
-      setMessage(`Reset failed: ${e?.message || "unknown error"}`);
+      setMessage(t("resetFailed", { reason: e?.message || tc("unknownError") }));
     } finally {
       setSaving(false);
     }
@@ -439,12 +443,12 @@ export default function DynamicRulesPage() {
             {preview && preview.problems.length > 0 && (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                 <div className="text-[11.5px] font-semibold text-amber-900">
-                  This configuration cannot be saved yet
+                  {tval("title")}
                 </div>
                 <ul className="mt-1 space-y-0.5">
-                  {preview.problems.map((problem) => (
-                    <li key={problem} className="text-[11px] text-amber-800 leading-snug">
-                      • {problem}
+                  {preview.problems.map((problem, i) => (
+                    <li key={`${problem.code}-${i}`} className="text-[11px] text-amber-800 leading-snug">
+                      • {tval(problem.code, { ...problem.params, path: problem.path ?? "" })}
                     </li>
                   ))}
                 </ul>
@@ -506,7 +510,7 @@ export default function DynamicRulesPage() {
                           a.is_ignored ? "text-amber-700" : a.is_neutral ? "text-ink-300" : "text-ink-600"
                         }
                       >
-                        {a.label}
+                        {adjustmentText(a).label}
                       </span>
                       <span className="flex items-center gap-2 shrink-0">
                         <span className={`tnum ${a.is_neutral || a.is_ignored ? "text-ink-300" : "text-ink-500"}`}>

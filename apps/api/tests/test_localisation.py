@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from datetime import date
 from pathlib import Path
 
@@ -251,3 +252,395 @@ def test_an_operator_renamed_band_still_labels_the_table_row(engine, config):
     assert meta["pace_label"] == "Chậm nghiêm trọng", (
         "the row must be able to show what the drawer shows"
     )
+
+
+# ---------------------------------------------------------------------------
+# Both-directions checks over the message files.
+#
+# test_every_emittable_key_has_a_translation proves a key EXISTS. Neither of
+# these was covered: whether the sentence behind it can actually be filled in,
+# and whether anything renders it. A key can be present, perfectly translated,
+# and still show English or a raw code to the operator.
+# ---------------------------------------------------------------------------
+
+# The frontend enriches a few params before handing them to ICU: a code is
+# swapped for the translated word from `vocab`. Mirrored from
+# apps/web/lib/adjustments.ts -- if that mapping changes, this must too.
+ENRICHED_PARAMS = {"season_key": "season"}
+
+WEB = Path(__file__).resolve().parents[3] / "apps" / "web"
+def _placeholders(message: str) -> set[str]:
+    """Top-level ICU argument names only.
+
+    A naive regex also matches the BRANCH BODIES of a select
+    (`{direction, select, above {above} other {below}}` looks like it needs an
+    argument called `above`), so this tracks brace depth and reads a name only
+    where an argument can actually appear.
+    """
+    names: set[str] = set()
+    depth = 0
+    i = 0
+    while i < len(message):
+        char = message[i]
+        if char == "{":
+            if depth == 0:
+                j = i + 1
+                while j < len(message) and (message[j].isalnum() or message[j] == "_"):
+                    j += 1
+                name = message[i + 1 : j].strip()
+                if name:
+                    names.add(name)
+            depth += 1
+        elif char == "}":
+            depth -= 1
+        i += 1
+    return names
+
+# One scenario per emittable key. A new key with no scenario fails the coverage
+# assertion below, so this cannot silently fall behind the engine.
+def _scenarios(config):
+    wide = copy.deepcopy(config)
+    wide["dynamic"]["min_total_adjustment_pct"] = -90.0
+    wide["dynamic"]["max_total_adjustment_pct"] = 90.0
+    floor_cfg = copy.deepcopy(wide)
+    floor_cfg["pace"]["bands"][0]["adjustment_pct"] = -80.0
+    ceil_cfg = copy.deepcopy(wide)
+    ceil_cfg["pace"]["bands"][-1]["adjustment_pct"] = 80.0
+    dow = copy.deepcopy(config)
+    dow["day_of_week"] = {"enabled": True, "adjustment_pct": {"thursday": 2.0}}
+    few = copy.deepcopy(config)
+    few["market"]["min_observations"] = 3
+    # An empty band list is the only way _band_for returns None, and it is what
+    # the *.no_band messages exist for.
+    no_pace_band = copy.deepcopy(config)
+    no_pace_band["pace"]["bands"] = []
+    no_pickup_band = copy.deepcopy(config)
+    no_pickup_band["recent_pickup"]["bands"] = []
+
+    return [
+        (config, {}),
+        (config, {"band_min_net_rate": None, "band_base_net_rate": None,
+                  "band_max_net_rate": None, "season_key": None, "season_label": None,
+                  "rate_band_source": "FALLBACK", "current_net_rate": 2_000_000.0}),
+        (config, {"pace_gap": -0.25}),
+        (config, {"pace_gap": -0.10}),
+        (config, {"pace_gap": 0.10}),
+        (config, {"pace_gap": 0.30}),
+        (config, {"pace_gap": None, "expected_occupancy": None}),
+        (config, {"pace_gap": None}),
+        (config, {"pickup_delta": -1.5}),
+        (config, {"pickup_delta": -0.5}),
+        (config, {"pickup_delta": 1.0}),
+        (config, {"pickup_delta": 3.0}),
+        (config, {"pickup_delta": None}),
+        (config, {"is_event": True, "event_name": "X", "event_impact_level": "high"}),
+        (config, {"is_event": True, "event_name": "X", "event_adjustment_pct": 5.0}),
+        (config, {"market_price_index": 1.2}),
+        (config, {"market_qualified_count": 0, "market_ignored_count": 3,
+                  "market_price_index": None}),
+        (config, {"market_price_index": None, "market_qualified_count": 0}),
+        (few, {"market_price_index": 1.2, "market_qualified_count": 1}),
+        (dow, {}),
+        (no_pace_band, {"pace_gap": -0.25}),
+        (no_pickup_band, {"pickup_delta": -1.5}),
+        (floor_cfg, {"pace_gap": -0.9}),
+        (ceil_cfg, {"pace_gap": 0.9}),
+        (config, {"pace_gap": 0.5, "pickup_delta": 5.0, "is_event": True,
+                  "event_name": "X", "event_impact_level": "high"}),
+    ]
+
+
+def _numeric_placeholders(message: str) -> set[str]:
+    """Argument names the message formats with `, number`."""
+    return {
+        name
+        for name in _placeholders(message)
+        if re.search(rf"\{{\s*{re.escape(name)}\s*,\s*number", message)
+    }
+
+
+def _emitted_params(engine, config):
+    """Every (label_key, available param names) the engine can actually produce.
+
+    Deliberately a LIST, not a union per key. Unioning hides the failure this
+    exists to catch: `rate_band` supplies `season` on almost every row and NOT
+    on the no-band fallback row, and a union would report it as supplied.
+    """
+    emitted: list[tuple[str, set[str], str]] = []
+    for index, (cfg, overrides) in enumerate(_scenarios(config)):
+        for adj in engine.calculate(make_context(**overrides), copy.deepcopy(cfg)).adjustments:
+            if not adj.label_key:
+                continue
+            names = set(adj.params)
+            for code, enriched in ENRICHED_PARAMS.items():
+                # The frontend only enriches when the value is a STRING
+                # (`typeof x === "string"`), so a null code supplies nothing --
+                # which is exactly how {season} came to be unfillable.
+                if isinstance(adj.params.get(code), str):
+                    names.add(enriched)
+            emitted.append((adj.label_key, names, f"scenario #{index}"))
+    return emitted
+
+
+def test_the_scenarios_below_reach_every_emittable_key(engine, config):
+    """Guards the guard: an unreached key is an unchecked sentence."""
+    reached = {key for key, _, _ in _emitted_params(engine, config)}
+    missing = set(EMITTABLE_MESSAGE_KEYS) - reached
+    assert not missing, f"no scenario produces: {sorted(missing)}"
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_every_placeholder_in_a_message_is_supplied_by_the_engine(engine, config, locale):
+    """A sentence whose placeholder is never filled does not degrade -- ICU
+    refuses the whole message, so the operator gets a raw key where the
+    explanation should be. This is the same both-directions lesson as
+    NUMERIC_LEAVES: existence was checked, satisfiability was not."""
+    flat = _flatten(_messages(locale))
+    emitted = _emitted_params(engine, config)
+    problems: list[str] = []
+
+    for key, params, where in emitted:
+        for part in ("label", "reason"):
+            message = flat.get(f"{key}.{part}")
+            if message is None:
+                continue
+            for name in _placeholders(message):
+                if name not in params:
+                    problems.append(
+                        f"{locale}: {key}.{part} needs {{{name}}} but the engine does not "
+                        f"supply it on {where} (has {sorted(params)})"
+                    )
+    assert not problems, "\n".join(problems)
+
+
+def _translation_references() -> tuple[set[str], set[str]]:
+    """Every message path the frontend can ask for.
+
+    Each translation function is bound to the namespace it was created with --
+    a file commonly has `const t = useTranslations("drawer")` next to
+    `const tv = useTranslations("vocab")`, and treating every call as reachable
+    from every namespace turns this check into noise.
+
+    Three call shapes are recognised:
+      * ``t("a.b")``                -> the exact path
+      * ``t(`a.${code}`)``          -> a static PREFIX; anything under it counts
+      * ``t(name)`` / ``t(x[y])``   -> fully dynamic, so the whole namespace counts
+    """
+    exact: set[str] = set()
+    prefixes: set[str] = set()
+    for path in list(WEB.glob("app/**/*.tsx")) + list(WEB.glob("components/*.tsx")) + list(
+        WEB.glob("lib/*.ts")
+    ):
+        src = path.read_text(encoding="utf-8")
+        bindings = dict(
+            re.findall(r"const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*useTranslations\(\s*\"?([^\")]*)\"?\s*\)", src)
+        )
+        bindings.update(
+            dict.fromkeys(
+                re.findall(r"const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*await getTranslations\(", src),
+                "",
+            )
+        )
+        for var, ns in re.findall(r"const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*await getTranslations\(\{[^}]*namespace:\s*\"([^\"]*)\"", src):
+            bindings[var] = ns
+
+        for var, ns in bindings.items():
+            for quote in ('"', "'", "`"):
+                for arg in re.findall(
+                    rf"\b{re.escape(var)}(?:\.rich)?\(\s*{quote}([^{quote}]*?){quote}", src
+                ):
+                    if "${" in arg:
+                        static = arg.split("${")[0]
+                        prefixes.add(f"{ns}.{static}".rstrip(".") if ns else static.rstrip("."))
+                    else:
+                        exact.add(f"{ns}.{arg}" if ns else arg)
+            if ns and re.search(rf"\b{re.escape(var)}\(\s*[A-Za-z_][A-Za-z0-9_]*[\.\[(]?", src):
+                prefixes.add(ns)
+    return exact, prefixes
+
+
+def test_every_translated_string_is_rendered_somewhere():
+    """A key nobody renders is a place the UI is showing English or a raw code.
+
+    Every dead translation found so far had exactly that symptom: the
+    Vietnamese existed, and the operator saw `holiday` or `dynamic layer`.
+    """
+    exact, prefixes = _translation_references()
+    dead = []
+    for key in _flatten(_messages("en")):
+        # adjustments.* are reached through a fully dynamic `${adj.label_key}`
+        # and are already checked, in both directions, by
+        # test_every_emittable_key_has_a_translation.
+        if key.startswith("adjustments."):
+            continue
+        if key in exact:
+            continue
+        if any(key.startswith(p + ".") for p in prefixes):
+            continue
+        dead.append(key)
+    assert not dead, (
+        f"{len(dead)} translated keys are rendered nowhere — the UI is showing "
+        f"English or a raw code in their place: {sorted(dead)}"
+    )
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_a_number_formatted_placeholder_is_never_given_a_null(engine, config, locale):
+    """`{x, number}` cannot be rescued by a fallback the way `{x}` can.
+
+    The enricher swaps a null for an em dash so a bare placeholder still reads,
+    but Intl.NumberFormat coerces that dash to NaN — so the operator would see
+    "band NaN–NaN" and "NaN%". The guard has to live where the value is
+    produced, not where it is formatted.
+    """
+    flat = _flatten(_messages(locale))
+    problems: list[str] = []
+
+    for cfg, overrides in _scenarios(config):
+        for adj in engine.calculate(make_context(**overrides), copy.deepcopy(cfg)).adjustments:
+            if not adj.label_key:
+                continue
+            for part in ("label", "reason"):
+                message = flat.get(f"{adj.label_key}.{part}")
+                if message is None:
+                    continue
+                for name in _numeric_placeholders(message):
+                    if name in adj.params and adj.params[name] is None:
+                        problems.append(
+                            f"{locale}: {adj.label_key}.{part} formats {{{name}}} as a number "
+                            f"but the engine supplied null — it would render NaN"
+                        )
+    assert not problems, "\n".join(sorted(set(problems)))
+
+
+def test_every_key_the_frontend_asks_for_exists():
+    """The mirror of the check above, and the one that matters at runtime.
+
+    next-intl renders a missing key as the literal path, so `rateBook.roomCategory`
+    shipped as a visible column header reading "rateBook.roomCategory" — in BOTH
+    languages. A dead key shows English; a missing key shows a dotted path.
+    """
+    exact, _ = _translation_references()
+    flat = _flatten(_messages("en"))
+    known = set(flat)
+    missing = sorted(
+        ref
+        for ref in exact
+        # A parent path is legitimate: t.rich and namespaced sub-objects.
+        if ref and ref not in known and not any(k.startswith(ref + ".") for k in known)
+    )
+    assert not missing, f"the frontend asks for keys that do not exist: {missing}"
+
+
+def test_the_engine_decides_the_pace_chips_colour_not_typescript(engine, config):
+    """`paceTone()` hardcoded ±0.08 in TypeScript while the chip's TEXT came
+    from the engine's configurable bands. Widen "On pace" to ±0.20 — a
+    legitimate retune — and a gap of +0.12 produced a GREEN chip reading
+    "On pace". That is D28's root cause in the colour channel: tone is semantic
+    here, so it can contradict the label it sits on.
+
+    The band's own adjustment decides it, which also works for a band the
+    operator invented — TypeScript has no thresholds for those at all.
+    """
+    cfg = copy.deepcopy(config)
+    for band in cfg["pace"]["bands"]:
+        if band["key"] == "on_pace":
+            band["max_gap"] = 0.20
+        if band["key"] == "ahead":
+            band["max_gap"] = 0.30
+
+    meta = engine.calculate(make_context(pace_gap=0.12), cfg).metadata
+    assert meta["pace_label_key"] == "adjustments.pace.on_pace"
+    assert meta["pace_tone"] == "info", "a 0% band must not be coloured as a gain"
+
+    assert engine.calculate(make_context(pace_gap=-0.25), cfg).metadata["pace_tone"] == "down"
+    assert engine.calculate(make_context(pace_gap=0.45), cfg).metadata["pace_tone"] == "up"
+    blind = engine.calculate(make_context(pace_gap=None, expected_occupancy=None), cfg)
+    assert blind.metadata["pace_tone"] == "neutral"
+
+
+# ---------------------------------------------------------------------------
+# Configuration problems
+#
+# These were left in English on the grounds that translating them would mean a
+# second (Python) i18n toolchain. That was the wrong constraint: the strings are
+# already structured -- a field path plus a reason plus a value -- so they can
+# be emitted as key + params and rendered from the SAME message files by the
+# same toolchain, exactly as the pricing explanation now is. And a validation
+# error is what an operator sees when they have already made a mistake and are
+# unsure, which is the worst place for a language barrier.
+# ---------------------------------------------------------------------------
+def test_configuration_problems_are_structured_not_prose():
+    from dynamic_pricing.pricing.defaults import preview_config
+
+    _config, problems = preview_config({"market": {"sensitivity": "banana"}})
+    assert problems, "a non-numeric sensitivity must be reported"
+    problem = problems[0]
+    assert problem["code"] == "not_a_number"
+    assert problem["path"] == "market.sensitivity"
+    assert problem["params"]["value"] == "'banana'"
+    assert problem["message"], "an English message stays for logs and 422 bodies"
+
+
+def test_band_problems_are_structured_too():
+    from dynamic_pricing.pricing.defaults import default_config, preview_config
+
+    cfg = copy.deepcopy(default_config())
+    cfg["pace"]["bands"][0]["max_gap"] = 0.5   # now above the band after it
+    _config, problems = preview_config(cfg)
+    codes = {p["code"] for p in problems}
+    assert "band_threshold_not_increasing" in codes, codes
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_every_configuration_problem_code_has_a_translation(locale):
+    from dynamic_pricing.pricing.defaults import PROBLEM_CODES
+
+    flat = _flatten(_messages(locale))
+    missing = [code for code in PROBLEM_CODES if f"validation.{code}" not in flat]
+    assert not missing, f"{locale}.json is missing validation messages for: {missing}"
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_every_validation_placeholder_is_supplied(engine, config, locale):
+    """Same both-directions check as the adjustments, for the other surface.
+
+    `path` is NOT in `params` — it is a sibling field on the problem — so a
+    message referencing `{path}` is only fillable if the renderer merges it in.
+    Writing this caught the renderer passing `path: ""` and then spreading
+    params over it, which rendered every field path as nothing at all.
+    """
+    from dynamic_pricing.pricing.defaults import default_config, preview_config
+
+    flat = _flatten(_messages(locale))
+    bad_configs = [
+        {"market": {"sensitivity": "banana"}},
+        {"rounding": {"increment": "x"}},
+        {"market": {"min_confidence": "BANANA"}},
+        {"booking_curve": {"anchors": [{"day": 0}]}},
+        {"dynamic": {"min_total_adjustment_pct": 20.0, "max_total_adjustment_pct": 5.0}},
+        {"pace": {"bands": "not-a-list"}},
+    ]
+    broken_band = copy.deepcopy(default_config())
+    broken_band["pace"]["bands"][0]["max_gap"] = 0.5
+    bad_configs.append(broken_band)
+
+    problems: list[str] = []
+    for payload in bad_configs:
+        for problem in preview_config(payload)[1]:
+            message = flat.get(f"validation.{problem['code']}")
+            assert message, f"{locale}: no message for {problem['code']}"
+            # The renderer merges `path` in alongside `params`.
+            available = set(problem["params"]) | {"path"}
+            for name in _placeholders(message):
+                if name not in available:
+                    problems.append(
+                        f"{locale}: validation.{problem['code']} needs {{{name}}}, "
+                        f"problem supplies {sorted(available)}"
+                    )
+            if "path" in _placeholders(message) and not problem["path"]:
+                problems.append(
+                    f"{locale}: validation.{problem['code']} renders {{path}} but the "
+                    f"problem carries no path"
+                )
+    assert not problems, "\n".join(sorted(set(problems)))

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { Card, Empty, PageHeader, Spinner, StatusBadge, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatPct } from "@/lib/format";
+
 import { useFormat } from "@/lib/useFormat";
 import type { HistoryEntry, Property } from "@/lib/types";
 
@@ -15,7 +15,7 @@ export default function HistoryPage() {
   const tc = useTranslations("common");
   const tf = useTranslations("filters");
   const tst = useTranslations("status");
-  const { formatDateTime, formatSignedVND, formatStayDate, formatVND } = useFormat();
+  const { formatDateTime, formatPct, formatSignedVND, formatStayDate, formatVND } = useFormat();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [decision, setDecision] = useState("all");

@@ -92,6 +92,22 @@ def _band_for(
     return bands[-1] if bands else None
 
 
+def _tone_for(contribution: tuple | None) -> str:
+    """A signal's direction, from the adjustment its band actually applies."""
+    if contribution is None:
+        return "neutral"
+    _code, _label, _key, pct, _params, neutral, ignored = contribution
+    if ignored or neutral and abs(pct) < 1e-9 and _key and _key.endswith(
+        ("unavailable", "no_band", "occupancy_unavailable")
+    ):
+        return "neutral"
+    if pct < -1e-9:
+        return "down"
+    if pct > 1e-9:
+        return "up"
+    return "info"
+
+
 def _round_rate(value: float, increment: float, mode: str = "nearest") -> float:
     if not increment or increment <= 0:
         return round(value, 2)
@@ -328,6 +344,13 @@ class RateBandPricingEngine(PricingEngine):
             # shows rather than falling back to "no data".
             "pace_label": next((c[1] for c in contributions if c[0] == "pace"), None),
             "pickup_label": next((c[1] for c in contributions if c[0] == "recent_pickup"), None),
+            # The chip's COLOUR, decided by the same band that decided its text.
+            # TypeScript used to re-derive this from hardcoded ±0.08 thresholds,
+            # so widening a band produced a green chip reading "On pace" -- D28
+            # again, in the channel nobody was watching. Reading the band's own
+            # adjustment also works for a band the operator invented, which
+            # TypeScript has no thresholds for at all.
+            "pace_tone": _tone_for(next((c for c in contributions if c[0] == "pace"), None)),
             "booking_curve": context.booking_curve_source,
             "booking_curve_validated": context.booking_curve_validated,
             "dynamic_assumptions_status": "UNVALIDATED",

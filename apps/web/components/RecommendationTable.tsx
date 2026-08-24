@@ -1,15 +1,7 @@
 "use client";
 
 import { Chip, StatusBadge } from "./ui";
-import {
-  confidenceTone,
-  formatAdjPct,
-  formatOccupancy,
-  formatPaceGap,
-  isWeekend,
-  marketBucket,
-  paceTone,
-} from "@/lib/format";
+import { confidenceTone, formatOccupancy, formatPaceGap, isWeekend, marketBucket } from "@/lib/format";
 import { useFormat } from "@/lib/useFormat";
 import { useBandLabel } from "@/lib/adjustments";
 import { useTranslations } from "next-intl";
@@ -17,12 +9,14 @@ import type { Recommendation } from "@/lib/types";
 
 /** Where the recommended NET rate sits inside the validated MIN–MAX band. */
 function BandPosition({ rec }: { rec: Recommendation }) {
+  const t = useTranslations("table");
+  const { formatVND } = useFormat();
   const { band_min_net_rate: lo, band_max_net_rate: hi, recommended_net_rate: rate } = rec;
   if (lo === null || hi === null || hi <= lo) return <span className="text-ink-300">—</span>;
   const pct = Math.min(100, Math.max(0, ((rate - lo) / (hi - lo)) * 100));
   const clamped = rec.clamp_applied;
   return (
-    <div className="flex items-center gap-2" title={`MIN ${lo.toLocaleString()} · MAX ${hi.toLocaleString()} VND NET`}>
+    <div className="flex items-center gap-2" title={`${t("bandMin")} ${formatVND(lo)} · ${t("bandMax")} ${formatVND(hi)}`}>
       <div className="relative h-1.5 w-16 rounded-full bg-ink-100">
         <div
           className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-2.5 w-2.5 rounded-full ${
@@ -47,7 +41,7 @@ export function RecommendationTable({
   onSelect: (rec: Recommendation) => void;
   selectedId?: number | null;
 }) {
-  const { formatStayDate, formatVND } = useFormat();
+  const { formatAdjPct, formatStayDate, formatVND } = useFormat();
   const t = useTranslations("table");
   const tv = useTranslations("vocab");
   const bandLabel = useBandLabel();
@@ -129,7 +123,7 @@ export function RecommendationTable({
 
                 <td className="px-3 py-2.5 whitespace-nowrap">
                   <Chip
-                    tone={paceTone(rec.pace_gap)}
+                    tone={rec.pace_tone ?? "neutral"}
                     title={t("paceGapTitle", { gap: formatPaceGap(rec.pace_gap) })}
                   >
                     {bandLabel(rec.pace_label_key, rec.pace_label || t("noData"))}{" "}

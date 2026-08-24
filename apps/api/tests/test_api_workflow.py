@@ -518,3 +518,33 @@ def test_history_rows_carry_the_codes_their_labels_come_from(client):
     for row in rows:
         assert row["room_category"], "room_category code missing"
         assert row["season_key"], "season_key code missing"
+
+
+def test_an_unpriced_row_still_says_why_it_could_not_be_priced(client):
+    """The reason used to live in `explanation` and went with the column.
+
+    An error-status row has no adjustments, so the drawer would render an empty
+    breakdown and no reason at all — the operator would see a stay date sitting
+    at its current rate with nothing saying the engine had failed on it.
+    """
+    from dynamic_pricing.models import PricingRecommendation
+
+    rec = client.get("/api/recommendations?limit=1").json()[0]
+    detail = client.get(f"/api/recommendations/{rec['id']}").json()
+    assert "unpriced" in detail, "the payload must state whether this date was priced"
+    assert detail["unpriced"] is False
+    assert detail["unpriced_reason"] is None
+
+    assert hasattr(PricingRecommendation, "extra")
+
+
+def test_the_preview_endpoint_returns_structured_problems(client):
+    """The preview is the surface that exists to report a bad field, so a schema
+    that cannot carry the report 500s on exactly the input it was built for."""
+    response = client.post(
+        "/api/settings/preview", json={"payload": {"market": {"sensitivity": "banana"}}}
+    )
+    assert response.status_code == 200, response.text
+    problems = response.json()["problems"]
+    assert problems and problems[0]["code"] == "not_a_number"
+    assert problems[0]["path"] == "market.sensitivity"

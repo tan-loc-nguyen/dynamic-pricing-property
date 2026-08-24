@@ -67,6 +67,19 @@ class RateBandUpdateIn(BaseModel):
 
 
 # ----------------------------------------------------------- recommendations
+class ConfigProblemOut(BaseModel):
+    """A rejected configuration field.
+
+    ``code`` + ``params`` are what the UI renders in the operator's language;
+    ``message`` is the English form kept for logs and 422 bodies.
+    """
+
+    code: str
+    path: str | None = None
+    params: dict[str, Any] = {}
+    message: str
+
+
 class AdjustmentOut(BaseModel):
     sequence: int
     code: str
@@ -172,6 +185,9 @@ class RecommendationOut(BaseModel):
     pickup_label_key: str | None = None
     pace_label: str | None = None
     pickup_label: str | None = None
+    pace_tone: str | None = None
+    unpriced: bool = False
+    unpriced_reason: str | None = None
     clamp_applied: str | None = None
 
 
@@ -239,7 +255,7 @@ class PreviewIn(BaseModel):
 class PreviewOut(BaseModel):
     # Field-level problems with the UNSAVED config. Reported rather than raised,
     # so a half-finished edit shows guidance instead of a blank panel.
-    problems: list[str] = []
+    problems: list[ConfigProblemOut] = []
     room_type_id: int
     room_type_name: str
     room_category_label: str

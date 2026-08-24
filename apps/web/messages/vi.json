@@ -2,7 +2,6 @@
   "app": {
     "name": "Dynamic Pricing Property",
     "tagline": "Trí tuệ doanh thu trên nền Blue Jay PMS",
-    "shadowMode": "Chế độ theo dõi — không đẩy dữ liệu sang Blue Jay hay bất kỳ OTA nào",
     "shortName": "Dynamic Pricing",
     "shadowModeTitle": "Chế độ theo dõi",
     "shadowModeBody": "Chỉ đưa ra đề xuất. Không ghi bất kỳ dữ liệu nào sang Blue Jay hay OTA.",
@@ -21,7 +20,7 @@
   "adjustments": {
     "rate_band": {
       "label": "Giá cơ sở theo mùa",
-      "reason": "{room_category} trong {season}: giá CƠ SỞ {base_net_rate, number} ₫ NET (khung {min_net_rate, number}–{max_net_rate, number}). Nguồn: {source}."
+      "reason": "{has_band, select, true {{room_category} trong {season}: giá CƠ SỞ {base_net_rate, number} ₫ NET (khung {min_net_rate, number}–{max_net_rate, number}). Nguồn: {source}.} other {Chưa có khung giá đã xác thực cho {room_category} vào ngày này, nên hệ thống lấy giá NET hiện tại {base_net_rate, number} ₫ làm giá cơ sở. Nguồn: {source}.}}"
     },
     "pace": {
       "well_behind": {
@@ -199,7 +198,8 @@
     },
     "source": {
       "CLIENT_VALIDATED": "Khách hàng đã xác thực",
-      "OPERATOR_EDITED": "Người vận hành đã sửa"
+      "OPERATOR_EDITED": "Người vận hành đã sửa",
+      "FALLBACK": "Chưa có khung xác thực"
     },
     "days": {
       "monday": "Thứ Hai",
@@ -239,7 +239,8 @@
     "notesOptional": "Ghi chú (không bắt buộc)",
     "roomCategory": "Hạng căn hộ",
     "stayDate": "Ngày lưu trú",
-    "apiUnreachable": "Không kết nối được tới API định giá. Backend đã chạy ở cổng 8000 chưa?"
+    "apiUnreachable": "Không kết nối được tới API định giá. Backend đã chạy ở cổng 8000 chưa?",
+    "unknownError": "lỗi không xác định"
   },
   "status": {
     "pending": "Chờ duyệt",
@@ -276,7 +277,9 @@
       "inLine": "Ngang mặt bằng",
       "above": "Trên mặt bằng",
       "strong": "Mạnh"
-    }
+    },
+    "bandMin": "SÀN",
+    "bandMax": "TRẦN"
   },
   "dashboard": {
     "title": "Duyệt giá",
@@ -301,7 +304,9 @@
     "pendingReview": "Chờ duyệt",
     "categoriesPriced": "Đã định giá {count, number} hạng căn hộ",
     "vsCurveExpectation": "so với kỳ vọng của đường cong đặt phòng",
-    "decisionSplit": "{accepted, number} đã chấp nhận · {overridden, number} đã điều chỉnh"
+    "decisionSplit": "{accepted, number} đã chấp nhận · {overridden, number} đã điều chỉnh",
+    "count": "{count, number}",
+    "unpricedSuffix": " · {count, number} không định giá được"
   },
   "filters": {
     "from": "Từ ngày",
@@ -335,7 +340,6 @@
   "drawer": {
     "loading": "Đang tải đề xuất…",
     "close": "Đóng",
-    "netRates": "Giá NET",
     "clientValidated": "Khách hàng đã xác thực",
     "band": {
       "min": "SÀN",
@@ -386,8 +390,6 @@
     "validatedTag": "KHÁCH HÀNG XÁC THỰC",
     "unvalidatedTag": "CHƯA XÁC THỰC",
     "dynamicLayer": "lớp điều chỉnh",
-    "accept": "Chấp nhận",
-    "override": "Điều chỉnh",
     "yourNetRate": "Giá NET của bạn (VND)",
     "reason": "Lý do",
     "note": "Ghi chú (không bắt buộc)",
@@ -414,9 +416,12 @@
     "resetDone": "Đã khôi phục toàn bộ khung giá về giá khách hàng xác thực và tính lại.",
     "sourceClient": "Khách hàng",
     "sourceEdited": "Đã sửa",
-    "season": "Mùa",
     "subtitleLong": "Giá NET SÀN / CƠ SỞ / TRẦN của chính Luminous theo mùa và hạng căn hộ. Đây là dữ liệu kinh doanh đã được xác thực — bộ tính giá lấy đây làm gốc thay vì tự mô hình hoá yếu tố mùa vụ.",
-    "updated": "Đã cập nhật {season} · {category}. Bấm Tính lại để áp dụng."
+    "updated": "Đã cập nhật {season} · {category}. Bấm Tính lại để áp dụng.",
+    "roomCategory": "Hạng căn hộ",
+    "minNet": "NET SÀN",
+    "baseNet": "NET CƠ SỞ",
+    "maxNet": "NET TRẦN"
   },
   "events": {
     "title": "Lịch nhu cầu",
@@ -425,7 +430,7 @@
     "empty": "Chưa có sự kiện nào",
     "emptyHint": "Thêm những ngày bạn biết chắc sẽ ảnh hưởng đến nhu cầu.",
     "add": "Thêm sự kiện",
-    "name": "Sự kiện",
+    "name": "Tên sự kiện",
     "namePlaceholder": "ví dụ: Giải Marathon TP.HCM",
     "starts": "Bắt đầu",
     "ends": "Kết thúc",
@@ -441,12 +446,12 @@
     "unvalidated": "Mức tác động của sự kiện CHƯA ĐƯỢC XÁC THỰC",
     "subtitleLong": "Những ngày có nhu cầu đột biến đã biết trước. Sự kiện do bạn tự nhập chứ không thu thập tự động — một sự kiện sai sẽ ảnh hưởng đến tiền thật, nên con người phải là người quyết định.",
     "saveEvent": "Lưu sự kiện",
-    "onlyExceptional": "Yếu tố mùa vụ thông thường đã nằm trong bảng giá — chỉ thêm những ngày thực sự bất thường."
+    "onlyExceptional": "Yếu tố mùa vụ thông thường đã nằm trong bảng giá — chỉ thêm những ngày thực sự bất thường.",
+    "type": "Loại"
   },
   "market": {
     "title": "Dữ liệu thị trường",
     "loading": "Đang tải quan sát…",
-    "competitors": "Toà nhà so sánh",
     "noCompetitors": "Chưa có toà nhà so sánh nào",
     "addCompetitor": "Thêm toà nhà so sánh",
     "propertyName": "Tên toà nhà",
@@ -543,6 +548,27 @@
     "paceDesc": "Tín hiệu nhu cầu chính: công suất đã đặt so với mức mà đường cong đặt phòng kỳ vọng ở thời điểm này. Ngưỡng được nhập dưới dạng phân số (0,20 = 20 điểm phần trăm).",
     "pickupDesc": "Mức tăng tốc đặt phòng trong kỳ gần đây — cố ý để tác động nhỏ hơn tiến độ, vì hai tín hiệu này không được tính trùng cùng một nhu cầu.",
     "eventsDesc": "Chỉ áp dụng cho những ngày bạn đã đánh dấu trong lịch nhu cầu. Yếu tố mùa vụ thông thường đã nằm sẵn trong bảng giá.",
-    "marketDesc": "Chỉ những quan sát đạt từ ngưỡng tin cậy trở lên mới được phép làm thay đổi giá. Giá lấy chung từ web có độ tin cậy THẤP, được hiển thị nhưng không bao giờ áp dụng."
+    "marketDesc": "Chỉ những quan sát đạt từ ngưỡng tin cậy trở lên mới được phép làm thay đổi giá. Giá lấy chung từ web có độ tin cậy THẤP, được hiển thị nhưng không bao giờ áp dụng.",
+    "saveFailed": "Lưu không thành công: {reason}",
+    "resetFailed": "Khôi phục không thành công: {reason}"
+  },
+  "validation": {
+    "title": "Chưa thể lưu cấu hình này",
+    "must_be_a_list": "{path} phải là một danh sách.",
+    "must_be_an_object": "{path} phải là một đối tượng.",
+    "missing_required_field": "{path} còn thiếu trường bắt buộc '{field}'.",
+    "required_and_empty": "{path} là bắt buộc, không được để trống.",
+    "not_a_number_boolean": "{path} phải là một con số, nhưng lại nhận giá trị đúng/sai.",
+    "not_a_number": "{path} phải là một con số — {value} thì không phải.",
+    "not_a_whole_number": "{path} phải là số nguyên — {value} thì không phải.",
+    "not_an_allowed_value": "{path} chỉ nhận một trong các giá trị: {allowed}. Đang là {value}.",
+    "list_member_not_an_object": "{path} phải là một đối tượng.",
+    "band_invalid": "Khung {signal} số {position, number} không hợp lệ.",
+    "band_needs_threshold": "Khung {signal} '{band}' cần có giá trị {threshold}.",
+    "band_threshold_not_increasing": "Khung {signal} '{band}' có ngưỡng {threshold, number}, không lớn hơn khung liền trước ({previous, number}). Các ngưỡng phải tăng dần từ trên xuống.",
+    "band_starts_above_domain": "Khung {signal} '{band}' sẽ không bao giờ được áp dụng: nó bắt đầu trên mức cao nhất mà tín hiệu này có thể đạt tới.",
+    "band_range_empty": "Khung {signal} '{band}' sẽ không bao giờ được áp dụng: khoảng giá trị của nó rỗng.",
+    "min_exceeds_max": "Tổng điều chỉnh tối thiểu ({minimum, number}%) đang lớn hơn mức tối đa ({maximum, number}%).",
+    "could_not_check": "Không kiểm tra được đầy đủ cấu hình này: {detail}"
   }
 }

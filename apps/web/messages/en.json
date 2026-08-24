@@ -2,7 +2,6 @@
   "app": {
     "name": "Dynamic Pricing Property",
     "tagline": "Revenue intelligence above Blue Jay PMS",
-    "shadowMode": "Shadow mode — nothing is pushed to Blue Jay or any OTA",
     "shortName": "Dynamic Pricing",
     "shadowModeTitle": "Shadow Mode",
     "shadowModeBody": "Recommendations only. Nothing is pushed to Blue Jay or any OTA.",
@@ -21,7 +20,7 @@
   "adjustments": {
     "rate_band": {
       "label": "Seasonal base rate",
-      "reason": "{room_category} in {season}: BASE {base_net_rate, number} ₫ NET (band {min_net_rate, number}–{max_net_rate, number}). Source: {source}."
+      "reason": "{has_band, select, true {{room_category} in {season}: BASE {base_net_rate, number} ₫ NET (band {min_net_rate, number}–{max_net_rate, number}). Source: {source}.} other {No validated rate band covers {room_category} on this date, so the current NET rate of {base_net_rate, number} ₫ was used as the base. Source: {source}.}}"
     },
     "pace": {
       "well_behind": {
@@ -199,7 +198,8 @@
     },
     "source": {
       "CLIENT_VALIDATED": "Client-validated",
-      "OPERATOR_EDITED": "Operator-edited"
+      "OPERATOR_EDITED": "Operator-edited",
+      "FALLBACK": "No validated band"
     },
     "days": {
       "monday": "Monday",
@@ -239,7 +239,8 @@
     "notesOptional": "Notes (optional)",
     "roomCategory": "Room category",
     "stayDate": "Stay date",
-    "apiUnreachable": "Cannot reach the pricing API. Is the backend running on port 8000?"
+    "apiUnreachable": "Cannot reach the pricing API. Is the backend running on port 8000?",
+    "unknownError": "unknown error"
   },
   "status": {
     "pending": "Pending",
@@ -276,7 +277,9 @@
       "inLine": "In line",
       "above": "Above market",
       "strong": "Strong"
-    }
+    },
+    "bandMin": "MIN",
+    "bandMax": "MAX"
   },
   "dashboard": {
     "title": "Rate review",
@@ -301,7 +304,9 @@
     "pendingReview": "Pending review",
     "categoriesPriced": "{count, number} room categories priced",
     "vsCurveExpectation": "vs booking curve expectation",
-    "decisionSplit": "{accepted, number} accepted · {overridden, number} overridden"
+    "decisionSplit": "{accepted, number} accepted · {overridden, number} overridden",
+    "count": "{count, number}",
+    "unpricedSuffix": " · {count, number} could not be priced"
   },
   "filters": {
     "from": "From",
@@ -335,7 +340,6 @@
   "drawer": {
     "loading": "Loading recommendation…",
     "close": "Close",
-    "netRates": "NET rates",
     "clientValidated": "Client-validated",
     "band": {
       "min": "MIN",
@@ -386,8 +390,6 @@
     "validatedTag": "CLIENT-VALIDATED",
     "unvalidatedTag": "UNVALIDATED",
     "dynamicLayer": "dynamic layer",
-    "accept": "Accept",
-    "override": "Override",
     "yourNetRate": "Your NET rate (VND)",
     "reason": "Reason",
     "note": "Note (optional)",
@@ -414,9 +416,12 @@
     "resetDone": "Restored every band to the client-validated values and recalculated.",
     "sourceClient": "Client",
     "sourceEdited": "Edited",
-    "season": "Season",
     "subtitleLong": "Luminous' own MIN / BASE / MAX NET rates by season and room category. This is validated business data — the pricing engine anchors on it rather than modelling seasonality itself.",
-    "updated": "Updated {season} · {category}. Recalculate to apply."
+    "updated": "Updated {season} · {category}. Recalculate to apply.",
+    "roomCategory": "Room category",
+    "minNet": "MIN NET",
+    "baseNet": "BASE NET",
+    "maxNet": "MAX NET"
   },
   "events": {
     "title": "Demand calendar",
@@ -425,7 +430,7 @@
     "empty": "No events yet",
     "emptyHint": "Add the dates you know will move demand.",
     "add": "Add an event",
-    "name": "Event",
+    "name": "Name",
     "namePlaceholder": "e.g. HCMC Marathon",
     "starts": "Starts",
     "ends": "Ends",
@@ -441,12 +446,12 @@
     "unvalidated": "Event impact sizes are UNVALIDATED",
     "subtitleLong": "Known exceptional-demand dates. Events are curated by you, not scraped — a wrong event moves real money, so a human decides what counts.",
     "saveEvent": "Save event",
-    "onlyExceptional": "Normal seasonality is already handled by the rate book — add only exceptional dates."
+    "onlyExceptional": "Normal seasonality is already handled by the rate book — add only exceptional dates.",
+    "type": "Type"
   },
   "market": {
     "title": "Market evidence",
     "loading": "Loading observations…",
-    "competitors": "Comparable properties",
     "noCompetitors": "No comparable properties yet",
     "addCompetitor": "Add a comparable property",
     "propertyName": "Property name",
@@ -543,6 +548,27 @@
     "paceDesc": "The primary demand signal: on-the-books occupancy versus what the booking curve expects for this lead time. Thresholds are gaps in fractions (0.20 = 20 percentage points).",
     "pickupDesc": "Booking acceleration over the recent window — deliberately a smaller lever than pace, because the two must not double-count the same demand.",
     "eventsDesc": "Applied only on dates you have flagged in the demand calendar. Normal seasonality is already in the rate book.",
-    "marketDesc": "Only observations at or above the confidence bar can move a rate. Generic web prices are LOW confidence and are shown but never applied."
+    "marketDesc": "Only observations at or above the confidence bar can move a rate. Generic web prices are LOW confidence and are shown but never applied.",
+    "saveFailed": "Save failed: {reason}",
+    "resetFailed": "Reset failed: {reason}"
+  },
+  "validation": {
+    "title": "This configuration cannot be saved yet",
+    "must_be_a_list": "{path} must be a list.",
+    "must_be_an_object": "{path} must be an object.",
+    "missing_required_field": "{path} is missing the required field '{field}'.",
+    "required_and_empty": "{path} is required and cannot be empty.",
+    "not_a_number_boolean": "{path} must be a number, but a true/false value was given.",
+    "not_a_number": "{path} must be a number — {value} is not.",
+    "not_a_whole_number": "{path} must be a whole number — {value} is not.",
+    "not_an_allowed_value": "{path} must be one of: {allowed}. Got {value}.",
+    "list_member_not_an_object": "{path} must be an object.",
+    "band_invalid": "{signal} band #{position, number} is not a valid band.",
+    "band_needs_threshold": "{signal} band '{band}' needs a {threshold} value.",
+    "band_threshold_not_increasing": "{signal} band '{band}' has a threshold of {threshold, number}, which is not above the band before it ({previous, number}). Thresholds must increase down the list.",
+    "band_starts_above_domain": "{signal} band '{band}' can never apply: it starts above the highest value this signal can reach.",
+    "band_range_empty": "{signal} band '{band}' can never apply: its range is empty.",
+    "min_exceeds_max": "The minimum total adjustment ({minimum, number}%) is above the maximum ({maximum, number}%).",
+    "could_not_check": "This configuration could not be fully checked: {detail}"
   }
 }

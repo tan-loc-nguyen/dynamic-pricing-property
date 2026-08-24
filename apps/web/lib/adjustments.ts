@@ -51,22 +51,23 @@ function useParamEnricher() {
   return (params: Record<string, unknown>): IcuValues => {
     const out: Record<string, unknown> = { ...params };
 
-    if (typeof params.season_key === "string") {
-      out.season = t(`seasons.${params.season_key}`);
-    }
+    // Always supplied, even when unknown: ICU refuses a message whose argument
+    // is missing, so an absent {season} does not degrade one line — it renders
+    // the raw message key where the whole explanation should be.
+    out.season =
+      typeof params.season_key === "string" ? t(`seasons.${params.season_key}`) : "—";
     if (typeof params.room_category === "string") {
       out.room_category = t(`roomCategories.${params.room_category}`);
     }
     if (typeof params.day === "string") {
       out.day = t(`days.${params.day}`);
     }
-    if (typeof params.source === "string") {
-      out.source = t(`source.${params.source}`);
-    }
+    out.source = typeof params.source === "string" ? t(`source.${params.source}`) : "—";
 
-    // ICU throws on a null it was asked to format, which would blank the whole
-    // drawer rather than one line. A signal that measured nothing renders as a
-    // dash, the same as everywhere else in the UI.
+    // Last-resort guard for a bare `{x}` placeholder. It does NOT rescue a
+    // `{x, number}` one — Intl coerces "—" to NaN, so the row would read
+    // "band NaN–NaN". That case is prevented at the source instead, by
+    // test_a_number_formatted_placeholder_is_never_given_a_null.
     for (const [key, value] of Object.entries(out)) {
       if (value === null || value === undefined) out[key] = "—";
       else if (typeof value === "boolean") out[key] = String(value);

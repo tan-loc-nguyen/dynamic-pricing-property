@@ -47,6 +47,15 @@ export interface RateBand {
   note: string | null;
 }
 
+/** A rejected configuration field: a code the UI translates, plus the English
+ *  message the server logs and returns in a 422 body. */
+export interface ConfigProblem {
+  code: string;
+  path: string | null;
+  params: Record<string, string | number>;
+  message: string;
+}
+
 export interface Adjustment {
   sequence: number;
   code: string;
@@ -153,6 +162,9 @@ export interface Recommendation {
   pickup_label_key: string | null;
   pace_label: string | null;
   pickup_label: string | null;
+  pace_tone: "up" | "down" | "info" | "neutral" | null;
+  unpriced: boolean;
+  unpriced_reason: string | null;
   clamp_applied: string | null;
 }
 
@@ -229,7 +241,7 @@ export interface PricingConfig {
 }
 
 export interface Preview {
-  problems: string[];
+  problems: ConfigProblem[];
   room_type_id: number;
   room_type_name: string;
   room_category_label: string;

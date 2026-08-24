@@ -181,7 +181,45 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 
 class ConfigurationInvalid(ValueError):
-    """A configuration that would price incorrectly if saved."""
+    """A configuration that would price incorrectly if saved.
+
+    Carries the structured problems as well as the joined English message, so a
+    422 body can name every bad field and the UI can render each one in the
+    operator's language.
+    """
+
+    def __init__(self, problems: list[dict]) -> None:
+        self.problems = problems
+        super().__init__(" ".join(p["message"] for p in problems))
+
+
+# Every reason a configuration can be rejected. The locale files are checked
+# against this, so an untranslatable problem fails a test rather than reaching
+# an operator in the wrong language.
+PROBLEM_CODES: tuple[str, ...] = (
+    "must_be_a_list",
+    "must_be_an_object",
+    "missing_required_field",
+    "required_and_empty",
+    "not_a_number_boolean",
+    "not_a_number",
+    "not_a_whole_number",
+    "list_member_not_an_object",
+    "band_invalid",
+    "band_needs_threshold",
+    "band_threshold_not_increasing",
+    "band_starts_above_domain",
+    "band_range_empty",
+    "min_exceeds_max",
+    "could_not_check",
+    "not_an_allowed_value",
+)
+
+
+def _problem(code: str, message: str, *, path: str | None = None, **params) -> dict:
+    """One rejected field: a code the UI can translate, plus English for logs."""
+    assert code in PROBLEM_CODES, f"undeclared problem code {code!r}"
+    return {"code": code, "path": path, "params": params, "message": message}
 
 
 # ---------------------------------------------------------------------------
@@ -321,8 +359,8 @@ REQUIRED_LIST_KEYS: list[tuple[str, tuple[str, ...]]] = [
 ]
 
 
-def _required_key_problems(config: dict[str, Any]) -> list[str]:
-    problems: list[str] = []
+def _required_key_problems(config: dict[str, Any]) -> list[dict]:
+    problems: list[dict] = []
     for path, required in REQUIRED_LIST_KEYS:
         node: Any = config
         for part in path.split("."):
@@ -330,21 +368,21 @@ def _required_key_problems(config: dict[str, Any]) -> list[str]:
         if node is None:
             continue  # legitimately absent (e.g. anchors: null -> module defaults)
         if not isinstance(node, list):
-            problems.append(f"{path} must be a list.")
+            problems.append(_problem("must_be_a_list", f"{path} must be a list.", path=path))
             continue
         for i, item in enumerate(node):
             if not isinstance(item, dict):
-                problems.append(f"{path}[{i}] must be an object.")
+                problems.append(_problem("must_be_an_object", f"{path}[{i}] must be an object.", path=f"{path}[{i}]"))
                 continue
             for key in required:
                 if key not in item:
-                    problems.append(f"{path}[{i}] is missing required field '{key}'.")
+                    problems.append(_problem("missing_required_field", f"{path}[{i}] is missing required field '{key}'.", path=f"{path}[{i}]", field=key))
     return problems
 
 
 def coerce_config(
     config: dict[str, Any], *, repair: bool = False
-) -> tuple[dict[str, Any], list[str]]:
+) -> tuple[dict[str, Any], list[dict]]:
     """Coerce every numeric leaf, reporting the field path on failure.
 
     A cleared field (None) falls back to the shipped default. This is what makes
@@ -360,7 +398,7 @@ def coerce_config(
     # Structural problems are reported ALONGSIDE type problems, not instead of
     # them: prepare_config promises the operator every bad field path in one
     # list, and an early return made that promise false.
-    problems: list[str] = _required_key_problems(config)
+    problems: list[dict] = _required_key_problems(config)
 
     for expression, kind in NUMERIC_LEAVES:
         for container, key, path in _walk(config, expression.split(".")):
@@ -368,17 +406,17 @@ def coerce_config(
             if value is None:
                 fallback = _default_at(path, config)
                 if fallback is None:
-                    problems.append(f"{path} is required and cannot be empty.")
+                    problems.append(_problem("required_and_empty", f"{path} is required and cannot be empty.", path=path))
                 else:
                     container[key] = fallback
                 continue
             if isinstance(value, bool):
-                problems.append(f"{path} must be a number, got a boolean.")
+                problems.append(_problem("not_a_number_boolean", f"{path} must be a number, got a boolean.", path=path))
                 continue
             try:
                 coerced = float(value)
             except (TypeError, ValueError):
-                problems.append(f"{path} must be a number, got {value!r}.")
+                problems.append(_problem("not_a_number", f"{path} must be a number, got {value!r}.", path=path, value=repr(value)))
                 if repair:
                     fallback = _default_at(path, config)
                     if fallback is not None:
@@ -389,7 +427,7 @@ def coerce_config(
                 # silently became 7 while "7.5" was rejected as "not a number",
                 # which is both wrong (7.5 IS a number) and asymmetric.
                 if coerced != int(coerced):
-                    problems.append(f"{path} must be a whole number, got {value!r}.")
+                    problems.append(_problem("not_a_whole_number", f"{path} must be a whole number, got {value!r}.", path=path, value=repr(value)))
                     if repair:
                         fallback = _default_at(path, config)
                         if fallback is not None:
@@ -409,7 +447,13 @@ def coerce_config(
                 continue
             if value not in allowed:
                 problems.append(
-                    f"{resolved} must be one of {', '.join(allowed)}; got {value!r}."
+                    _problem(
+                        "not_an_allowed_value",
+                        f"{resolved} must be one of {', '.join(allowed)}; got {value!r}.",
+                        path=resolved,
+                        allowed=", ".join(allowed),
+                        value=repr(value),
+                    )
                 )
                 if repair:
                     fallback = _default_at(resolved, config)
@@ -420,7 +464,7 @@ def coerce_config(
 
 def _band_problems(
     bands: list, key: str, label: str, domain_min: float, domain_max: float, inclusive: bool
-) -> list[str]:
+) -> list[dict]:
     """Exact reachability, derived from the SUBMITTED thresholds.
 
     Deliberately NOT sample-based. Probing with a fixed list of numbers cannot
@@ -429,18 +473,18 @@ def _band_problems(
     operator is told their band is impossible and blocked from tuning it.
     Comparing consecutive thresholds decides it exactly, for any thresholds.
     """
-    problems: list[str] = []
+    problems: list[dict] = []
     if not isinstance(bands, list) or not bands:
         return problems
 
     thresholds: list[float] = []
     for i, band in enumerate(bands):
         if not isinstance(band, dict):
-            problems.append(f"{label} band #{i + 1} is not a valid band.")
+            problems.append(_problem("band_invalid", f"{label} band #{i + 1} is not a valid band.", signal=label, position=i + 1))
             return problems
         value = band.get(key)
         if value is None:
-            problems.append(f"{label} band '{band.get('label', i + 1)}' needs a {key} threshold.")
+            problems.append(_problem("band_needs_threshold", f"{label} band '{band.get('label', i + 1)}' needs a {key} threshold.", signal=label, band=str(band.get("label", i + 1)), threshold=key))
             return problems
         thresholds.append(float(value))
 
@@ -450,26 +494,33 @@ def _band_problems(
         lower = domain_min if i == 0 else thresholds[i - 1]
         if i > 0 and thresholds[i] <= thresholds[i - 1]:
             problems.append(
-                f"{label} band '{name}' has a threshold ({upper:g}) at or below the band "
-                f"before it ({thresholds[i - 1]:g}); thresholds must increase."
+                _problem(
+                    "band_threshold_not_increasing",
+                    f"{label} band '{name}' has a threshold ({upper:g}) at or below the band "
+                    f"before it ({thresholds[i - 1]:g}); thresholds must increase.",
+                    signal=label,
+                    band=str(name),
+                    threshold=upper,
+                    previous=thresholds[i - 1],
+                )
             )
             continue
         # The interval this band owns is [lower, upper) -- or [lower, upper]
         # when the comparison is inclusive. Empty interval == unreachable band.
         if lower > domain_max:
-            problems.append(f"{label} band '{name}' can never be selected: it starts above the highest possible value.")
+            problems.append(_problem("band_starts_above_domain", f"{label} band '{name}' can never be selected: it starts above the highest possible value.", signal=label, band=str(name)))
         elif (lower >= upper) if not inclusive else (lower > upper):
-            problems.append(f"{label} band '{name}' can never be selected: its range is empty.")
+            problems.append(_problem("band_range_empty", f"{label} band '{name}' can never be selected: its range is empty.", signal=label, band=str(name)))
     return problems
 
 
-def validate_config(config: dict[str, Any]) -> list[str]:
+def validate_config(config: dict[str, Any]) -> list[dict]:
     """Logic problems in an ALREADY-COERCED configuration.
 
     Assumes coerce_config has run, so every numeric leaf is a number and this
     can concern itself with meaning rather than types.
     """
-    problems: list[str] = []
+    problems: list[dict] = []
 
     pace = config.get("pace", {})
     if pace.get("enabled", True):
@@ -489,7 +540,7 @@ def validate_config(config: dict[str, Any]) -> list[str]:
     dynamic = config.get("dynamic", {})
     lo, hi = dynamic.get("min_total_adjustment_pct"), dynamic.get("max_total_adjustment_pct")
     if lo is not None and hi is not None and float(lo) > float(hi):
-        problems.append(f"Minimum total adjustment ({lo}%) exceeds the maximum ({hi}%).")
+        problems.append(_problem("min_exceeds_max", f"Minimum total adjustment ({lo}%) exceeds the maximum ({hi}%).", minimum=float(lo), maximum=float(hi)))
 
     return problems
 
@@ -506,15 +557,15 @@ def prepare_config(payload: dict[str, Any] | None) -> dict[str, Any]:
         # Stop here. validate_config assumes coerced input, so running it on a
         # config we already know is mistyped is how the validator ends up
         # raising on the very input it exists to reject.
-        raise ConfigurationInvalid(" ".join(problems))
+        raise ConfigurationInvalid(problems)
 
     problems = validate_config(merged)
     if problems:
-        raise ConfigurationInvalid(" ".join(problems))
+        raise ConfigurationInvalid(problems)
     return merged
 
 
-def preview_config(payload: dict[str, Any] | None) -> tuple[dict[str, Any], list[str]]:
+def preview_config(payload: dict[str, Any] | None) -> tuple[dict[str, Any], list[dict]]:
     """Merge -> coerce, WITHOUT raising. The entry point for an unsaved config.
 
     Preview exists for a config the operator is still editing, so it must not
@@ -534,7 +585,7 @@ def preview_config(payload: dict[str, Any] | None) -> tuple[dict[str, Any], list
     try:
         problems += validate_config(merged)
     except Exception as exc:  # noqa: BLE001 - preview must never raise
-        problems.append(f"Configuration could not be fully checked: {exc}")
+        problems.append(_problem("could_not_check", f"Configuration could not be fully checked: {exc}", detail=str(exc)))
 
     if problems:
         # Some faults cannot be repaired leaf-by-leaf: an operator-authored band
@@ -550,11 +601,6 @@ def preview_config(payload: dict[str, Any] | None) -> tuple[dict[str, Any], list
     return merged, problems
 
 
-def _problem_paths(problems: list[str]) -> list[str]:
-    """The leading dotted path from each problem message, where there is one."""
-    paths = []
-    for problem in problems:
-        head = problem.split(" ", 1)[0]
-        if "." in head or "[" in head:
-            paths.append(head)
-    return paths
+def _problem_paths(problems: list[dict]) -> list[str]:
+    """The field path each problem names, where it names one."""
+    return [p["path"] for p in problems if p.get("path")]

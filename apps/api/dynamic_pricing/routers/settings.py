@@ -53,7 +53,12 @@ def save_config(body: ConfigIn, session: Session = Depends(get_session)):
     try:
         config = create_configuration(session, body.payload, label=body.label, note=body.note)
     except ConfigurationInvalid as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        # The structured problems travel too, so the save path can render the
+        # same translated messages the live preview does rather than dropping
+        # back to English on the one action the operator actually took.
+        raise HTTPException(
+            status_code=422, detail={"message": str(exc), "problems": exc.problems}
+        ) from exc
     if body.regenerate:
         try:
             generate_recommendations(session)
