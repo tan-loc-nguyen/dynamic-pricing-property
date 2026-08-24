@@ -11,6 +11,13 @@ assert the things that are only wrong once PyInstaller has moved everything:
 The route and locale lists are DERIVED (from the app directory and from
 `i18n/routing.ts`) rather than written down, so adding a page or a language
 fails here instead of silently shipping a 404.
+
+Every read here pins encoding="utf-8". `Path.read_text()` defaults to the
+LOCALE encoding, which is cp1252 on the Windows runner, and both the sources
+this reads and the pages it checks are full of Vietnamese. Do not remove it:
+the crash is the friendly failure, and the quiet one is worse — a read with
+errors="ignore" mis-decodes instead of raising, so a check for a baked-in API
+host can pass on Windows while the string is really there.
 """
 
 from __future__ import annotations
@@ -34,7 +41,7 @@ needs_build = pytest.mark.skipif(
 # --------------------------------------------------------------- the sources
 def _locales() -> list[str]:
     """The locales the frontend actually declares, read from its own source."""
-    text = (WEB / "i18n" / "routing.ts").read_text()
+    text = (WEB / "i18n" / "routing.ts").read_text(encoding="utf-8")
     match = re.search(r"export const LOCALES = \[(.*?)\]", text, re.S)
     assert match, "LOCALES has moved — this test can no longer find the locale list"
     return re.findall(r'"([a-z-]+)"', match.group(1))
@@ -108,7 +115,7 @@ def test_the_root_document_is_not_an_error_page():
     """
     root = OUT / "index.html"
     assert root.exists(), "the export produced no root document"
-    assert "__next_error__" not in root.read_text(), (
+    assert "__next_error__" not in root.read_text(encoding="utf-8"), (
         "out/index.html is an exported ERROR document. Bare '/' renders blank. "
         "app/page.tsx must forward client-side rather than call redirect()."
     )
@@ -137,8 +144,8 @@ def test_the_exported_bundle_never_hardcodes_the_api_port():
     offenders = [
         str(path.relative_to(OUT))
         for path in OUT.rglob("*.js")
-        if "127.0.0.1:8000" in path.read_text(errors="ignore")
-        or "localhost:8000" in path.read_text(errors="ignore")
+        if "127.0.0.1:8000" in path.read_text(encoding="utf-8", errors="ignore")
+        or "localhost:8000" in path.read_text(encoding="utf-8", errors="ignore")
     ]
     assert not offenders, (
         f"a fixed API host is baked into {offenders}. The packaged frontend must "
@@ -150,9 +157,9 @@ def test_the_exported_bundle_never_hardcodes_the_api_port():
 def test_the_bundle_carries_both_locales_translated():
     """A packaging step that drops a message file is invisible until the demo."""
     for locale in _locales():
-        page = (OUT / locale / "index.html").read_text()
+        page = (OUT / locale / "index.html").read_text(encoding="utf-8")
         assert len(page) > 1000, f"{locale} exported an empty document"
-    vi = (OUT / "vi" / "index.html").read_text()
+    vi = (OUT / "vi" / "index.html").read_text(encoding="utf-8")
     assert "Duyệt giá" in vi, "the Vietnamese bundle lost its translations"
 
 

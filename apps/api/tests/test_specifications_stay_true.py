@@ -22,6 +22,9 @@ from dynamic_pricing.pricing.defaults import (
     default_config,
 )
 
+# encoding="utf-8" on every read below: the default is the LOCALE encoding,
+# which is cp1252 on the Windows CI runner, and 31 source files carry non-ASCII
+# (em-dashes, and the Vietnamese room-category labels in rate_book.py).
 API_ROOT = pathlib.Path(__file__).resolve().parents[1]
 PACKAGE = API_ROOT / "dynamic_pricing"
 
@@ -81,7 +84,7 @@ def test_every_cast_site_lives_behind_the_boundary():
         rel = str(path.relative_to(PACKAGE))
         if rel in allowed:
             continue
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Call)
@@ -212,7 +215,7 @@ def test_no_test_asserts_only_about_constants(test_file):
     for deleted. Two rounds of vigilance did not prevent the third, so this
     checks it mechanically instead.
     """
-    tree = ast.parse((API_ROOT / "tests" / test_file).read_text())
+    tree = ast.parse((API_ROOT / "tests" / test_file).read_text(encoding="utf-8"))
     hollow = [
         node.name
         for node in ast.walk(tree)
@@ -284,7 +287,7 @@ def test_no_config_reaches_an_engine_without_passing_the_boundary():
         rel = str(path.relative_to(PACKAGE))
         if rel in sanctioned:
             continue
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Call)
