@@ -181,3 +181,51 @@ def test_demo_bookings_never_exceed_persisted_units_sold():
     )
     mismatches = [k for k, n in booked.items() if n > sold.get(k, 0)]
     assert not mismatches, f"{len(mismatches)} date(s) have more bookings than units sold"
+
+
+# --- self-review: dead code that reads as a supported feature -------------
+def test_no_engine_has_a_seasonality_factor():
+    """The validated rate band encodes the season; a second one would double-count.
+
+    Found while sweeping for the review's "code that can never execute" pattern:
+    V1 still carried a dormant _factor_season that was absent from its producer
+    tuple AND had no config key, while DECISIONS D17 claimed it was deleted. A
+    dormant method reads as a supported feature and invites re-enabling.
+    """
+    for key in ("v1", "v2"):
+        engine = get_engine(key)
+        assert not hasattr(engine, "_factor_season"), f"{key} still has a season factor"
+
+
+def test_no_seasonality_key_is_read_from_configuration():
+    import inspect
+
+    from dynamic_pricing.pricing import engine_v1, engine_v2
+
+    for module in (engine_v1, engine_v2):
+        source = inspect.getsource(module)
+        assert 'cfg.get("season"' not in source, f"{module.__name__} reads a season config key"
+
+
+def test_every_configured_band_is_reachable():
+    """A band whose threshold sits outside its signal's real range is dead.
+
+    Generalises finding #3 (Pickup stalled) so a future threshold edit that
+    strands a band fails here rather than silently mispricing.
+    """
+    config = default_config()
+
+    pickup = config["recent_pickup"]
+    floor = -pickup["expected_pickup_per_week"] * (pickup["lookback_days"] / 7.0)
+    pickup_hits = {
+        _band_for(v, pickup["bands"], "max_delta", inclusive=True)["label"]
+        for v in [floor, floor / 2, -0.25, 0.0, 0.5, 2.0, 50.0]
+    }
+    assert pickup_hits == {b["label"] for b in pickup["bands"]}, "unreachable pickup band"
+
+    # pace_gap ranges over [-1, 1] by construction (both terms are fractions)
+    pace_hits = {
+        _band_for(v, config["pace"]["bands"], "max_gap")["label"]
+        for v in [-1.0, -0.5, -0.1, 0.0, 0.1, 0.5, 1.0]
+    }
+    assert pace_hits == {b["label"] for b in config["pace"]["bands"]}, "unreachable pace band"

@@ -363,22 +363,13 @@ class PricingEngineV1(PricingEngine):
             )
         return None
 
-    def _factor_season(self, ctx: PricingContext, cfg: dict):
-        node = cfg.get("season", {})
-        if not node.get("enabled", True):
-            return None
-        if ctx.month is None:
-            return ("season", "Season", 1.0, _MISSING_COPY["season"], True)
-        multipliers = node.get("month_multipliers", {})
-        factor = float(multipliers.get(str(ctx.month), 1.0))
-        label = node.get("month_labels", {}).get(str(ctx.month)) or ctx.season_label or "Season"
-        return (
-            "season",
-            label,
-            factor,
-            f"Stay date falls in month {ctx.month} ({label}).",
-            abs(factor - 1.0) < 1e-9,
-        )
+    # _factor_season intentionally does not exist.
+    #
+    # The validated SeasonalRateBook already encodes seasonality, so applying a
+    # seasonality factor here would double-count it. The method was deleted
+    # rather than left dormant: a dormant one reads as a supported feature and
+    # invites someone to re-add it to the producer tuple above.
+    # See docs/DECISIONS.md D17.
 
     def _factor_event(self, ctx: PricingContext, cfg: dict):
         node = cfg.get("event", {})
