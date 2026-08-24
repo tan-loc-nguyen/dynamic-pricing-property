@@ -499,6 +499,17 @@ unreachable pricing band silently misprices, whereas an unreachable message
 whose absence would leave a case with no sentence at all is a fallback. Do not
 delete these citing the reachability test.
 
+**A structural guard cannot see English that was never keyed.** The message
+tests check that keys exist, are satisfiable, are rendered and are not missing —
+all of which are blind to a hardcoded English string with no key at all. Only
+looking at the rendered page finds those, and a visual pass turned up eleven of
+them after every test was green: the whole Settings advisory block, the Rate
+Book statement, three API-served vocabularies (`priceBasis`, `promotion`,
+`inclusion`) whose `{code, label}` pairs were being rendered by label, the
+season notes, and a hardcoded English month array. Two of those vocabularies had
+been deleted as "speculative" by the dead-key test — the key was unused
+*because* the UI was showing the server's English instead.
+
 **No middleware.** Locale detection would live in middleware, which does not
 exist under `output: "export"`. Since packaging this as a single-process local
 app is still open, locale is a `[locale]` route segment with

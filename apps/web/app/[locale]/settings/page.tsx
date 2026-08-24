@@ -255,18 +255,17 @@ export default function DynamicRulesPage() {
       <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start justify-between gap-4">
         <div>
           <div className="text-[12.5px] font-semibold text-emerald-900">
-            Seasonal MIN / BASE / MAX rates are not on this page
+            {t("rateBookNoticeTitle")}
           </div>
           <p className="text-[11.5px] text-emerald-800 mt-1 leading-snug max-w-2xl">
-            Those are client-validated business data and live in the Rate Book. Everything here is an
-            unvalidated experiment layered on top, and is always clamped back inside the validated band.
+            {t("rateBookNoticeBody")}
           </p>
         </div>
         <Link
           href="/rate-book"
           className="shrink-0 text-[12px] font-medium text-emerald-700 hover:text-emerald-900 whitespace-nowrap"
         >
-          Open Rate Book →
+          {t("openRateBook")}
         </Link>
       </div>
 
@@ -378,7 +377,7 @@ export default function DynamicRulesPage() {
 
           <Section
             title={t("dayOfWeek")}
-            description="OFF by default. Luminous' rate table shows no weekday structure, so there is nothing to justify a weekday adjustment yet."
+            description={t("dowDescription")}
           >
             <label className="flex items-center gap-2 mb-3">
               <input
@@ -404,7 +403,7 @@ export default function DynamicRulesPage() {
 
           <Section
             title={t("boundsRounding")}
-            description="A hard limit on the whole dynamic layer, applied before the validated band clamp."
+            description={t("boundsDescription")}
           >
             <div className="grid grid-cols-3 gap-3">
               <Field label={t("maxTotal")}>
@@ -437,7 +436,7 @@ export default function DynamicRulesPage() {
           <Card className="p-4">
             <div className="text-[13px] font-semibold text-ink-900">{t("livePreview")}</div>
             <p className="text-[11.5px] text-ink-500 mt-0.5 leading-snug">
-              A sample stay date priced with your unsaved changes.
+              {t("previewNote")}
             </p>
 
             {preview && preview.problems.length > 0 && (
@@ -542,13 +541,11 @@ export default function DynamicRulesPage() {
           <Card className="p-4 bg-amber-50 border-amber-200">
             <div className="text-[12px] font-semibold text-amber-900">{t("unvalidated")}</div>
             <p className="text-[11.5px] text-amber-800 mt-1 leading-snug">
-              Pace thresholds, pickup sensitivity, event impact sizes and market sensitivity were all chosen
-              by the engineering team. They are listed in ASSUMPTIONS.md and need operator validation.
-              The booking curve behind pace position is demo data, not Luminous history.
+              {t("unvalidatedBody")}
             </p>
             {config && (
               <div className="text-[11px] text-amber-700 mt-2">
-                Active: rules v{config.version} ({config.label})
+                {t("activeConfig", { version: config.version, label: config.label })}
               </div>
             )}
           </Card>

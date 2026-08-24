@@ -25,10 +25,20 @@ export function useAdjustmentText() {
     if (!adj.label_key) return { label: adj.label, reason: "" };
 
     const params = enrich(adj.params);
-    return {
-      label: t(`${adj.label_key}.label`, params),
-      reason: t(`${adj.label_key}.reason`, params),
-    };
+    try {
+      return {
+        label: t(`${adj.label_key}.label`, params),
+        reason: t(`${adj.label_key}.reason`, params),
+      };
+    } catch {
+      // `params` is PERSISTED on the adjustment, so a row written by an older
+      // build can be missing an argument a message now needs — and ICU refuses
+      // the whole message, which took out the entire breakdown rather than one
+      // line. Bootstrap regenerates a stale run (seed.refresh_stale_run), but a
+      // historical row keeps the shape it was written with, and an audit trail
+      // that cannot be opened is worse than one rendered without its sentence.
+      return { label: adj.label, reason: "" };
+    }
   };
 }
 

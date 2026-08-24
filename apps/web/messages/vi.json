@@ -216,6 +216,16 @@
       "low_2": "Mùa thấp điểm 2",
       "high_2": "Mùa cao điểm 2",
       "medium": "Mùa trung bình"
+    },
+    "inclusion": {
+      "INCLUSIVE": "Đã bao gồm",
+      "EXCLUSIVE": "Chưa bao gồm",
+      "UNKNOWN": "Không rõ"
+    },
+    "promotion": {
+      "NONE": "Không khuyến mãi",
+      "PROMOTIONAL": "Giá khuyến mãi",
+      "UNKNOWN": "Không rõ"
     }
   },
   "navHints": {
@@ -421,7 +431,8 @@
     "roomCategory": "Hạng căn hộ",
     "minNet": "NET SÀN",
     "baseNet": "NET CƠ SỞ",
-    "maxNet": "NET TRẦN"
+    "maxNet": "NET TRẦN",
+    "statement": "Các mức SÀN/CƠ SỞ/TRẦN này là giá NET do Luminous cung cấp và đã được kiểm chứng qua vận hành thực tế. Chúng đã bao hàm yếu tố mùa vụ, nên bộ tính giá chỉ chọn khung theo mùa chứ không nhân thêm hệ số mùa vụ lên trên."
   },
   "events": {
     "title": "Lịch nhu cầu",
@@ -550,7 +561,15 @@
     "eventsDesc": "Chỉ áp dụng cho những ngày bạn đã đánh dấu trong lịch nhu cầu. Yếu tố mùa vụ thông thường đã nằm sẵn trong bảng giá.",
     "marketDesc": "Chỉ những quan sát đạt từ ngưỡng tin cậy trở lên mới được phép làm thay đổi giá. Giá lấy chung từ web có độ tin cậy THẤP, được hiển thị nhưng không bao giờ áp dụng.",
     "saveFailed": "Lưu không thành công: {reason}",
-    "resetFailed": "Khôi phục không thành công: {reason}"
+    "resetFailed": "Khôi phục không thành công: {reason}",
+    "rateBookNoticeTitle": "Giá SÀN / CƠ SỞ / TRẦN theo mùa không nằm ở trang này",
+    "rateBookNoticeBody": "Đó là dữ liệu kinh doanh đã được khách hàng xác thực và nằm ở trang Bảng giá mùa. Toàn bộ phần này chỉ là lớp thử nghiệm chưa xác thực đặt lên trên, và luôn bị kéo trở lại trong khung giá đã xác thực.",
+    "openRateBook": "Mở Bảng giá mùa →",
+    "previewNote": "Một ngày lưu trú mẫu được định giá theo các thay đổi bạn chưa lưu.",
+    "unvalidatedBody": "Các ngưỡng tiến độ, độ nhạy với lượng đặt, mức tác động của sự kiện và độ nhạy thị trường đều do đội kỹ thuật tự chọn. Chúng được liệt kê trong ASSUMPTIONS.md và cần người vận hành xác nhận. Đường cong đặt phòng đứng sau tiến độ là dữ liệu mẫu, không phải lịch sử thật của Luminous.",
+    "activeConfig": "Đang áp dụng: quy tắc v{version, number} ({label})",
+    "dowDescription": "Mặc định TẮT. Bảng giá của Luminous không cho thấy khác biệt nào theo thứ trong tuần, nên chưa có cơ sở để điều chỉnh theo ngày.",
+    "boundsDescription": "Giới hạn cứng cho toàn bộ lớp điều chỉnh động, áp dụng trước khi kéo về khung giá đã xác thực."
   },
   "validation": {
     "title": "Chưa thể lưu cấu hình này",
@@ -570,5 +589,21 @@
     "band_range_empty": "Khung {signal, select, pace {tiến độ} recent_pickup {lượng đặt} other {{signal}}} “{band}” sẽ không bao giờ được áp dụng: khoảng giá trị của nó rỗng.",
     "min_exceeds_max": "Tổng điều chỉnh tối thiểu ({minimum, number}%) đang lớn hơn mức tối đa ({maximum, number}%).",
     "could_not_check": "Không kiểm tra được đầy đủ cấu hình này: {detail}"
+  },
+  "confidenceReason": {
+    "no_price": "Không có giá trị giá dùng được.",
+    "comparable_net": "Giá NET so sánh được, có đầy đủ thông tin về cơ sở giá.",
+    "known_basis": "Đã biết cơ sở giá và hạng căn hộ tương đương.",
+    "not_comparable": "Không so sánh được một cách đáng tin với giá NET của Luminous.",
+    "minorGaps": "Còn thiếu một vài thông tin: {gaps}.",
+    "gapsIntro": "Thiếu: {gaps}."
+  },
+  "confidenceGap": {
+    "no_room_category": "không có hạng căn hộ tương đương",
+    "basis_unknown": "chưa rõ cơ sở giá (NET hay giá bán OTA)",
+    "tax_unknown": "chưa rõ đã gồm thuế hay chưa",
+    "fee_unknown": "chưa rõ đã gồm phí hay chưa",
+    "los_unknown": "chưa rõ số đêm lưu trú",
+    "promotion_unknown": "chưa rõ có khuyến mãi hay không"
   }
 }

@@ -216,6 +216,16 @@
       "low_2": "Low Season 2",
       "high_2": "High Season 2",
       "medium": "Medium Season"
+    },
+    "inclusion": {
+      "INCLUSIVE": "Included",
+      "EXCLUSIVE": "Excluded",
+      "UNKNOWN": "Unknown"
+    },
+    "promotion": {
+      "NONE": "No promotion",
+      "PROMOTIONAL": "Promotional rate",
+      "UNKNOWN": "Unknown"
     }
   },
   "navHints": {
@@ -421,7 +431,8 @@
     "roomCategory": "Room category",
     "minNet": "MIN NET",
     "baseNet": "BASE NET",
-    "maxNet": "MAX NET"
+    "maxNet": "MAX NET",
+    "statement": "These MIN/BASE/MAX figures are NET rates supplied by Luminous and validated by real operation. They already encode seasonality, so the pricing engine selects a band by season rather than multiplying a seasonality factor on top."
   },
   "events": {
     "title": "Demand calendar",
@@ -550,7 +561,15 @@
     "eventsDesc": "Applied only on dates you have flagged in the demand calendar. Normal seasonality is already in the rate book.",
     "marketDesc": "Only observations at or above the confidence bar can move a rate. Generic web prices are LOW confidence and are shown but never applied.",
     "saveFailed": "Save failed: {reason}",
-    "resetFailed": "Reset failed: {reason}"
+    "resetFailed": "Reset failed: {reason}",
+    "rateBookNoticeTitle": "Seasonal MIN / BASE / MAX rates are not on this page",
+    "rateBookNoticeBody": "Those are client-validated business data and live in the Rate Book. Everything here is an unvalidated experiment layered on top, and is always clamped back inside the validated band.",
+    "openRateBook": "Open Rate Book →",
+    "previewNote": "A sample stay date priced with your unsaved changes.",
+    "unvalidatedBody": "Pace thresholds, pickup sensitivity, event impact sizes and market sensitivity were all chosen by the engineering team. They are listed in ASSUMPTIONS.md and need operator validation. The booking curve behind pace position is demo data, not Luminous history.",
+    "activeConfig": "Active: rules v{version, number} ({label})",
+    "dowDescription": "OFF by default. Luminous' rate table shows no weekday structure, so there is nothing to justify a weekday adjustment yet.",
+    "boundsDescription": "A hard limit on the whole dynamic layer, applied before the validated band clamp."
   },
   "validation": {
     "title": "This configuration cannot be saved yet",
@@ -570,5 +589,21 @@
     "band_range_empty": "{signal, select, pace {Pace} recent_pickup {Pickup} other {{signal}}} band “{band}” can never apply: its range is empty.",
     "min_exceeds_max": "The minimum total adjustment ({minimum, number}%) is above the maximum ({maximum, number}%).",
     "could_not_check": "This configuration could not be fully checked: {detail}"
+  },
+  "confidenceReason": {
+    "no_price": "No usable price value.",
+    "comparable_net": "Comparable NET rate with full basis metadata.",
+    "known_basis": "Known price basis and comparable category.",
+    "not_comparable": "Not reliably comparable to a Luminous NET rate.",
+    "minorGaps": "Minor gaps: {gaps}.",
+    "gapsIntro": "Missing: {gaps}."
+  },
+  "confidenceGap": {
+    "no_room_category": "no comparable room category",
+    "basis_unknown": "price basis unknown (NET vs OTA sell)",
+    "tax_unknown": "tax treatment unknown",
+    "fee_unknown": "fee treatment unknown",
+    "los_unknown": "length of stay unknown",
+    "promotion_unknown": "promotion status unknown"
   }
 }

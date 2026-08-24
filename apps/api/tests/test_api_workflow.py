@@ -327,7 +327,9 @@ def test_incomplete_manual_observation_scores_low(client):
     assert response.status_code == 201
     body = response.json()
     assert body["confidence"] == "LOW"
-    assert "not reliably comparable" in body["confidence_reason"].lower()
+    # The reason is a CODE now, so it can be read in Vietnamese too.
+    assert body["confidence_code"] == "not_comparable"
+    assert "basis_unknown" in body["confidence_gaps"]
 
 
 def test_comp_set_is_manageable(client):

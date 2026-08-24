@@ -22,6 +22,21 @@ interface ProviderInfo {
 export default function MarketPage() {
   const t = useTranslations("market");
   const tc = useTranslations("common");
+  const tv = useTranslations("vocab");
+  const tcr = useTranslations("confidenceReason");
+  const tcg = useTranslations("confidenceGap");
+
+  /** Why an observation scored as it did, composed in the viewer's language.
+   *  `confidence_reason` is the English fallback kept for rows written before
+   *  the codes existed. */
+  const confidenceText = (o: MarketObservation) => {
+    if (!o.confidence_code) return o.confidence_reason || "";
+    const head = tcr(o.confidence_code);
+    if (!o.confidence_gaps?.length) return head;
+    const gaps = o.confidence_gaps.map((g) => tcg(g)).join(", ");
+    const key = o.confidence === "MEDIUM" ? "minorGaps" : "gapsIntro";
+    return `${head} ${tcr(key, { gaps })}`;
+  };
   const { formatDateTime, formatStayDate, formatVND } = useFormat();
   const [observations, setObservations] = useState<MarketObservation[]>([]);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -145,10 +160,10 @@ export default function MarketPage() {
     }
   };
 
-  const options = (list: any[] | undefined) =>
+  const options = (list: any[] | undefined, namespace: string) =>
     (list || []).map((o: any) => (
       <option key={o.code} value={o.code}>
-        {o.label}
+        {tv(`${namespace}.${o.code}`)}
       </option>
     ));
 
@@ -340,7 +355,7 @@ export default function MarketPage() {
                     value={form.price_basis}
                     onChange={(e) => setForm({ ...form, price_basis: e.target.value })}
                   >
-                    {options(meta?.price_bases)}
+                    {options(meta?.price_bases, "priceBasis")}
                   </select>
                 </Field>
                 <Field label={t("promotion")}>
@@ -349,7 +364,7 @@ export default function MarketPage() {
                     value={form.promotion_status}
                     onChange={(e) => setForm({ ...form, promotion_status: e.target.value })}
                   >
-                    {options(meta?.promotion_options)}
+                    {options(meta?.promotion_options, "promotion")}
                   </select>
                 </Field>
                 <Field label={t("taxes")}>
@@ -358,7 +373,7 @@ export default function MarketPage() {
                     value={form.tax_inclusion}
                     onChange={(e) => setForm({ ...form, tax_inclusion: e.target.value })}
                   >
-                    {options(meta?.inclusion_options)}
+                    {options(meta?.inclusion_options, "inclusion")}
                   </select>
                 </Field>
                 <Field label="Fees">
@@ -367,7 +382,7 @@ export default function MarketPage() {
                     value={form.fee_inclusion}
                     onChange={(e) => setForm({ ...form, fee_inclusion: e.target.value })}
                   >
-                    {options(meta?.inclusion_options)}
+                    {options(meta?.inclusion_options, "inclusion")}
                   </select>
                 </Field>
                 <Field label={t("lengthOfStay")}>
@@ -474,9 +489,9 @@ export default function MarketPage() {
                         <td className="px-3 py-2 text-right tnum font-medium text-ink-900 whitespace-nowrap">
                           {formatVND(o.observed_price)}
                         </td>
-                        <td className="px-3 py-2 text-[11px] text-ink-500">{o.price_basis}</td>
+                        <td className="px-3 py-2 text-[11px] text-ink-500">{tv(`priceBasis.${o.price_basis}`)}</td>
                         <td className="px-3 py-2">
-                          <Chip tone={confidenceTone(o.confidence)} title={o.confidence_reason || ""}>
+                          <Chip tone={confidenceTone(o.confidence)} title={confidenceText(o)}>
                             {o.confidence}
                           </Chip>
                         </td>

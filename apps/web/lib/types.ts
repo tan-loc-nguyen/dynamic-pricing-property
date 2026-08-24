@@ -305,6 +305,8 @@ export interface MarketObservation {
   is_refundable: boolean | null;
   confidence: Confidence;
   confidence_reason: string | null;
+  confidence_code: string | null;
+  confidence_gaps: string[];
   source: string;
   source_url: string | null;
   notes: string | null;

@@ -49,7 +49,7 @@ export function StatusBadge({ status }: { status: string }) {
   const t = useTranslations("status");
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+      className={`inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${
         STATUS_STYLES[status] || "bg-ink-100 text-ink-600 border-ink-200"
       }`}
     >

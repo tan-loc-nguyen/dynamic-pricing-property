@@ -307,7 +307,11 @@ class MarketObservation(Base):
     is_refundable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     confidence: Mapped[str] = mapped_column(String(16), default=CONFIDENCE_LOW, index=True)
+    # The code + gaps are what the UI renders in the operator's language; the
+    # prose column is kept only as an English fallback for logs and old rows.
     confidence_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    confidence_gaps: Mapped[list] = mapped_column(JSON, default=list)
 
     source: Mapped[str] = mapped_column(String(48), default="mock")
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)

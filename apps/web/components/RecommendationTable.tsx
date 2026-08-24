@@ -131,7 +131,7 @@ export function RecommendationTable({
                   </Chip>
                 </td>
 
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 whitespace-nowrap">
                   <span className="text-[11.5px] text-ink-500">
                     {bandLabel(rec.pickup_label_key, rec.pickup_label || t("noData"))}
                   </span>
@@ -188,7 +188,7 @@ export function RecommendationTable({
                   )}
                 </td>
 
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 whitespace-nowrap">
                   <StatusBadge status={rec.status} />
                 </td>
 

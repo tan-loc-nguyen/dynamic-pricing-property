@@ -272,8 +272,10 @@ def persist_observations(session: Session, observations: list[MarketObservationD
 
         confidence = dto.confidence
         reason = dto.confidence_reason
+        reason_code, gaps = None, []
         if not confidence:
-            confidence, reason = score_confidence(dto)
+            confidence, reason_code, gaps = score_confidence(dto)
+            reason = None
 
         session.add(
             MarketObservation(
@@ -294,6 +296,8 @@ def persist_observations(session: Session, observations: list[MarketObservationD
                 is_refundable=dto.is_refundable,
                 confidence=confidence,
                 confidence_reason=reason,
+                confidence_code=reason_code,
+                confidence_gaps=gaps,
                 source=dto.source,
                 source_url=dto.source_url,
                 notes=dto.notes,

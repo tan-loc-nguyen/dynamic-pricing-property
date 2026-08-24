@@ -702,3 +702,62 @@ def test_a_clamp_is_not_described_as_a_dynamic_signal():
     )
     # ...but it must still be its own explicit, translatable step.
     assert clamp.label_key == "adjustments.band_min_clamp"
+
+
+# --- round 6: the engine's output SHAPE is part of its contract -----------
+def test_a_run_produced_by_a_different_engine_version_is_regenerated(session):
+    """Adjustment `params` are persisted, and renaming one breaks every stored
+    row — ICU refuses a message whose argument is missing, so the drawer showed
+    a console error and no breakdown at all.
+
+    This is not caught by any test that runs the engine, because they all
+    produce fresh rows. It is caught by noticing the stored run came from a
+    different engine than the one now installed. `engine_version` already
+    records exactly that; nothing was reading it.
+    """
+    from sqlalchemy import select
+
+    from dynamic_pricing.models import PricingRecommendation
+    from dynamic_pricing.pricing import get_engine
+    from dynamic_pricing.seed import refresh_stale_run
+    from dynamic_pricing.services.configuration import get_active_configuration
+    from dynamic_pricing.services.recommendations import generate_recommendations
+
+    from datetime import timedelta
+
+    from dynamic_pricing.models import RoomType, StayDateInventory
+
+    today = date(2026, 9, 1)
+    room_type = session.query(RoomType).first()
+    for offset in range(10):
+        session.add(
+            StayDateInventory(
+                room_type_id=room_type.id,
+                stay_date=today + timedelta(days=offset),
+                units_total=10,
+                units_sold=4,
+                current_net_rate=2_100_000,
+            )
+        )
+    session.commit()
+    get_active_configuration(session)
+    generate_recommendations(session, today=today)
+    assert session.scalars(select(PricingRecommendation)).all(), "expected a run to inspect"
+
+    # Simulate a database written by an older build: same rows, older engine.
+    for rec in session.scalars(select(PricingRecommendation)).all():
+        rec.engine_version = "0.9.0-old"
+        rec.extra = {**(rec.extra or {}), "stale": True}
+    session.commit()
+
+    assert refresh_stale_run(session, today=today) is True
+
+    # Previous runs are deliberately kept as history (D7/D9), so only the
+    # CURRENT run has to be on the current engine.
+    from dynamic_pricing.services.recommendations import load_current_recommendations
+
+    versions = {r.engine_version for r in load_current_recommendations(session)}
+    assert versions == {get_engine().version}, versions
+
+    # ...and it must not regenerate when the versions already agree.
+    assert refresh_stale_run(session, today=today) is False

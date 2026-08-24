@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Chip, Empty, PageHeader, Spinner, inputClass } from "@/components/ui";
@@ -8,12 +8,17 @@ import { api } from "@/lib/api";
 import { useFormat } from "@/lib/useFormat";
 import type { RateBand } from "@/lib/types";
 
-const MONTH_NAMES = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** Month abbreviations from Intl, so they follow the locale instead of a
+ *  hardcoded English array. */
+const monthName = (locale: string, month: number) =>
+  new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { month: "short" })
+    .format(new Date(2026, month - 1, 1));
 
 export default function RateBookPage() {
   const t = useTranslations("rateBook");
   const tc = useTranslations("common");
   const tv = useTranslations("vocab");
+  const locale = useLocale();
   const { formatVND } = useFormat();
   const [bands, setBands] = useState<RateBand[]>([]);
   const [meta, setMeta] = useState<any>(null);
@@ -94,7 +99,7 @@ export default function RateBookPage() {
 
       {meta?.statement && (
         <Card className="p-4 bg-emerald-50 border-emerald-200">
-          <p className="text-[12.5px] text-emerald-900 leading-relaxed">{meta.statement}</p>
+          <p className="text-[12.5px] text-emerald-900 leading-relaxed">{t("statement")}</p>
         </Card>
       )}
 
@@ -116,8 +121,10 @@ export default function RateBookPage() {
                 <div>
                   <div className="text-[13px] font-semibold text-ink-900">{tv(`seasons.${first.season_key}`)}</div>
                   <div className="text-[11px] text-ink-500 mt-0.5">
-                    {first.months.map((m) => MONTH_NAMES[m]).join(" · ")}
-                    {first.note && <span className="ml-2 italic">{first.note}</span>}
+                    {first.months.map((m) => monthName(locale, m)).join(" · ")}
+                    {tv(`seasonNotes.${first.season_key}`) && (
+                      <span className="ml-2 italic">{tv(`seasonNotes.${first.season_key}`)}</span>
+                    )}
                   </div>
                 </div>
               </div>

@@ -69,42 +69,55 @@ class MarketObservationDTO:
     )
 
 
-def score_confidence(dto: MarketObservationDTO) -> tuple[str, str]:
+# Why an observation scored the way it did. Operator-facing on the Market
+# screen -- it is the whole basis for trusting or discarding a competitor price
+# -- so it is emitted as codes and rendered in the viewer's language, the same
+# way the pricing explanation is. Checked against both locale files by test.
+CONFIDENCE_REASON_CODES: tuple[str, ...] = (
+    "no_price",
+    "comparable_net",
+    "known_basis",
+    "not_comparable",
+)
+CONFIDENCE_GAP_CODES: tuple[str, ...] = (
+    "no_room_category",
+    "basis_unknown",
+    "tax_unknown",
+    "fee_unknown",
+    "los_unknown",
+    "promotion_unknown",
+)
+
+
+def score_confidence(dto: MarketObservationDTO) -> tuple[str, str, list[str]]:
     """Derive a confidence level from what we actually know about the price.
 
-    Returns (confidence, human-readable reason). Deliberately conservative:
+    Returns (confidence, reason_code, gap_codes). Deliberately conservative:
     an unknown basis can never be HIGH, because a number you cannot interpret
     should not move a rate.
     """
     if dto.observed_price is None or dto.observed_price <= 0:
-        return CONFIDENCE_UNUSABLE, "No usable price value."
+        return CONFIDENCE_UNUSABLE, "no_price", []
 
     gaps: list[str] = []
     if not dto.room_category:
-        gaps.append("no comparable room category")
+        gaps.append("no_room_category")
     if dto.price_basis == BASIS_UNKNOWN:
-        gaps.append("price basis unknown (NET vs OTA sell)")
+        gaps.append("basis_unknown")
     if dto.tax_inclusion == "UNKNOWN":
-        gaps.append("tax treatment unknown")
+        gaps.append("tax_unknown")
     if dto.fee_inclusion == "UNKNOWN":
-        gaps.append("fee treatment unknown")
+        gaps.append("fee_unknown")
     if dto.length_of_stay is None:
-        gaps.append("length of stay unknown")
+        gaps.append("los_unknown")
     if dto.promotion_status == "UNKNOWN":
-        gaps.append("promotion status unknown")
+        gaps.append("promotion_unknown")
 
     if not gaps and dto.price_basis == BASIS_NET:
-        return CONFIDENCE_HIGH, "Comparable NET rate with full basis metadata."
+        return CONFIDENCE_HIGH, "comparable_net", []
     if len(gaps) <= 2 and dto.price_basis != BASIS_UNKNOWN and dto.room_category:
-        detail = f" Minor gaps: {', '.join(gaps)}." if gaps else ""
-        return (
-            CONFIDENCE_MEDIUM,
-            f"Known price basis ({dto.price_basis}) and comparable category.{detail}",
-        )
-    return (
-        CONFIDENCE_LOW,
-        "Not reliably comparable to a Luminous NET rate — " + ", ".join(gaps) + ".",
-    )
+        return CONFIDENCE_MEDIUM, "known_basis", gaps
+    return CONFIDENCE_LOW, "not_comparable", gaps
 
 
 class MarketDataProvider(ABC):

@@ -35,7 +35,7 @@ Open **<http://localhost:3000>**.
 `make dev` alone is enough — it runs setup if needed and seeds the database on
 API startup. Prerequisites: Python 3.10+ and Node 18+; `make setup` tells you
 the exact install command for your platform, or `AUTO_INSTALL=1 make setup`
-installs them for you. `make test` runs 255 tests.
+installs them for you. `make test` runs 259 tests.
 
 ---
 
@@ -227,9 +227,11 @@ the worst place for a language barrier.
 
 **What is deliberately not translated:** property, competitor and event names,
 and operator-written notes — translating real-world data would be a bug. The
-remaining English is developer-facing: provider remediation text, engine
+remaining English is developer-facing and stays that way on purpose: provider
+`detail`/`remediation` text (which names environment variables), engine
 descriptions, and the exception signature on a stay date the engine could not
-price. See **D30** in [docs/DECISIONS.md](docs/DECISIONS.md).
+price. Demo *seed* content — event names and their notes — is also English; it
+is data, not UI. See **D30** in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ---
 
@@ -285,7 +287,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 255 tests
+make test    # 259 tests
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15

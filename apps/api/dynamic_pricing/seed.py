@@ -30,6 +30,7 @@ from .models import (
     SeasonalRateBand,
     StayDateInventory,
 )
+from .pricing import get_engine
 from .providers.market import get_market_provider
 from .providers.pms import get_pms_provider
 from .providers.pms.mock import HISTORY_DAYS, HORIZON_DAYS
@@ -98,6 +99,29 @@ def seed_events(session: Session, today: date) -> int:
     return created
 
 
+def refresh_stale_run(session, today: date | None = None) -> bool:
+    """Regenerate if the stored run came from a different engine build.
+
+    The engine persists `params` on every adjustment, and those keys are part of
+    its output contract: rename one and every stored row becomes unrenderable,
+    because ICU refuses a message whose argument is missing. Nothing that runs
+    the engine can catch that — fresh rows are always self-consistent — so the
+    check is against what the DATABASE says produced it.
+
+    `engine_version` recorded exactly this all along and nothing was reading it.
+    Cheap, and it makes a demo laptop carrying an older database self-healing
+    rather than showing an empty breakdown.
+    """
+    current = get_engine().version
+    latest = session.scalars(
+        select(PricingRecommendation).order_by(PricingRecommendation.id.desc()).limit(1)
+    ).first()
+    if latest is None or latest.engine_version == current:
+        return False
+    generate_recommendations(session, today=today)
+    return True
+
+
 def bootstrap(force: bool = False, today: date | None = None, quiet: bool = False) -> dict:
     """Create the schema and populate demo data if needed."""
     today = today or date.today()
@@ -112,7 +136,11 @@ def bootstrap(force: bool = False, today: date | None = None, quiet: bool = Fals
     with SessionLocal() as session:
         if has_data(session) and not force:
             summary["skipped"] = True
-            log("Existing data found — leaving it alone (use --force to rebuild).")
+            if refresh_stale_run(session, today=today):
+                summary["regenerated"] = True
+                log("Existing data was priced by an older engine — recommendations regenerated.")
+            else:
+                log("Existing data found — leaving it alone (use --force to rebuild).")
             return summary
 
         if force:

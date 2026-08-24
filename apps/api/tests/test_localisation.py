@@ -707,3 +707,53 @@ def test_no_message_escapes_its_own_placeholder(locale):
         "an apostrophe immediately before a placeholder escapes it, so the "
         f"braces render literally: {offenders}"
     )
+
+
+# ------------------------------------------------- market confidence prose
+def test_confidence_is_reported_as_codes_not_prose():
+    """The last composed-prose surface. `confidence_reason` explains why an
+    observation may or may not move a rate — which is the operator's whole
+    decision on that screen — and it was assembled in English from a variable
+    list of gaps, exactly like the pricing explanation used to be.
+    """
+    from dynamic_pricing.providers.market.base import (
+        CONFIDENCE_GAP_CODES,
+        CONFIDENCE_REASON_CODES,
+        MarketObservationDTO,
+        score_confidence,
+    )
+
+    complete = MarketObservationDTO(
+        stay_date=date(2026, 9, 10), competitor_name="Comp", observed_price=2_000_000.0,
+        source="manual", room_category="2br_regular", price_basis="NET",
+        tax_inclusion="INCLUSIVE", fee_inclusion="INCLUSIVE", length_of_stay=1,
+        promotion_status="NONE",
+    )
+    confidence, reason_code, gaps = score_confidence(complete)
+    assert confidence == "HIGH"
+    assert reason_code == "comparable_net" and reason_code in CONFIDENCE_REASON_CODES
+    assert gaps == []
+
+    vague = MarketObservationDTO(
+        stay_date=date(2026, 9, 10), competitor_name="Comp", observed_price=2_000_000.0,
+        source="manual", room_category=None, price_basis="UNKNOWN",
+    )
+    _confidence, reason_code, gaps = score_confidence(vague)
+    assert reason_code == "not_comparable"
+    assert "no_room_category" in gaps and "basis_unknown" in gaps
+    assert set(gaps) <= set(CONFIDENCE_GAP_CODES)
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_every_confidence_code_has_a_translation(locale):
+    from dynamic_pricing.providers.market.base import (
+        CONFIDENCE_GAP_CODES,
+        CONFIDENCE_REASON_CODES,
+    )
+
+    flat = _flatten(_messages(locale))
+    missing = [f"confidenceReason.{c}" for c in CONFIDENCE_REASON_CODES
+               if f"confidenceReason.{c}" not in flat]
+    missing += [f"confidenceGap.{c}" for c in CONFIDENCE_GAP_CODES
+                if f"confidenceGap.{c}" not in flat]
+    assert not missing, f"{locale}.json is missing: {missing}"

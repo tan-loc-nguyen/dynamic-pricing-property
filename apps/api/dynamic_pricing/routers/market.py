@@ -49,6 +49,8 @@ def _serialise(session: Session, obs: MarketObservation) -> dict:
         "is_refundable": obs.is_refundable,
         "confidence": obs.confidence,
         "confidence_reason": obs.confidence_reason,
+        "confidence_code": obs.confidence_code,
+        "confidence_gaps": obs.confidence_gaps or [],
         "source": obs.source,
         "source_url": obs.source_url,
         "notes": obs.notes,
@@ -187,7 +189,7 @@ def create_observation(body: MarketObservationIn, session: Session = Depends(get
         source_url=body.source_url,
         notes=body.notes,
     )
-    confidence, reason = score_confidence(dto)
+    confidence, reason_code, gaps = score_confidence(dto)
 
     competitor = session.scalars(
         select(Competitor).where(Competitor.name == body.competitor_name)
@@ -220,7 +222,9 @@ def create_observation(body: MarketObservationIn, session: Session = Depends(get
         promotion_status=body.promotion_status,
         is_refundable=body.is_refundable,
         confidence=confidence,
-        confidence_reason=reason,
+        confidence_reason=None,
+        confidence_code=reason_code,
+        confidence_gaps=gaps,
         source=body.source or "manual",
         source_url=body.source_url,
         notes=body.notes,

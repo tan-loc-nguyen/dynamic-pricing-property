@@ -317,6 +317,8 @@ class MarketObservationOut(BaseModel):
     is_refundable: bool | None = None
     confidence: str
     confidence_reason: str | None = None
+    confidence_code: str | None = None
+    confidence_gaps: list[str] = []
     source: str
     source_url: str | None = None
     notes: str | None = None
