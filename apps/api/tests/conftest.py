@@ -25,7 +25,7 @@ def config() -> dict:
 
 @pytest.fixture
 def engine():
-    return get_engine("v2")
+    return get_engine("default")
 
 
 @pytest.fixture

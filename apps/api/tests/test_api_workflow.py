@@ -65,9 +65,12 @@ def test_status_separates_validated_from_unvalidated(client):
     assert "NOT Luminous data" in status["booking_curve"]["note"]
 
 
-def test_both_engines_are_registered(client):
-    keys = {e["key"] for e in client.get("/api/engines").json()}
-    assert {"v1", "v2"} <= keys
+def test_the_engine_registry_is_the_pluggability_seam(client):
+    """One engine today. The registry exists so a finance-authored engine can
+    replace it without touching the UI, database, providers or history."""
+    engines = client.get("/api/engines").json()
+    assert [e["key"] for e in engines] == ["default"]
+    assert engines[0]["version"]
 
 
 # ---------------------------------------------------------------- rate book

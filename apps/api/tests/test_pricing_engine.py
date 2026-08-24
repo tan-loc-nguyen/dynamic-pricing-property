@@ -1,4 +1,4 @@
-"""PricingEngineV2 — the dynamic layer above the validated rate band."""
+"""RateBandPricingEngine — the dynamic layer above the validated rate band."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from datetime import date
 import pytest
 
 from conftest import make_context
-from dynamic_pricing.pricing.engine_v2 import _round_rate
+from dynamic_pricing.pricing.engine import _round_rate
 
 
 # ---------------------------------------------------------------- anchoring

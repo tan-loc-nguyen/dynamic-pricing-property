@@ -1,4 +1,4 @@
-"""PricingEngineV2 — validated rate band + bounded dynamic layer.
+"""RateBandPricingEngine — validated rate band + bounded dynamic layer.
 
     band          = SeasonalRateBook.lookup(room_category, stay_date)   [VALIDATED]
     base_net      = band.base
@@ -71,9 +71,11 @@ def _round_rate(value: float, increment: float, mode: str = "nearest") -> float:
     return math.floor(q + 0.5) * increment  # explicit half-up
 
 
-class PricingEngineV2(PricingEngine):
-    name = "Pricing Engine V2 (rate-band anchored)"
-    version = "v2.0.0"
+class RateBandPricingEngine(PricingEngine):
+    name = "Rate-band pricing engine"
+    # Recorded on every recommendation and decision, so a past price can always
+    # be traced to the logic that produced it.
+    version = "1.0.0"
     description = (
         "Anchors on the client-validated seasonal MIN/BASE/MAX NET rate band, then "
         "applies a bounded additive dynamic layer: pace position, recent pickup, "
@@ -500,4 +502,7 @@ class PricingEngineV2(PricingEngine):
         return " ".join(parts)
 
 
-register_engine("v2", PricingEngineV2)
+# Registered under a neutral key. The registry is the pluggability seam: a
+# finance-authored engine registers alongside this one and becomes the
+# default without touching the UI, database, providers or history.
+register_engine("default", RateBandPricingEngine)

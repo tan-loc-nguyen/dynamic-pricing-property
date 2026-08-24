@@ -125,70 +125,6 @@ DEMO_DEFAULTS: dict[str, Any] = {
         "category_pace": None,
     },
 
-    # ------------------------------------------------------------------
-    # Legacy PricingEngineV1 configuration, isolated so it cannot leak into
-    # V2. V1 is kept registered to prove the engine registry still works.
-    # Its seasonality factor has been REMOVED (the rate band owns season).
-    "legacy_v1": {
-        "pricing": {
-            "rounding_increment": 10_000,
-            "rounding_mode": "nearest",
-            "global_multiplier_min": 0.70,
-            "global_multiplier_max": 1.60,
-        },
-        "day_of_week": {
-            "enabled": False,
-            "multipliers": {
-                "monday": 1.0, "tuesday": 1.0, "wednesday": 1.0, "thursday": 1.0,
-                "friday": 1.0, "saturday": 1.0, "sunday": 1.0,
-            },
-        },
-        "occupancy": {
-            "enabled": True,
-            "bands": [
-                {"label": "Very low occupancy", "max": 0.30, "multiplier": 0.92},
-                {"label": "Low occupancy", "max": 0.50, "multiplier": 0.97},
-                {"label": "Healthy occupancy", "max": 0.70, "multiplier": 1.00},
-                {"label": "High occupancy", "max": 0.85, "multiplier": 1.08},
-                {"label": "Very high occupancy", "max": 1.01, "multiplier": 1.15},
-            ],
-        },
-        "lead_time": {
-            "enabled": True,
-            "bands": [
-                {"label": "Last minute (0-3 days out)", "max_days": 3, "multiplier": 0.95},
-                {"label": "Short lead time (4-7 days out)", "max_days": 7, "multiplier": 0.98},
-                {"label": "Normal lead time (8-30 days out)", "max_days": 30, "multiplier": 1.00},
-                {"label": "Long lead time (31-60 days out)", "max_days": 60, "multiplier": 1.02},
-                {"label": "Far out (60+ days)", "max_days": 3650, "multiplier": 1.00},
-            ],
-            "urgency_discount": {
-                "enabled": True,
-                "within_days": 7,
-                "occupancy_below": 0.50,
-                "multiplier": 0.92,
-                "label": "Unsold inventory close to check-in",
-            },
-        },
-        "booking_pace": {
-            "enabled": True,
-            "bands": [
-                {"label": "Very weak booking pace", "max": 0.40, "multiplier": 0.94},
-                {"label": "Weak booking pace", "max": 0.80, "multiplier": 0.98},
-                {"label": "On-pace bookings", "max": 1.30, "multiplier": 1.00},
-                {"label": "Strong booking pace", "max": 2.00, "multiplier": 1.05},
-                {"label": "Very strong booking pace", "max": 999.0, "multiplier": 1.10},
-            ],
-        },
-        "event": {"enabled": True, "multiplier": 1.20},
-        "market": {
-            "enabled": True,
-            "sensitivity": 0.50,
-            "min_multiplier": 0.90,
-            "max_multiplier": 1.15,
-            "min_observations": 2,
-        },
-    },
 }
 
 # Ordered metadata for the Settings UI. Every entry here is EXPERIMENTAL —
@@ -279,31 +215,6 @@ NUMERIC_LEAVES: list[tuple[str, type]] = [
     ("day_of_week.adjustment_pct.*", float),
     ("booking_curve.anchors[].days", int),
     ("booking_curve.anchors[].expected", float),
-    # PricingEngineV1 casts every one of these. They were uncovered for a whole
-    # round: coercion passed them through, validation had nothing to say, and a
-    # bad value saved cleanly and stayed active while V1 broke permanently.
-    # test_numeric_leaf_coverage_is_complete now fails if this drifts again.
-    # Explicit, NOT a wildcard: legacy_v1.pricing also holds rounding_mode,
-    # a string. A wildcard in a spec is its own drift source -- it silently
-    # claims every future sibling is numeric too.
-    ("legacy_v1.pricing.rounding_increment", int),
-    ("legacy_v1.pricing.global_multiplier_min", float),
-    ("legacy_v1.pricing.global_multiplier_max", float),
-    ("legacy_v1.day_of_week.multipliers.*", float),
-    ("legacy_v1.occupancy.bands[].max", float),
-    ("legacy_v1.occupancy.bands[].multiplier", float),
-    ("legacy_v1.lead_time.bands[].max_days", float),
-    ("legacy_v1.lead_time.bands[].multiplier", float),
-    ("legacy_v1.lead_time.urgency_discount.within_days", int),
-    ("legacy_v1.lead_time.urgency_discount.occupancy_below", float),
-    ("legacy_v1.lead_time.urgency_discount.multiplier", float),
-    ("legacy_v1.booking_pace.bands[].max", float),
-    ("legacy_v1.booking_pace.bands[].multiplier", float),
-    ("legacy_v1.event.multiplier", float),
-    ("legacy_v1.market.sensitivity", float),
-    ("legacy_v1.market.min_multiplier", float),
-    ("legacy_v1.market.max_multiplier", float),
-    ("legacy_v1.market.min_observations", int),
 ]
 
 # Numeric leaves that are genuinely never cast, so need no coercion. Anything
@@ -318,7 +229,6 @@ ENUM_LEAVES: list[tuple[str, tuple[str, ...]]] = [
     ("market.min_confidence", ("HIGH", "MEDIUM", "LOW", "UNUSABLE")),
     ("booking_curve.provider", ("demo", "historical")),
     ("mode", ("shadow",)),
-    ("legacy_v1.pricing.rounding_mode", ("nearest", "up", "down")),
 ]
 
 

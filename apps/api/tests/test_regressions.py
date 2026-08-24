@@ -16,7 +16,7 @@ from sqlalchemy.orm import sessionmaker
 from dynamic_pricing.features.engine import FeatureEngine
 from dynamic_pricing.models import Base, Booking, Property, RoomType, StayDateInventory
 from dynamic_pricing.pricing import default_config, get_engine, merge_config
-from dynamic_pricing.pricing.engine_v2 import _band_for
+from dynamic_pricing.pricing.engine import _band_for
 from dynamic_pricing.providers.market.base import MarketObservationDTO
 
 
@@ -72,7 +72,7 @@ def test_nulled_settings_never_crash_the_engine(path):
 
     section, key = path
     config = merge_config({section: {key: None}})
-    result = get_engine("v2").calculate(make_context(), config)
+    result = get_engine("default").calculate(make_context(), config)
     assert result.recommended_net_rate > 0
 
 
@@ -145,12 +145,12 @@ def test_a_gated_factor_failure_is_caught_even_though_rows_still_succeed():
     ungated = make_context(
         market_price_index=None, market_qualified_count=0, market_observation_count=0
     )
-    assert get_engine("v2").calculate(ungated, config).recommended_net_rate > 0
+    assert get_engine("default").calculate(ungated, config).recommended_net_rate > 0
 
     # A row WITH market data does. (float("abc") raises ValueError, not
     # TypeError — the reason a narrow `except TypeError` would not have helped.)
     with pytest.raises(ValueError):
-        get_engine("v2").calculate(make_context(), config)
+        get_engine("default").calculate(make_context(), config)
 
 
 # --- #3 the "Pickup stalled" band was unreachable -------------------------
@@ -166,7 +166,7 @@ def test_zero_pickup_is_priced_as_stalled_not_slowing():
     from conftest import make_context
 
     config = default_config()
-    result = get_engine("v2").calculate(
+    result = get_engine("default").calculate(
         make_context(recent_pickup=0.0, pickup_delta=-1.0), config
     )
     pickup = next(a for a in result.adjustments if a.code == "recent_pickup")
@@ -175,20 +175,6 @@ def test_zero_pickup_is_priced_as_stalled_not_slowing():
 
 
 # --- #5 V1's booking-pace factor read a config key that did not exist -----
-def test_legacy_v1_booking_pace_factor_is_live():
-    from conftest import make_context
-
-    config = default_config()
-    v1 = get_engine("v1")
-    slow = v1.calculate(make_context(recent_pickup=0.0, expected_pickup=1.0), config)
-    fast = v1.calculate(make_context(recent_pickup=4.0, expected_pickup=1.0), config)
-    slow_adj = next(a for a in slow.adjustments if a.code == "recent_pickup")
-    fast_adj = next(a for a in fast.adjustments if a.code == "recent_pickup")
-    assert slow_adj.factor < 1.0, "V1 pace factor is inert — config key mismatch"
-    assert fast_adj.factor > 1.0
-    assert fast.recommended_net_rate > slow.recommended_net_rate
-
-
 # --- #9 the pickup window counted one day too many ------------------------
 @pytest.fixture
 def session():
@@ -262,19 +248,17 @@ def test_no_engine_has_a_seasonality_factor():
     tuple AND had no config key, while DECISIONS D17 claimed it was deleted. A
     dormant method reads as a supported feature and invites re-enabling.
     """
-    for key in ("v1", "v2"):
-        engine = get_engine(key)
-        assert not hasattr(engine, "_factor_season"), f"{key} still has a season factor"
+    engine = get_engine("default")
+    assert not hasattr(engine, "_factor_season"), "the engine still has a season factor"
 
 
 def test_no_seasonality_key_is_read_from_configuration():
     import inspect
 
-    from dynamic_pricing.pricing import engine_v1, engine_v2
+    from dynamic_pricing.pricing import engine
 
-    for module in (engine_v1, engine_v2):
-        source = inspect.getsource(module)
-        assert 'cfg.get("season"' not in source, f"{module.__name__} reads a season config key"
+    source = inspect.getsource(engine)
+    assert 'cfg.get("season"' not in source, "the engine reads a season config key"
 
 
 def test_every_configured_band_is_reachable():
@@ -431,7 +415,7 @@ def test_a_rare_failure_is_reported_per_date_and_the_run_still_commits(session):
         def calculate(self, context, configuration):
             if context.stay_date == today + timedelta(days=5):
                 raise ValueError("this one row is bad")
-            return get_engine("v2").calculate(context, configuration)
+            return get_engine("default").calculate(context, configuration)
 
     register_engine("rare-failure", RareFailureEngine)
     report = generate_recommendations(session, today=today, engine_key="rare-failure")

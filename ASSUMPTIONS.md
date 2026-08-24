@@ -83,7 +83,7 @@ The client's own conclusion, translated:
 > top: booking pace, lead time, events, competitor response."
 
 **Consequence:** season *selects* a band; it never *multiplies* one. There is
-no seasonality factor anywhere in PricingEngineV2 — that would double-count a
+no seasonality factor anywhere in the pricing engine — that would double-count a
 seasonality the table already encodes.
 
 ## V6 — The current rate table is static, and that is the gap

@@ -41,8 +41,8 @@ def test_numeric_leaf_coverage_is_complete():
     """Every numeric leaf must be coerced, or explicitly declared uncoerced.
 
     NUMERIC_LEAVES covered 39 of 88 leaves for a full round — the entire
-    legacy_v1 subtree was missed, so PricingEngineV1's casts had no boundary
-    protection at all. A hand-maintained allowlist that nothing verifies drifts
+    now-deleted legacy engine's subtree was missed, so its eleven casts had no
+    boundary protection at all. A hand-maintained allowlist that nothing verifies drifts
     the moment someone adds a cast without adding a path.
     """
     config = default_config()
@@ -72,8 +72,7 @@ def test_every_cast_site_lives_behind_the_boundary():
     """
     allowed = {
         "pricing/defaults.py",       # the boundary itself
-        "pricing/engine_v1.py",      # inside the per-row loop
-        "pricing/engine_v2.py",      # inside the per-row loop
+        "pricing/engine.py",         # inside the per-row loop
         "features/engine.py",        # guarded by _num(), asserted below
         "features/booking_curve.py", # guarded by try/except, asserted below
     }
@@ -233,7 +232,7 @@ def test_numeric_leaves_only_claims_leaves_that_are_actually_numeric():
     """The coverage test checks that no numeric leaf is MISSED. This checks the
     other direction: that the spec does not claim a non-numeric leaf.
 
-    A wildcard (`legacy_v1.pricing.*`) matched a string sibling and coercion
+    A wildcard (`<subtree>.pricing.*`) matched a string sibling and coercion
     then rejected the shipped default as "must be a number, got 'nearest'" —
     breaking 28 tests. Coverage alone could not catch it; both directions have
     to hold.

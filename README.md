@@ -50,7 +50,7 @@ Booking / Pace Intelligence        (expected occupancy → pace gap)
    ↓
 Seasonal Rate Book                 (CLIENT-VALIDATED MIN/BASE/MAX NET)
    ↓
-Pricing Engine V2                  (bounded dynamic layer, clamped to band)
+The pricing engine                  (bounded dynamic layer, clamped to band)
    ↓
 Recommendation                     (with a reproducible snapshot)
    ↓
@@ -108,7 +108,7 @@ before measuring would be pricing real inventory on unvalidated assumptions.
 
 ---
 
-## Pricing Engine V2
+## The pricing engine
 
 ```
 band          = SeasonalRateBook.lookup(room_category, stay_date)   [VALIDATED]
@@ -139,9 +139,10 @@ Properties that matter:
   the applied total.
 - **Graceful.** A missing signal contributes 0% and says so, rather than
   crashing or being silently indistinguishable from "measured, no effect".
-- **Pluggable.** V1 (legacy multiplicative) is still registered. Adding a
-  finance engine is `register_engine("finance", …)` plus one lookup — no change
-  to the UI, database, PMS integration, market layer or history.
+- **Pluggable.** One engine ships today. Adding a finance-authored one is
+  `register_engine("finance", …)` plus one lookup — no change to the UI,
+  database, PMS integration, market layer or history. The registry exists for
+  that swap, not to keep old engines around.
 
 Example, as the operator sees it:
 

@@ -216,11 +216,11 @@ An operator edit flips a band's `source` from `CLIENT_VALIDATED` to
 
 ## D17 — Season selects a band; it never multiplies one
 
-There is no seasonality factor in PricingEngineV2. The rate table already
+There is no seasonality factor in the pricing engine. The rate table already
 encodes the season, so a seasonality multiplier on top would count it twice.
 
-The legacy V1 engine's `_factor_season` was **removed** rather than left
-disabled, so it cannot be re-enabled by a config change and reintroduce the
+The legacy engine's `_factor_season` was **removed** rather than left disabled,
+so it could not be re-enabled by a config change and reintroduce the
 double count. Pinned by `test_seasonality_is_not_applied_twice`.
 
 ## D18 — Occupancy and lead time are not independent factors
@@ -367,3 +367,28 @@ a named argument rather than an implicit convention.
 row read "On pace" while the drawer showed a +4% "Ahead of pace" line for the
 same date — the breakdown contradicting the summary is precisely the failure
 this product cannot afford.
+
+## D29 — One engine, no version-numbered names
+
+The legacy multiplicative engine and the `v1`/`v2` naming are gone. There is one
+`RateBandPricingEngine`, registered under the neutral key `default`.
+
+**Why:** this is an MVP. Keeping a superseded engine "for comparison" cost more
+than it returned — it carried its own config subtree (48 of the 88 numeric
+config leaves), its own coercion paths, its own tests, and it produced two of
+the review findings entirely on its own (a dead config key, and eleven casts
+with no boundary protection). None of that was buying anything a client demo
+needs.
+
+Version-numbered class names also age badly: `V2` stops meaning anything the
+moment a third exists, and it implies a migration story this product does not
+have. The engine is named for what it does — it anchors on a rate band.
+
+**What is deliberately kept:** the registry. The brief requires a finance-
+authored engine to be able to replace this one without touching the UI,
+database, providers or history, and that seam is `register_engine()`. A registry
+holding one engine still proves the seam; a registry holding a dead engine only
+proves we kept a dead engine.
+
+`engine_version` is still recorded on every recommendation and decision, so a
+past price remains traceable to the logic that produced it.

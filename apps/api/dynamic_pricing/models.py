@@ -75,7 +75,7 @@ class RoomType(Base):
     units_total: Mapped[int] = mapped_column(Integer, default=1)
 
     # Legacy fallback only. Live MIN/BASE/MAX come from the SeasonalRateBook;
-    # these are used solely by PricingEngineV1 and when no band matches.
+    # these are the fallback for a room category with no matching rate band.
     fallback_base_net_rate: Mapped[float] = mapped_column(Float, default=2_000_000.0)
     fallback_min_net_rate: Mapped[float] = mapped_column(Float, default=1_500_000.0)
     fallback_max_net_rate: Mapped[float] = mapped_column(Float, default=4_000_000.0)
@@ -366,7 +366,7 @@ class PricingRecommendation(Base):
     total_adjustment_pct: Mapped[float] = mapped_column(Float, default=0.0)
 
     explanation: Mapped[str] = mapped_column(Text, default="")
-    engine_version: Mapped[str] = mapped_column(String(48), default="v2")
+    engine_version: Mapped[str] = mapped_column(String(48), default="1.0.0")
     config_version: Mapped[int] = mapped_column(Integer, default=1)
 
     features: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -433,7 +433,7 @@ class OperatorDecision(Base):
     previous_net_rate: Mapped[float] = mapped_column(Float, default=0.0)
     reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    engine_version: Mapped[str] = mapped_column(String(48), default="v2")
+    engine_version: Mapped[str] = mapped_column(String(48), default="1.0.0")
     config_version: Mapped[int] = mapped_column(Integer, default=1)
     operator: Mapped[str] = mapped_column(String(80), default="demo-operator")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
