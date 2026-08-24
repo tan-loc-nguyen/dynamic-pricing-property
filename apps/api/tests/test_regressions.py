@@ -583,3 +583,98 @@ def test_an_unregistered_default_blames_the_code_not_the_request():
         resolve({"mock": object}, "typo", kind="market provider", default="mock")
     assert user_error.value.was_default is False
     assert "bug in the application" not in str(user_error.value)
+
+
+# --- browser round: rendered text must agree across surfaces --------------
+@pytest.mark.parametrize(
+    "scenario,overrides,config_edits",
+    [
+        ("unclamped", {}, {}),
+        ("min clamp", {"pace_gap": -0.9}, {"dynamic": {"min_total_adjustment_pct": -90.0},
+                                           "pace": {"bands_0_adjustment_pct": -30.0}}),
+        ("max clamp", {"pace_gap": 0.9}, {"dynamic": {"max_total_adjustment_pct": 90.0},
+                                          "pace": {"bands_last_adjustment_pct": 40.0}}),
+        ("bound hit", {"pace_gap": 0.5, "pickup_delta": 5.0, "is_event": True,
+                       "event_name": "X", "event_impact_level": "high"}, {}),
+    ],
+)
+def test_the_percentage_in_the_explanation_describes_the_rate_it_is_attached_to(
+    scenario, overrides, config_edits
+):
+    """The closing sentence quoted the pre-clamp figure while the table column
+    showed the realised one, and both were labelled "dynamic".
+
+    On 184 of 273 rows they differed; on clamped rows the sentence contradicted
+    itself — "raised to the floor ... (-11.2% dynamic on base)" for a rate that
+    is -8.7% of base. It survived six rounds because BOTH numbers are
+    individually correct and the breakdown adds up to the cent; only rendering
+    them side by side exposes it. So this asserts the relationship between two
+    fields, not the correctness of either.
+    """
+    import re
+
+    from conftest import make_context
+    from dynamic_pricing.pricing import default_config, get_engine
+
+    config = default_config()
+    for section, edits in config_edits.items():
+        for key, value in edits.items():
+            if key == "bands_0_adjustment_pct":
+                config[section]["bands"][0]["adjustment_pct"] = value
+            elif key == "bands_last_adjustment_pct":
+                config[section]["bands"][-1]["adjustment_pct"] = value
+            else:
+                config[section][key] = value
+
+    result = get_engine().calculate(make_context(**overrides), config)
+
+    quoted = re.findall(r"realised ([+-][\d.]+)%", result.explanation)
+    if not quoted:
+        quoted = re.findall(r"\(([+-][\d.]+)% on base\)", result.explanation)
+
+    assert quoted, f"[{scenario}] the explanation must quote a percentage: {result.explanation}"
+    assert float(quoted[-1]) == pytest.approx(result.total_adjustment_pct, abs=0.06), (
+        f"[{scenario}] the explanation quotes {quoted[-1]}% but the recommended rate is "
+        f"{result.total_adjustment_pct:.2f}% of base — the drawer would contradict the "
+        f"table column beside it."
+    )
+
+
+def test_a_clamped_explanation_names_both_the_wanted_and_realised_figures():
+    """On a clamped row the pre-clamp figure IS informative — the operator wants
+    to know the signals asked for more than the band allowed. It just cannot be
+    the only number quoted, or presented as describing the final rate."""
+    from conftest import make_context
+    from dynamic_pricing.pricing import default_config, get_engine
+
+    config = default_config()
+    config["dynamic"]["min_total_adjustment_pct"] = -90.0
+    config["pace"]["bands"][0]["adjustment_pct"] = -30.0
+    result = get_engine().calculate(make_context(pace_gap=-0.9), config)
+
+    assert result.metadata["clamp_applied"] == "min"
+    assert "Signals totalled" in result.explanation
+    assert "realised" in result.explanation
+    assert "dynamic on base" not in result.explanation, "the ambiguous label must be gone"
+
+
+def test_a_clamp_is_not_described_as_a_dynamic_signal():
+    """Same class as the drawer/column contradiction, one line down.
+
+    The clamp was listed among "Dynamic signals" as "Seasonal MIN floor
+    (+0.0%, +58,175)" — a 0% adjustment attributed to a line that moved the
+    rate by 58,175 — and then described again in its own sentence.
+    """
+    from conftest import make_context
+    from dynamic_pricing.pricing import default_config, get_engine
+
+    config = default_config()
+    config["dynamic"]["min_total_adjustment_pct"] = -90.0
+    config["pace"]["bands"][0]["adjustment_pct"] = -30.0
+    result = get_engine().calculate(make_context(pace_gap=-0.9), config)
+
+    assert result.metadata["clamp_applied"] == "min"
+    signals = result.explanation.split("Dynamic signals: ")[1].split(". ")[0]
+    assert "floor" not in signals.lower(), f"clamp listed as a signal: {signals}"
+    # ...but it must still be explained.
+    assert "floor" in result.explanation.lower()

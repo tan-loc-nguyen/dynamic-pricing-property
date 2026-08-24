@@ -286,7 +286,13 @@ class RateBandPricingEngine(PricingEngine):
             net_rate_before_clamp=round(net_rate_before_clamp, 2),
             total_adjustment_pct=applied_total_pct,
             adjustments=adjustments,
-            explanation=self._explain(context, adjustments, recommended, bounded_total),
+            explanation=self._explain(
+                context,
+                adjustments,
+                recommended,
+                signals_pct=bounded_total,
+                realised_pct=applied_total_pct,
+            ),
             engine_version=self.version,
             metadata=metadata,
         )
@@ -452,8 +458,21 @@ class RateBandPricingEngine(PricingEngine):
         ctx: PricingContext,
         adjustments: list[Adjustment],
         recommended: float,
-        total_pct: float,
+        *,
+        signals_pct: float,
+        realised_pct: float,
     ) -> str:
+        """Build the operator-facing summary.
+
+        Takes BOTH percentages deliberately. ``signals_pct`` is what the dynamic
+        layer asked for; ``realised_pct`` is what the recommended rate actually
+        represents once the band clamp and rounding have been applied. They are
+        different quantities and the closing sentence used to call both
+        "dynamic" -- quoting the figure the engine WANTED beside the price it
+        actually PRODUCED, which on a clamped row contradicted itself ("raised
+        to the floor ... (-11.2% dynamic on base)" for a rate that is -8.7% of
+        base) and disagreed with the table row beside it.
+        """
         parts: list[str] = []
         opening = (
             f"{ctx.room_category_label} on {ctx.stay_date:%a %d %b} sits in "
@@ -464,10 +483,21 @@ class RateBandPricingEngine(PricingEngine):
         )
         parts.append(opening)
 
+        # Clamps are NOT dynamic signals -- they are limits applied to the
+        # signals' result, and they get their own sentence below. Listing them
+        # here printed "Seasonal MIN floor (+0.0%, +58,175)" among the signals,
+        # attributing a 0% adjustment to a line that moved the rate by 58,175.
         applied = [
             a
             for a in adjustments
-            if a.code not in ("rate_band", "rounding", "dynamic_bound")
+            if a.code
+            not in (
+                "rate_band",
+                "rounding",
+                "dynamic_bound",
+                "band_min_clamp",
+                "band_max_clamp",
+            )
             and not a.is_neutral
             and not a.is_ignored
         ]
@@ -495,10 +525,20 @@ class RateBandPricingEngine(PricingEngine):
         if blind:
             parts.append(" ".join(blind))
 
-        parts.append(
-            f"Recommended NET rate {recommended:,.0f} {ctx.currency} "
-            f"({total_pct:+.1f}% dynamic on base)."
-        )
+        # Only name both figures when they actually differ; on an unclamped,
+        # cleanly-rounded row they are the same number and saying it twice
+        # would be noise.
+        if abs(signals_pct - realised_pct) > 0.05:
+            parts.append(
+                f"Signals totalled {signals_pct:+.1f}%; realised {realised_pct:+.1f}% "
+                f"after limits and rounding. Recommended NET rate "
+                f"{recommended:,.0f} {ctx.currency}."
+            )
+        else:
+            parts.append(
+                f"Recommended NET rate {recommended:,.0f} {ctx.currency} "
+                f"({realised_pct:+.1f}% on base)."
+            )
         return " ".join(parts)
 
 
