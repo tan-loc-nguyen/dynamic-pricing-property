@@ -20,7 +20,7 @@
   "adjustments": {
     "rate_band": {
       "label": "Seasonal base rate",
-      "reason": "{has_band, select, true {{room_category} in {season}: BASE {base_net_rate, number} ₫ NET (band {min_net_rate, number}–{max_net_rate, number}). Source: {source}.} other {No validated rate band covers {room_category} on this date, so the current NET rate of {base_net_rate, number} ₫ was used as the base. Source: {source}.}}"
+      "reason": "{has_validated_band, select, true {{room_category} in {season}: BASE {base_net_rate, number} ₫ NET (band {min_net_rate, number}–{max_net_rate, number}). Source: {source}.} other {No validated rate band covers {room_category} on this date, so the room type's fallback of {base_net_rate, number} ₫ NET was used as the base. Source: {source}.}}"
     },
     "pace": {
       "well_behind": {
@@ -89,11 +89,11 @@
     "event": {
       "level": {
         "label": "Event: {event_name}",
-        "reason": "'{event_name}' falls on this stay date ({impact_level, select, low {low} medium {medium} high {high} other {unspecified}} impact level)."
+        "reason": "“{event_name}” falls on this stay date ({impact_level, select, low {low} medium {medium} high {high} other {unspecified}} impact level)."
       },
       "override": {
         "label": "Event: {event_name}",
-        "reason": "'{event_name}' falls on this stay date (event-specific override)."
+        "reason": "“{event_name}” falls on this stay date (event-specific override)."
       }
     },
     "market": {
@@ -124,11 +124,11 @@
     },
     "band_min_clamp": {
       "label": "Seasonal MIN floor",
-      "reason": "The dynamic layer would have priced below the validated seasonal floor of {bound_net_rate, number} ₫ NET. Raised to the floor."
+      "reason": "The dynamic layer priced this date at {unclamped_net_rate, number} ₫, below the validated seasonal floor of {bound_net_rate, number} ₫ NET. Raised to the floor."
     },
     "band_max_clamp": {
       "label": "Seasonal MAX ceiling",
-      "reason": "The dynamic layer would have priced above the validated seasonal ceiling of {bound_net_rate, number} ₫ NET. Reduced to the ceiling."
+      "reason": "The dynamic layer priced this date at {unclamped_net_rate, number} ₫, above the validated seasonal ceiling of {bound_net_rate, number} ₫ NET. Reduced to the ceiling."
     },
     "rounding": {
       "label": "Rounding",
@@ -556,18 +556,18 @@
     "title": "This configuration cannot be saved yet",
     "must_be_a_list": "{path} must be a list.",
     "must_be_an_object": "{path} must be an object.",
-    "missing_required_field": "{path} is missing the required field '{field}'.",
+    "missing_required_field": "{path} is missing the required field “{field}”.",
     "required_and_empty": "{path} is required and cannot be empty.",
     "not_a_number_boolean": "{path} must be a number, but a true/false value was given.",
     "not_a_number": "{path} must be a number — {value} is not.",
     "not_a_whole_number": "{path} must be a whole number — {value} is not.",
     "not_an_allowed_value": "{path} must be one of: {allowed}. Got {value}.",
     "list_member_not_an_object": "{path} must be an object.",
-    "band_invalid": "{signal} band #{position, number} is not a valid band.",
-    "band_needs_threshold": "{signal} band '{band}' needs a {threshold} value.",
-    "band_threshold_not_increasing": "{signal} band '{band}' has a threshold of {threshold, number}, which is not above the band before it ({previous, number}). Thresholds must increase down the list.",
-    "band_starts_above_domain": "{signal} band '{band}' can never apply: it starts above the highest value this signal can reach.",
-    "band_range_empty": "{signal} band '{band}' can never apply: its range is empty.",
+    "band_invalid": "{signal, select, pace {Pace} recent_pickup {Pickup} other {{signal}}} band #{position, number} is not a valid band.",
+    "band_needs_threshold": "{signal, select, pace {Pace} recent_pickup {Pickup} other {{signal}}} band “{band}” needs a {threshold} value.",
+    "band_threshold_not_increasing": "{signal, select, pace {Pace} recent_pickup {Pickup} other {{signal}}} band “{band}” has a threshold of {threshold, number}, which is not above the band before it ({previous, number}). Thresholds must increase down the list.",
+    "band_starts_above_domain": "{signal, select, pace {Pace} recent_pickup {Pickup} other {{signal}}} band “{band}” can never apply: it starts above the highest value this signal can reach.",
+    "band_range_empty": "{signal, select, pace {Pace} recent_pickup {Pickup} other {{signal}}} band “{band}” can never apply: its range is empty.",
     "min_exceeds_max": "The minimum total adjustment ({minimum, number}%) is above the maximum ({maximum, number}%).",
     "could_not_check": "This configuration could not be fully checked: {detail}"
   }

@@ -20,7 +20,7 @@
   "adjustments": {
     "rate_band": {
       "label": "Giá cơ sở theo mùa",
-      "reason": "{has_band, select, true {{room_category} trong {season}: giá CƠ SỞ {base_net_rate, number} ₫ NET (khung {min_net_rate, number}–{max_net_rate, number}). Nguồn: {source}.} other {Chưa có khung giá đã xác thực cho {room_category} vào ngày này, nên hệ thống lấy giá NET hiện tại {base_net_rate, number} ₫ làm giá cơ sở. Nguồn: {source}.}}"
+      "reason": "{has_validated_band, select, true {{room_category} trong {season}: giá CƠ SỞ {base_net_rate, number} ₫ NET (khung {min_net_rate, number}–{max_net_rate, number}). Nguồn: {source}.} other {Chưa có khung giá đã xác thực cho {room_category} vào ngày này, nên hệ thống dùng mức dự phòng {base_net_rate, number} ₫ NET của hạng căn hộ làm giá cơ sở. Nguồn: {source}.}}"
     },
     "pace": {
       "well_behind": {
@@ -89,11 +89,11 @@
     "event": {
       "level": {
         "label": "Sự kiện: {event_name}",
-        "reason": "'{event_name}' rơi vào ngày lưu trú này (mức tác động {impact_level, select, low {thấp} medium {trung bình} high {cao} other {chưa xác định}})."
+        "reason": "“{event_name}” rơi vào ngày lưu trú này (mức tác động {impact_level, select, low {thấp} medium {trung bình} high {cao} other {chưa xác định}})."
       },
       "override": {
         "label": "Sự kiện: {event_name}",
-        "reason": "'{event_name}' rơi vào ngày lưu trú này (điều chỉnh riêng cho sự kiện)."
+        "reason": "“{event_name}” rơi vào ngày lưu trú này (điều chỉnh riêng cho sự kiện)."
       }
     },
     "market": {
@@ -124,11 +124,11 @@
     },
     "band_min_clamp": {
       "label": "Giá sàn theo mùa",
-      "reason": "Lớp điều chỉnh động sẽ đưa giá xuống dưới giá sàn đã xác thực {bound_net_rate, number} ₫ NET. Đã nâng lên bằng giá sàn."
+      "reason": "Lớp điều chỉnh động đưa ngày này về {unclamped_net_rate, number} ₫, thấp hơn giá sàn đã xác thực {bound_net_rate, number} ₫ NET. Đã nâng lên bằng giá sàn."
     },
     "band_max_clamp": {
       "label": "Giá trần theo mùa",
-      "reason": "Lớp điều chỉnh động sẽ đưa giá lên trên giá trần đã xác thực {bound_net_rate, number} ₫ NET. Đã hạ xuống bằng giá trần."
+      "reason": "Lớp điều chỉnh động đưa ngày này lên {unclamped_net_rate, number} ₫, cao hơn giá trần đã xác thực {bound_net_rate, number} ₫ NET. Đã hạ xuống bằng giá trần."
     },
     "rounding": {
       "label": "Làm tròn",
@@ -556,18 +556,18 @@
     "title": "Chưa thể lưu cấu hình này",
     "must_be_a_list": "{path} phải là một danh sách.",
     "must_be_an_object": "{path} phải là một đối tượng.",
-    "missing_required_field": "{path} còn thiếu trường bắt buộc '{field}'.",
+    "missing_required_field": "{path} còn thiếu trường bắt buộc “{field}”.",
     "required_and_empty": "{path} là bắt buộc, không được để trống.",
     "not_a_number_boolean": "{path} phải là một con số, nhưng lại nhận giá trị đúng/sai.",
     "not_a_number": "{path} phải là một con số — {value} thì không phải.",
     "not_a_whole_number": "{path} phải là số nguyên — {value} thì không phải.",
     "not_an_allowed_value": "{path} chỉ nhận một trong các giá trị: {allowed}. Đang là {value}.",
     "list_member_not_an_object": "{path} phải là một đối tượng.",
-    "band_invalid": "Khung {signal} số {position, number} không hợp lệ.",
-    "band_needs_threshold": "Khung {signal} '{band}' cần có giá trị {threshold}.",
-    "band_threshold_not_increasing": "Khung {signal} '{band}' có ngưỡng {threshold, number}, không lớn hơn khung liền trước ({previous, number}). Các ngưỡng phải tăng dần từ trên xuống.",
-    "band_starts_above_domain": "Khung {signal} '{band}' sẽ không bao giờ được áp dụng: nó bắt đầu trên mức cao nhất mà tín hiệu này có thể đạt tới.",
-    "band_range_empty": "Khung {signal} '{band}' sẽ không bao giờ được áp dụng: khoảng giá trị của nó rỗng.",
+    "band_invalid": "Khung {signal, select, pace {tiến độ} recent_pickup {lượng đặt} other {{signal}}} số {position, number} không hợp lệ.",
+    "band_needs_threshold": "Khung {signal, select, pace {tiến độ} recent_pickup {lượng đặt} other {{signal}}} “{band}” cần có giá trị {threshold}.",
+    "band_threshold_not_increasing": "Khung {signal, select, pace {tiến độ} recent_pickup {lượng đặt} other {{signal}}} “{band}” có ngưỡng {threshold, number}, không lớn hơn khung liền trước ({previous, number}). Các ngưỡng phải tăng dần từ trên xuống.",
+    "band_starts_above_domain": "Khung {signal, select, pace {tiến độ} recent_pickup {lượng đặt} other {{signal}}} “{band}” sẽ không bao giờ được áp dụng: nó bắt đầu trên mức cao nhất mà tín hiệu này có thể đạt tới.",
+    "band_range_empty": "Khung {signal, select, pace {tiến độ} recent_pickup {lượng đặt} other {{signal}}} “{band}” sẽ không bao giờ được áp dụng: khoảng giá trị của nó rỗng.",
     "min_exceeds_max": "Tổng điều chỉnh tối thiểu ({minimum, number}%) đang lớn hơn mức tối đa ({maximum, number}%).",
     "could_not_check": "Không kiểm tra được đầy đủ cấu hình này: {detail}"
   }

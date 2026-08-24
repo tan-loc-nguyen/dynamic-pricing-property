@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "check:messages": "node scripts/check-messages.mjs",
     "start": "next start -p 3000"
   },
   "dependencies": {

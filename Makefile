@@ -53,6 +53,7 @@ test:
 
 lint:
 	@cd $(API) && $(PY) -m ruff check dynamic_pricing tests
+	@cd $(WEB) && npm run --silent check:messages
 
 test-watch:
 	@cd $(API) && $(PY) -m pytest -q --tb=short -x

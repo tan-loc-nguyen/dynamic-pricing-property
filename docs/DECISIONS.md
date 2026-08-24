@@ -447,6 +447,15 @@ message files translate, while a band an operator renames or invents has
 put words in their mouth; matching it to a neighbouring band — the bug D26's
 `_default_at` already had to fix once — would be worse.
 
+**Where the two percentages are shown.** `raw_dynamic_pct` and
+`bounded_dynamic_pct` are on every snapshot for reproducibility, but only the
+`dynamic_bound` step renders them — so an operator sees "signals totalled X%,
+scaled back to Y%" exactly when the ±15% bound binds, and not otherwise. On a
+row clamped by the seasonal MIN/MAX instead, no percentage for the signals
+total is shown; the clamp step names the unclamped RATE rather than a
+percentage, which is the more useful figure and the same information. The
+per-signal lines still add up by hand either way, which was the original point.
+
 **The guardrail that makes this safe:** `test_every_emittable_key_has_a_translation`
 checks every key `EMITTABLE_MESSAGE_KEYS` declares against BOTH locale files,
 and `test_the_locales_describe_exactly_the_same_things` checks the two files
@@ -464,6 +473,21 @@ kept in sync.
 **Vietnamese is the default locale.** The operator who uses this daily is
 Vietnamese; English is for non-Vietnamese stakeholders. `i18n/routing.ts`,
 one line.
+
+**The rate-band sentence gates on provenance, not on having numbers.** When no
+band covers a date the feature engine substitutes the ROOM TYPE's fallback
+rates, and those columns are NOT NULL — so an "are there numbers" test is
+always true, and an early version described a room-type guess in the shape of a
+validated band with a dash where the season should be. The select now keys on
+`rate_band_source`, because "did this come from the validated book?" is the
+question the sentence actually answers.
+
+**ICU has its own grammar, and Python cannot see it.** An apostrophe before a
+brace is an ICU *escape*, so `'{event_name}'` rendered the literal text
+`{event_name}` on every event row while every Python guard passed — the key
+existed, the placeholder was declared, the engine supplied it. `make lint` now
+parses every message with the real ICU compiler
+(`apps/web/scripts/check-messages.mjs`), and a test rejects `'{` outright.
 
 **No middleware.** Locale detection would live in middleware, which does not
 exist under `output: "export"`. Since packaging this as a single-process local

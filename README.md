@@ -35,7 +35,7 @@ Open **<http://localhost:3000>**.
 `make dev` alone is enough — it runs setup if needed and seeds the database on
 API startup. Prerequisites: Python 3.10+ and Node 18+; `make setup` tells you
 the exact install command for your platform, or `AUTO_INSTALL=1 make setup`
-installs them for you. `make test` runs 250 tests.
+installs them for you. `make test` runs 253 tests.
 
 ---
 
@@ -211,6 +211,10 @@ honest:
 | `test_every_placeholder_in_a_message_is_supplied_by_the_engine` | a sentence whose `{placeholder}` the engine never fills — ICU refuses the whole message, so the operator gets a raw key |
 | `test_every_translated_string_is_rendered_somewhere` | a key nobody renders — which always meant English or a raw code was showing in its place |
 | `test_every_key_the_frontend_asks_for_exists` | a key the UI asks for that does not exist, which renders as a dotted path |
+| `test_no_message_escapes_its_own_placeholder` | `'{x}'` — an apostrophe before a brace is an ICU escape, so the braces render literally |
+
+`make lint` additionally parses every message with the real ICU compiler, which
+is the only thing that can see a message that is valid JSON and invalid ICU.
 
 A missing Vietnamese string is a **test failure**, not a blank line discovered
 during a client demo.
@@ -281,7 +285,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 250 tests
+make test    # 253 tests
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15

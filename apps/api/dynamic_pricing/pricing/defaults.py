@@ -463,7 +463,7 @@ def coerce_config(
 
 
 def _band_problems(
-    bands: list, key: str, label: str, domain_min: float, domain_max: float, inclusive: bool
+    bands: list, key: str, signal: str, domain_min: float, domain_max: float, inclusive: bool
 ) -> list[dict]:
     """Exact reachability, derived from the SUBMITTED thresholds.
 
@@ -480,11 +480,11 @@ def _band_problems(
     thresholds: list[float] = []
     for i, band in enumerate(bands):
         if not isinstance(band, dict):
-            problems.append(_problem("band_invalid", f"{label} band #{i + 1} is not a valid band.", signal=label, position=i + 1))
+            problems.append(_problem("band_invalid", f"{signal} band #{i + 1} is not a valid band.", signal=signal, position=i + 1))
             return problems
         value = band.get(key)
         if value is None:
-            problems.append(_problem("band_needs_threshold", f"{label} band '{band.get('label', i + 1)}' needs a {key} threshold.", signal=label, band=str(band.get("label", i + 1)), threshold=key))
+            problems.append(_problem("band_needs_threshold", f"{signal} band '{band.get('label', i + 1)}' needs a {key} threshold.", signal=signal, band=str(band.get("label", i + 1)), threshold=key))
             return problems
         thresholds.append(float(value))
 
@@ -496,9 +496,9 @@ def _band_problems(
             problems.append(
                 _problem(
                     "band_threshold_not_increasing",
-                    f"{label} band '{name}' has a threshold ({upper:g}) at or below the band "
+                    f"{signal} band '{name}' has a threshold ({upper:g}) at or below the band "
                     f"before it ({thresholds[i - 1]:g}); thresholds must increase.",
-                    signal=label,
+                    signal=signal,
                     band=str(name),
                     threshold=upper,
                     previous=thresholds[i - 1],
@@ -508,9 +508,9 @@ def _band_problems(
         # The interval this band owns is [lower, upper) -- or [lower, upper]
         # when the comparison is inclusive. Empty interval == unreachable band.
         if lower > domain_max:
-            problems.append(_problem("band_starts_above_domain", f"{label} band '{name}' can never be selected: it starts above the highest possible value.", signal=label, band=str(name)))
+            problems.append(_problem("band_starts_above_domain", f"{signal} band '{name}' can never be selected: it starts above the highest possible value.", signal=signal, band=str(name)))
         elif (lower >= upper) if not inclusive else (lower > upper):
-            problems.append(_problem("band_range_empty", f"{label} band '{name}' can never be selected: its range is empty.", signal=label, band=str(name)))
+            problems.append(_problem("band_range_empty", f"{signal} band '{name}' can never be selected: its range is empty.", signal=signal, band=str(name)))
     return problems
 
 
@@ -525,7 +525,7 @@ def validate_config(config: dict[str, Any]) -> list[dict]:
     pace = config.get("pace", {})
     if pace.get("enabled", True):
         # pace_gap is actual minus expected occupancy, so it spans [-1, 1].
-        problems += _band_problems(pace.get("bands", []), "max_gap", "Pace", -1.0, 1.0, False)
+        problems += _band_problems(pace.get("bands", []), "max_gap", "pace", -1.0, 1.0, False)
 
     pickup = config.get("recent_pickup", {})
     if pickup.get("enabled", True):
@@ -534,7 +534,7 @@ def validate_config(config: dict[str, Any]) -> list[dict]:
         )
         # recent_pickup cannot be negative, so -expected is the true floor.
         problems += _band_problems(
-            pickup.get("bands", []), "max_delta", "Pickup", -expected, float("inf"), True
+            pickup.get("bands", []), "max_delta", "recent_pickup", -expected, float("inf"), True
         )
 
     dynamic = config.get("dynamic", {})
