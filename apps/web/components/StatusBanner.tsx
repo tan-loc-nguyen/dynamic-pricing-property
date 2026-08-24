@@ -40,6 +40,17 @@ export function StatusBanner({ status }: { status: SystemStatus | null }) {
       </Chip>
       <Chip tone="neutral">Engine {status.engine.version}</Chip>
       <Chip tone="neutral">Rules v{status.config_version}</Chip>
+      {/* Outcome readiness. Deliberately a status chip, not an analytics screen:
+          the operator needs to know whether the evaluation dataset is real yet,
+          and elaborate analytics is an explicit non-goal for this phase. */}
+      <Chip
+        tone={status.outcome_readiness?.ready_for_evaluation ? "up" : "warn"}
+        title={String(status.outcome_readiness?.note || "")}
+      >
+        Outcomes: {status.outcome_readiness?.real_outcomes ?? 0} real
+        {(status.outcome_readiness?.synthetic_outcomes ?? 0) > 0 &&
+          ` · ${status.outcome_readiness.synthetic_outcomes} synthetic`}
+      </Chip>
       {(pmsDegraded || marketDegraded) && (
         <span className="text-ink-400">
           {pmsDegraded ? status.pms.remediation : status.market.remediation}

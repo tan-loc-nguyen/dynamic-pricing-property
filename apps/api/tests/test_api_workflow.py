@@ -466,3 +466,22 @@ def test_updating_an_event_rejects_an_inverted_date_range(client):
     )
     assert response.status_code == 422, "an inverted range silently disables the event"
     client.delete(f"/api/events/{created['id']}")
+
+
+def test_outcome_readiness_is_visible_to_the_operator(client):
+    """Regression follow-up to #4: the outcome dataset existing in the database
+    is not the same as the operator being able to see whether it is real.
+
+    Outcomes attach to the historical run, which Rate Review never exposes, so
+    the drawer's Outcome section is unreachable in demo mode by design. The
+    status payload must therefore carry readiness for the banner to render.
+    """
+    readiness = client.get("/api/status").json()["outcome_readiness"]
+    assert "real_outcomes" in readiness
+    assert "synthetic_outcomes" in readiness
+    assert readiness["synthetic_outcomes"] > 0, "demo outcomes should exist to be reported"
+    assert readiness["note"], "readiness must explain what real capture requires"
+    # Order-independent: readiness must track REAL outcomes only, never synthetic
+    # ones. (An earlier test in this module records a real outcome, so the flag
+    # may legitimately be True by the time this runs.)
+    assert readiness["ready_for_evaluation"] is (readiness["real_outcomes"] > 0)
