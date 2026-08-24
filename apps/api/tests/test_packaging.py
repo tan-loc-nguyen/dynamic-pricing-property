@@ -142,7 +142,7 @@ def test_the_exported_bundle_never_hardcodes_the_api_port():
     time an operator already has something on that port.
     """
     offenders = [
-        str(path.relative_to(OUT))
+        path.relative_to(OUT).as_posix()
         for path in OUT.rglob("*.js")
         if "127.0.0.1:8000" in path.read_text(encoding="utf-8", errors="ignore")
         or "localhost:8000" in path.read_text(encoding="utf-8", errors="ignore")

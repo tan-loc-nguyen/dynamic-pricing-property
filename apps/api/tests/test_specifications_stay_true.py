@@ -81,7 +81,10 @@ def test_every_cast_site_lives_behind_the_boundary():
     }
     offenders: list[str] = []
     for path in PACKAGE.rglob("*.py"):
-        rel = str(path.relative_to(PACKAGE))
+        # as_posix(), not str(): str(PurePath) yields "pricing\\engine.py" on
+        # Windows, so a forward-slash allowlist never matches and this test
+        # reports the BOUNDARY FILES THEMSELVES as offenders.
+        rel = path.relative_to(PACKAGE).as_posix()
         if rel in allowed:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -284,7 +287,10 @@ def test_no_config_reaches_an_engine_without_passing_the_boundary():
     sanctioned = {"pricing/defaults.py"}  # prepare_config + preview_config live here
     offenders: list[str] = []
     for path in PACKAGE.rglob("*.py"):
-        rel = str(path.relative_to(PACKAGE))
+        # as_posix(), not str(): str(PurePath) yields "pricing\\engine.py" on
+        # Windows, so a forward-slash allowlist never matches and this test
+        # reports the BOUNDARY FILES THEMSELVES as offenders.
+        rel = path.relative_to(PACKAGE).as_posix()
         if rel in sanctioned:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
