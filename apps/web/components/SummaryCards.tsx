@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "./ui";
-import { formatAdjPct, formatOccupancy, formatPaceGap, formatPct } from "@/lib/format";
+import { formatOccupancy, formatPaceGap } from "@/lib/format";
 import type { Summary } from "@/lib/types";
 
 function Stat({
@@ -42,7 +42,6 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
   }
 
   const gap = summary.average_pace_gap;
-  const change = summary.average_recommended_change_pct;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -71,7 +70,12 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
         label="Pending review"
         value={summary.pending_recommendations.toLocaleString()}
         tone={summary.pending_recommendations > 0 ? "warn" : "neutral"}
-        sub={`${summary.accepted_recommendations} accepted · ${summary.overridden_recommendations} overridden`}
+        sub={
+          `${summary.accepted_recommendations} accepted · ${summary.overridden_recommendations} overridden` +
+          (summary.unpriced_recommendations > 0
+            ? ` · ${summary.unpriced_recommendations} could not be priced`
+            : "")
+        }
       />
     </div>
   );

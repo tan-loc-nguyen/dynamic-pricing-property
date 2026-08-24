@@ -53,13 +53,26 @@ class FeatureEngine:
         self.rate_book = rate_book or SeasonalRateBook()
         self.curve = get_booking_curve_provider(self.config)
 
-        pickup_cfg = self.config.get("recent_pickup", {})
-        self.pickup_lookback_days = int(pickup_cfg.get("lookback_days", 7) or 7)
-        self.expected_pickup_per_week = float(pickup_cfg.get("expected_pickup_per_week", 1.0) or 1.0)
+        # These casts run OUTSIDE the per-row pricing loop, so anything raising
+        # here bypasses the repetition guard, the PricingRunFailed handler and
+        # the config rollback -- it surfaces as a 500 with the bad config left
+        # active. Saved configs are coerced at the boundary, but this layer also
+        # runs against configs that never went through a save, so it degrades to
+        # the default rather than trusting its input.
+        def _num(node: dict, key: str, default, kind):
+            try:
+                value = node.get(key)
+                return kind(value) if value is not None else default
+            except (TypeError, ValueError):
+                return default
 
-        market_cfg = self.config.get("market", {})
-        self.market_max_age_days = int(market_cfg.get("observation_max_age_days", 14) or 14)
-        self.market_min_confidence = str(market_cfg.get("min_confidence", "MEDIUM")).upper()
+        pickup_cfg = self.config.get("recent_pickup", {}) or {}
+        self.pickup_lookback_days = _num(pickup_cfg, "lookback_days", 7, int) or 7
+        self.expected_pickup_per_week = _num(pickup_cfg, "expected_pickup_per_week", 1.0, float) or 1.0
+
+        market_cfg = self.config.get("market", {}) or {}
+        self.market_max_age_days = _num(market_cfg, "observation_max_age_days", 14, int) or 14
+        self.market_min_confidence = str(market_cfg.get("min_confidence", "MEDIUM") or "MEDIUM").upper()
 
         self._loaded = False
         self._room_types: dict[int, RoomType] = {}

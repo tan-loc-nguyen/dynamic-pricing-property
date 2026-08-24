@@ -299,3 +299,105 @@ def test_every_configured_band_is_reachable():
         for v in [-1.0, -0.5, -0.1, 0.0, 0.1, 0.5, 1.0]
     }
     assert pace_hits == {b["label"] for b in config["pace"]["bands"]}, "unreachable pace band"
+
+
+# --- round 3: the gaps between the guards ---------------------------------
+def test_config_consumed_outside_the_row_loop_cannot_wedge_the_app():
+    """FeatureEngine casts config in __init__ — outside the per-row loop, so
+    nothing there can be caught by the repetition guard, which meant a bad value
+    surfaced as a 500 with the broken config left ACTIVE.
+
+    Two defences, both asserted: the save path rejects it with a field path, and
+    the feature layer degrades to defaults rather than raising.
+    """
+    from dynamic_pricing.pricing.defaults import ConfigurationInvalid, prepare_config
+
+    for section, key in [
+        ("recent_pickup", "lookback_days"),
+        ("market", "observation_max_age_days"),
+        ("market", "sensitivity"),
+        ("rounding", "increment"),
+    ]:
+        with pytest.raises(ConfigurationInvalid) as caught:
+            prepare_config({section: {key: "not-a-number"}})
+        assert f"{section}.{key}" in str(caught.value), "must name the offending field path"
+
+
+def test_feature_engine_degrades_rather_than_raising_on_a_bad_config(session):
+    from dynamic_pricing.features.engine import FeatureEngine
+
+    broken = default_config()
+    broken["recent_pickup"]["lookback_days"] = "abc"
+    broken["market"]["observation_max_age_days"] = None
+    engine = FeatureEngine(session, broken, today=date(2026, 9, 1))
+    assert engine.pickup_lookback_days == 7
+    assert engine.market_max_age_days == 14
+
+
+def test_malformed_booking_curve_anchors_are_rejected_and_survivable():
+    from dynamic_pricing.features.booking_curve import get_booking_curve_provider
+    from dynamic_pricing.pricing.defaults import ConfigurationInvalid, prepare_config
+
+    with pytest.raises(ConfigurationInvalid) as caught:
+        prepare_config({"booking_curve": {"anchors": [{"day": 0}]}})
+    assert "days" in str(caught.value)
+
+    # ...and if one reaches the provider anyway, it must not raise.
+    provider = get_booking_curve_provider({"booking_curve": {"anchors": [{"day": 0}]}})
+    assert provider.expected_occupancy("2br_regular", "low_2", 30) is not None
+
+
+@pytest.mark.parametrize(
+    "signal,key,edit",
+    [("pace", "max_gap", -0.10), ("recent_pickup", "max_delta", -0.6)],
+)
+def test_legitimate_band_edits_are_not_rejected(signal, key, edit):
+    """The validator must not block an operator tuning their own thresholds.
+
+    Sample-based probing did exactly that: [-0.20, -0.10) is an ordinary
+    reachable interval, but no fixed sample landed in it, so the operator was
+    told their band was impossible.
+    """
+    from dynamic_pricing.pricing.defaults import coerce_config, validate_config
+
+    config = default_config()
+    config[signal]["bands"][1][key] = edit
+    assert validate_config(coerce_config(config)[0]) == []
+
+
+def test_genuinely_stranded_bands_are_still_rejected():
+    from dynamic_pricing.pricing.defaults import coerce_config, validate_config
+
+    empty_range = default_config()
+    empty_range["pace"]["bands"][2]["max_gap"] = -0.5  # below the band before it
+    assert validate_config(coerce_config(empty_range)[0])
+
+    below_domain = default_config()
+    below_domain["pace"]["bands"][0]["max_gap"] = -5.0  # outside pace_gap's range
+    assert validate_config(coerce_config(below_domain)[0])
+
+
+def test_cleared_band_member_falls_back_to_the_default():
+    """_deep_merge cannot repair a null inside a LIST, so coercion must."""
+    from dynamic_pricing.pricing.defaults import coerce_config, merge_config
+
+    config = merge_config({})
+    config["pace"]["bands"][2]["adjustment_pct"] = None
+    config["pace"]["bands"][0]["max_gap"] = None
+    coerced, problems = coerce_config(config)
+    assert problems == []
+    assert all(b["adjustment_pct"] is not None for b in coerced["pace"]["bands"])
+    assert all(b["max_gap"] is not None for b in coerced["pace"]["bands"])
+
+
+def test_a_rare_failure_is_reported_per_date_not_rolled_back():
+    """Repetition decides 'systemic'; the SHARE decides whether to discard the
+    run. Conflating them made one defect behave in opposite ways depending on
+    how the data happened to fall."""
+    from dynamic_pricing.services.recommendations import (
+        SYSTEMIC_ERROR_THRESHOLD,
+        SYSTEMIC_FAILURE_SHARE,
+    )
+
+    assert SYSTEMIC_ERROR_THRESHOLD >= 3
+    assert 0 < SYSTEMIC_FAILURE_SHARE < 1, "a bare count has no denominator"

@@ -13,7 +13,6 @@ import {
   formatVND,
   marketLabel,
   paceLabel,
-  paceTone,
   pickupLabel,
 } from "@/lib/format";
 import type { RecommendationDetail, SystemStatus } from "@/lib/types";
@@ -24,13 +23,11 @@ function SignalTile({
   value,
   hint,
   muted,
-  tone,
 }: {
   label: string;
   value: string;
   hint?: string;
   muted?: boolean;
-  tone?: string;
 }) {
   return (
     <div className="rounded-lg border border-ink-200 px-3 py-2">

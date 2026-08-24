@@ -166,6 +166,7 @@ export interface Summary {
   pending_recommendations: number;
   accepted_recommendations: number;
   overridden_recommendations: number;
+  unpriced_recommendations: number;
   average_recommended_change_pct: number;
   total_recommendations: number;
   currency: string;

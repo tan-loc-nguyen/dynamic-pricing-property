@@ -188,6 +188,7 @@ class SummaryOut(BaseModel):
     pending_recommendations: int
     accepted_recommendations: int
     overridden_recommendations: int
+    unpriced_recommendations: int = 0
     average_recommended_change_pct: float
     total_recommendations: int
     currency: str = "VND"

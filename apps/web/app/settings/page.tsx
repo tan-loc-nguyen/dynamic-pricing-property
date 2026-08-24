@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, Card, Chip, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatAdjPct, formatPct, formatSignedVND, formatVND } from "@/lib/format";
+import { formatAdjPct, formatSignedVND, formatVND } from "@/lib/format";
 import type { PricingConfig, Preview } from "@/lib/types";
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -194,12 +194,18 @@ export default function DynamicRulesPage() {
 
   const reset = async () => {
     setSaving(true);
+    setMessage(null);
     try {
       const c = await api.resetConfig();
       setConfig(c);
       setDraft(structuredClone(c.payload));
       setBaseline(await api.preview(c.payload));
       setMessage(`Reset to demo defaults (rules v${c.version}). Recommendations recalculated.`);
+    } catch (e: any) {
+      // /api/settings/reset can now 422. Without this the spinner clears and
+      // nothing is shown -- the same silent-no-op shape as save() and
+      // regenerate(), both already fixed. Third call site of the same class.
+      setMessage(`Reset failed: ${e?.message || "unknown error"}`);
     } finally {
       setSaving(false);
     }

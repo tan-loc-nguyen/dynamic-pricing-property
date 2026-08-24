@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..constants import (
     DECISION_ACCEPTED,
+    STATUS_ERROR,
     DECISION_OVERRIDDEN,
     OVERRIDE_REASON_CODES,
     STATUS_ACCEPTED,
@@ -144,6 +145,7 @@ def summary(
         pending_recommendations=0,
         accepted_recommendations=0,
         overridden_recommendations=0,
+        unpriced_recommendations=0,
         average_recommended_change_pct=0.0,
         total_recommendations=0,
     )
@@ -163,9 +165,11 @@ def summary(
     if not rows:
         return empty
 
+    errored = [r for r in rows if r.status == STATUS_ERROR]
+    priced = [r for r in rows if r.status != STATUS_ERROR]
     occ = [r.features.get("occupancy") for r in rows if (r.features or {}).get("occupancy") is not None]
     gaps = [r.features.get("pace_gap") for r in rows if (r.features or {}).get("pace_gap") is not None]
-    changes = [r.change_pct for r in rows]
+    changes = [r.change_pct for r in priced]
     dates = [r.stay_date for r in rows]
 
     return SummaryOut(
@@ -177,7 +181,11 @@ def summary(
         pending_recommendations=sum(1 for r in rows if r.status == "pending"),
         accepted_recommendations=sum(1 for r in rows if r.status == STATUS_ACCEPTED),
         overridden_recommendations=sum(1 for r in rows if r.status == STATUS_OVERRIDDEN),
-        average_recommended_change_pct=round(sum(changes) / len(changes), 2),
+        unpriced_recommendations=len(errored),
+        # Averaged over PRICED rows only. Error rows carry change_pct = 0 by
+        # construction, so including them would drag the average toward zero and
+        # understate the real movement.
+        average_recommended_change_pct=round(sum(changes) / len(changes), 2) if changes else 0.0,
         total_recommendations=len(rows),
         currency=rows[0].features.get("currency", "VND"),
         horizon_start=min(dates),
@@ -233,6 +241,14 @@ def accept(recommendation_id: int, body: AcceptIn, session: Session = Depends(ge
     rec = session.get(PricingRecommendation, recommendation_id)
     if rec is None:
         raise HTTPException(status_code=404, detail="Recommendation not found")
+    if rec.status == STATUS_ERROR:
+        # There is no recommendation to act on. Recording a decision here would
+        # put a fictional entry in the audit trail, which is the one dataset
+        # this product cannot afford to have noise in.
+        raise HTTPException(
+            status_code=409,
+            detail="This stay date could not be priced, so there is no recommendation to act on.",
+        )
 
     previous = _apply_net_rate(session, rec, rec.recommended_net_rate)
     session.add(
@@ -259,6 +275,14 @@ def override(recommendation_id: int, body: OverrideIn, session: Session = Depend
     rec = session.get(PricingRecommendation, recommendation_id)
     if rec is None:
         raise HTTPException(status_code=404, detail="Recommendation not found")
+    if rec.status == STATUS_ERROR:
+        # There is no recommendation to act on. Recording a decision here would
+        # put a fictional entry in the audit trail, which is the one dataset
+        # this product cannot afford to have noise in.
+        raise HTTPException(
+            status_code=409,
+            detail="This stay date could not be priced, so there is no recommendation to act on.",
+        )
     if body.reason_code not in OVERRIDE_REASON_CODES:
         raise HTTPException(status_code=422, detail=f"Unknown override reason '{body.reason_code}'")
 

@@ -144,10 +144,20 @@ def get_booking_curve_provider(config: dict | None = None) -> BookingCurveProvid
     node = (config or {}).get("booking_curve", {}) or {}
     if node.get("provider") == "historical":
         return HistoricalBookingCurveProvider()
+    anchors = None
+    if node.get("anchors"):
+        try:
+            anchors = [(int(a["days"]), float(a["expected"])) for a in node["anchors"]]
+        except (KeyError, TypeError, ValueError):
+            # Defence in depth. A malformed config should be rejected at save
+            # time, but this construction happens OUTSIDE the per-row loop, so
+            # anything raising here bypasses every pricing-run guard and
+            # surfaces as a 500. Falling back to the module defaults keeps the
+            # product usable; the save-time validator is what reports the fault.
+            anchors = None
+
     return DemoBookingCurveProvider(
-        anchors=[(int(a["days"]), float(a["expected"])) for a in node["anchors"]]
-        if node.get("anchors")
-        else None,
+        anchors=anchors,
         season_pace=node.get("season_pace"),
         category_pace=node.get("category_pace"),
     )

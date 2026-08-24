@@ -239,52 +239,261 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return base
 
 
+
 class ConfigurationInvalid(ValueError):
     """A configuration that would price incorrectly if saved."""
 
 
-def validate_config(config: dict[str, Any]) -> list[str]:
-    """Return human-readable problems with a merged configuration.
+# ---------------------------------------------------------------------------
+# Boundary coercion
+#
+# Every numeric leaf the engine or feature layer will later cast, declared once.
+# The config SHAPE stays free-form -- unknown keys pass through untouched, so
+# the payload can still evolve after operator interviews without a migration.
+# Only the leaves that get cast are checked, and they are checked HERE rather
+# than at the point of cast, because those casts happen in three different
+# places with three different error-handling stories:
+#   * inside the per-row loop      -> repetition guard catches it
+#   * in FeatureEngine.__init__    -> outside the loop, nothing catches it
+#   * inside validate_config       -> the validator crashes on its own input
+# Coercing once at the boundary means none of those has to care.
+#
+# Path syntax:  "a.b"  a dict key      "a.*"  every value of a dict
+#               "a[].b"  every member of a list
+# ---------------------------------------------------------------------------
+NUMERIC_LEAVES: list[tuple[str, type]] = [
+    ("rounding.increment", int),
+    ("dynamic.max_total_adjustment_pct", float),
+    ("dynamic.min_total_adjustment_pct", float),
+    ("pace.bands[].max_gap", float),
+    ("pace.bands[].adjustment_pct", float),
+    ("recent_pickup.lookback_days", int),
+    ("recent_pickup.expected_pickup_per_week", float),
+    ("recent_pickup.bands[].max_delta", float),
+    ("recent_pickup.bands[].adjustment_pct", float),
+    ("event.impact_adjustment_pct.*", float),
+    ("market.sensitivity", float),
+    ("market.max_adjustment_pct", float),
+    ("market.min_observations", int),
+    ("market.observation_max_age_days", int),
+    ("day_of_week.adjustment_pct.*", float),
+    ("booking_curve.anchors[].days", int),
+    ("booking_curve.anchors[].expected", float),
+]
 
-    Band thresholds are operator-editable, and editing one can strand the bands
-    above it so they can never be selected — the same defect as the original
-    unreachable "Pickup stalled" band, but reachable through the UI. Checking
-    at save time turns that from a latent mispricing into a rejected edit.
+
+def _walk(node: Any, parts: list[str], trail: str = ""):
+    """Yield (container, key, path) for every leaf a path expression matches."""
+    if not parts:
+        return
+    head, rest = parts[0], parts[1:]
+
+    if head.endswith("[]"):
+        name = head[:-2]
+        if not isinstance(node, dict):
+            return
+        seq = node.get(name)
+        if not isinstance(seq, list):
+            return
+        for i, item in enumerate(seq):
+            yield from _walk(item, rest, f"{trail}{name}[{i}].")
+        return
+
+    if head == "*":
+        if not isinstance(node, dict):
+            return
+        for key in list(node):
+            if rest:
+                yield from _walk(node[key], rest, f"{trail}{key}.")
+            else:
+                yield node, key, f"{trail}{key}"
+        return
+
+    if not isinstance(node, dict):
+        return
+    if rest:
+        if head in node:
+            yield from _walk(node[head], rest, f"{trail}{head}.")
+        return
+    if head in node:
+        yield node, head, f"{trail}{head}"
+
+
+def _default_at(path: str) -> Any:
+    """The shipped default for a concrete path, used to repair a cleared field."""
+    node: Any = DEMO_DEFAULTS
+    for part in path.replace("]", "").split("."):
+        if "[" in part:
+            name, index = part.split("[")
+            node = node.get(name) if isinstance(node, dict) else None
+            if not isinstance(node, list):
+                return None
+            idx = int(index)
+            node = node[idx] if idx < len(node) else None
+        else:
+            node = node.get(part) if isinstance(node, dict) else None
+        if node is None:
+            return None
+    return node
+
+
+# List members whose keys are read positionally by name. A MISSING key here is
+# invisible to NUMERIC_LEAVES (which only visits keys that exist), so it needs
+# stating separately -- this is how {"anchors": [{"day": 0}]} reached a
+# KeyError inside FeatureEngine construction.
+REQUIRED_LIST_KEYS: list[tuple[str, tuple[str, ...]]] = [
+    ("booking_curve.anchors", ("days", "expected")),
+    ("pace.bands", ("max_gap", "adjustment_pct")),
+    ("recent_pickup.bands", ("max_delta", "adjustment_pct")),
+]
+
+
+def _required_key_problems(config: dict[str, Any]) -> list[str]:
+    problems: list[str] = []
+    for path, required in REQUIRED_LIST_KEYS:
+        node: Any = config
+        for part in path.split("."):
+            node = node.get(part) if isinstance(node, dict) else None
+        if node is None:
+            continue  # legitimately absent (e.g. anchors: null -> module defaults)
+        if not isinstance(node, list):
+            problems.append(f"{path} must be a list.")
+            continue
+        for i, item in enumerate(node):
+            if not isinstance(item, dict):
+                problems.append(f"{path}[{i}] must be an object.")
+                continue
+            for key in required:
+                if key not in item:
+                    problems.append(f"{path}[{i}] is missing required field '{key}'.")
+    return problems
+
+
+def coerce_config(config: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Coerce every numeric leaf, reporting the field path on failure.
+
+    A cleared field (None) falls back to the shipped default. This is what makes
+    the Settings UI's "clear a field to reset it" behaviour true for band members
+    too -- `_deep_merge` cannot do it there, because bands are a LIST and it only
+    recurses into dicts.
     """
-    from .engine_v2 import _band_for
+    problems: list[str] = _required_key_problems(config)
+    if problems:
+        # Coercing a structurally wrong config would report confusing follow-on
+        # errors, so report the structure first.
+        return config, problems
 
+    for expression, kind in NUMERIC_LEAVES:
+        for container, key, path in _walk(config, expression.split(".")):
+            value = container[key]
+            if value is None:
+                fallback = _default_at(path)
+                if fallback is None:
+                    problems.append(f"{path} is required and cannot be empty.")
+                else:
+                    container[key] = fallback
+                continue
+            if isinstance(value, bool):
+                problems.append(f"{path} must be a number, got a boolean.")
+                continue
+            try:
+                container[key] = kind(value)
+            except (TypeError, ValueError):
+                problems.append(f"{path} must be a number, got {value!r}.")
+    return config, problems
+
+
+def _band_problems(
+    bands: list, key: str, label: str, domain_min: float, domain_max: float, inclusive: bool
+) -> list[str]:
+    """Exact reachability, derived from the SUBMITTED thresholds.
+
+    Deliberately NOT sample-based. Probing with a fixed list of numbers cannot
+    prove reachability for operator-chosen thresholds: widening a band to
+    [-0.20, -0.10) is perfectly legitimate, but if no sample lands inside it the
+    operator is told their band is impossible and blocked from tuning it.
+    Comparing consecutive thresholds decides it exactly, for any thresholds.
+    """
+    problems: list[str] = []
+    if not isinstance(bands, list) or not bands:
+        return problems
+
+    thresholds: list[float] = []
+    for i, band in enumerate(bands):
+        if not isinstance(band, dict):
+            problems.append(f"{label} band #{i + 1} is not a valid band.")
+            return problems
+        value = band.get(key)
+        if value is None:
+            problems.append(f"{label} band '{band.get('label', i + 1)}' needs a {key} threshold.")
+            return problems
+        thresholds.append(float(value))
+
+    for i, band in enumerate(bands):
+        name = band.get("label", f"#{i + 1}")
+        upper = thresholds[i]
+        lower = domain_min if i == 0 else thresholds[i - 1]
+        if i > 0 and thresholds[i] <= thresholds[i - 1]:
+            problems.append(
+                f"{label} band '{name}' has a threshold ({upper:g}) at or below the band "
+                f"before it ({thresholds[i - 1]:g}); thresholds must increase."
+            )
+            continue
+        # The interval this band owns is [lower, upper) -- or [lower, upper]
+        # when the comparison is inclusive. Empty interval == unreachable band.
+        if lower > domain_max:
+            problems.append(f"{label} band '{name}' can never be selected: it starts above the highest possible value.")
+        elif (lower >= upper) if not inclusive else (lower > upper):
+            problems.append(f"{label} band '{name}' can never be selected: its range is empty.")
+    return problems
+
+
+def validate_config(config: dict[str, Any]) -> list[str]:
+    """Logic problems in an ALREADY-COERCED configuration.
+
+    Assumes coerce_config has run, so every numeric leaf is a number and this
+    can concern itself with meaning rather than types.
+    """
     problems: list[str] = []
 
-    def unreachable(bands, key, samples, inclusive):
-        reachable = {
-            _band_for(v, bands, key, inclusive=inclusive)["label"] for v in samples if bands
-        }
-        return [b.get("label", "?") for b in bands if b.get("label") not in reachable]
-
     pace = config.get("pace", {})
-    if pace.get("enabled", True) and pace.get("bands"):
+    if pace.get("enabled", True):
         # pace_gap is actual minus expected occupancy, so it spans [-1, 1].
-        samples = [-1.0, -0.5, -0.25, -0.1, 0.0, 0.1, 0.25, 0.5, 1.0]
-        for label in unreachable(pace["bands"], "max_gap", samples, False):
-            problems.append(f"Pace band '{label}' can never be selected by any pace gap.")
+        problems += _band_problems(pace.get("bands", []), "max_gap", "Pace", -1.0, 1.0, False)
 
     pickup = config.get("recent_pickup", {})
-    if pickup.get("enabled", True) and pickup.get("bands"):
+    if pickup.get("enabled", True):
         expected = float(pickup.get("expected_pickup_per_week", 1.0) or 1.0) * (
             float(pickup.get("lookback_days", 7) or 7) / 7.0
         )
         # recent_pickup cannot be negative, so -expected is the true floor.
-        samples = [-expected, -expected / 2, -0.25, 0.0, 0.5, 2.0, 50.0]
-        for label in unreachable(pickup["bands"], "max_delta", samples, True):
-            problems.append(
-                f"Pickup band '{label}' can never be selected: with {expected:g} expected "
-                f"pickup the smallest possible delta is {-expected:g}."
-            )
+        problems += _band_problems(
+            pickup.get("bands", []), "max_delta", "Pickup", -expected, float("inf"), True
+        )
 
     dynamic = config.get("dynamic", {})
-    lo = dynamic.get("min_total_adjustment_pct")
-    hi = dynamic.get("max_total_adjustment_pct")
+    lo, hi = dynamic.get("min_total_adjustment_pct"), dynamic.get("max_total_adjustment_pct")
     if lo is not None and hi is not None and float(lo) > float(hi):
         problems.append(f"Minimum total adjustment ({lo}%) exceeds the maximum ({hi}%).")
 
     return problems
+
+
+def prepare_config(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """Merge -> coerce -> validate. The single entry point for a saved config.
+
+    Raises ConfigurationInvalid with every field path that is wrong, so the
+    operator gets one actionable list rather than one error per save attempt.
+    """
+    merged = merge_config(payload)
+    merged, problems = coerce_config(merged)
+    if problems:
+        # Stop here. validate_config assumes coerced input, so running it on a
+        # config we already know is mistyped is how the validator ends up
+        # raising on the very input it exists to reject.
+        raise ConfigurationInvalid(" ".join(problems))
+
+    problems = validate_config(merged)
+    if problems:
+        raise ConfigurationInvalid(" ".join(problems))
+    return merged

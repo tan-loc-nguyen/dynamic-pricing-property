@@ -17,12 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import PricingConfiguration
-from ..pricing.defaults import (
-    ConfigurationInvalid,
-    default_config,
-    merge_config,
-    validate_config,
-)
+from ..pricing.defaults import default_config, prepare_config
 
 
 def get_active_configuration(session: Session) -> PricingConfiguration:
@@ -51,11 +46,9 @@ def create_configuration(
     Rejects a configuration that would price incorrectly rather than saving it
     and discovering the problem one pricing run later.
     """
-    merged = merge_config(payload)
-
-    problems = validate_config(merged)
-    if problems:
-        raise ConfigurationInvalid(" ".join(problems))
+    # merge -> coerce numeric leaves -> validate logic. Raises
+    # ConfigurationInvalid listing every bad field path.
+    merged = prepare_config(payload)
 
     latest = session.scalars(
         select(PricingConfiguration).order_by(PricingConfiguration.version.desc())

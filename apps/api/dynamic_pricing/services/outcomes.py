@@ -132,7 +132,7 @@ def outcome_summary(session: Session) -> dict:
         session.scalar(
             select(func.count())
             .select_from(PricingRecommendation)
-            .where(PricingRecommendation.status != "pending")
+            .where(PricingRecommendation.status.in_(("accepted", "overridden")))
         )
         or 0
     )

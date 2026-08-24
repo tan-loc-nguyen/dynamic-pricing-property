@@ -44,6 +44,18 @@ from .rate_book import load_rate_book
 # one identical message is a config bug, one row failing alone is a bad row.
 SYSTEMIC_ERROR_THRESHOLD = 3
 
+# ...but repetition alone decides only whether the fault is SYSTEMIC. Whether to
+# discard the run is a separate question, and conflating them made one defect
+# behave in opposite ways depending on where the data happened to fall: a bad
+# value on a rarely-hit band would roll back a whole good run if 3 dates reached
+# it, and commit quietly if 2 did.
+#
+# So: repetition decides "systemic"; the SHARE of the portfolio affected decides
+# whether the run is unusable. A fault that touches a small fraction is reported
+# per-date as "Could not price"; one that touches a large fraction means the
+# operator would be pricing off a portfolio with a hole in it, and is refused.
+SYSTEMIC_FAILURE_SHARE = 0.10
+
 
 class PricingRunFailed(RuntimeError):
     """The configuration cannot price this portfolio.
@@ -166,16 +178,19 @@ def generate_recommendations(
                 }
             )
 
-            # The same error repeating across rows is a configuration or code
-            # fault, not a bad inventory row. Stop rather than quietly serving
-            # a portfolio with stay dates missing from it.
-            if error_signatures[signature] >= SYSTEMIC_ERROR_THRESHOLD:
+            # Systemic (repeated) AND affecting a meaningful share of the
+            # portfolio -> the run is unusable, keep the previous one. Systemic
+            # but rare -> report those dates individually and carry on.
+            hits = error_signatures[signature]
+            share = hits / len(inventories) if inventories else 0.0
+            if hits >= SYSTEMIC_ERROR_THRESHOLD and share >= SYSTEMIC_FAILURE_SHARE:
                 session.rollback()
                 raise PricingRunFailed(
-                    f"Pricing failed identically on {error_signatures[signature]} stay dates, so "
-                    f"the configuration is unusable and the previous run was kept. Error: {signature}",
+                    f"Pricing failed identically on {hits} of {len(inventories)} stay dates "
+                    f"({share:.0%}), so the configuration is unusable and the previous run was "
+                    f"kept. Error: {signature}",
                     error=signature,
-                    affected=error_signatures[signature],
+                    affected=hits,
                 ) from exc
 
             # A one-off failure is tolerated, but the stay date must NOT vanish:
