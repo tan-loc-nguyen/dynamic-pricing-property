@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
-from pathlib import Path
 
 from dotenv import load_dotenv
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+from .packaging import REPO_ROOT, user_data_dir
+
 load_dotenv(REPO_ROOT / ".env", override=False)
 
 
@@ -26,7 +26,12 @@ class Settings:
         self.data_provider: str = os.getenv("DATA_PROVIDER", "mock").strip().lower()
         self.market_provider: str = os.getenv("MARKET_PROVIDER", "mock").strip().lower()
 
-        default_db = REPO_ROOT / "data" / "dynamic_pricing.db"
+        # A source checkout keeps using data/ at the repo root. A packaged
+        # build must NOT: its bundle is a temp directory PyInstaller deletes on
+        # exit, which would take every recorded decision with it.
+        data_dir = user_data_dir()
+        data_dir.mkdir(parents=True, exist_ok=True)
+        default_db = data_dir / "dynamic_pricing.db"
         self.database_url: str = os.getenv("DATABASE_URL", f"sqlite:///{default_db}")
 
         self.api_host: str = os.getenv("API_HOST", "127.0.0.1")

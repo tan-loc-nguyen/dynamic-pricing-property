@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .config import get_settings
+from .packaging import web_dist
 from .routers import (
     events,
     history,
@@ -73,8 +75,14 @@ app.include_router(events.router)
 app.include_router(outcomes.router)
 
 
-@app.get("/")
-def root():
+@app.get("/api")
+def api_root():
+    """The API's own banner.
+
+    This used to answer "/", which the packaged build needs for the web app —
+    Starlette matches routes before mounts, so a route here would have served
+    JSON to every operator who opened the address.
+    """
     return {
         "name": "Dynamic Pricing Property API",
         "version": __version__,
@@ -85,3 +93,16 @@ def root():
             "(pace, pickup, events, market) is UNVALIDATED."
         ),
     }
+
+
+# --- the web app ------------------------------------------------------------
+# Mounted LAST so every route above still wins: Starlette matches routes in
+# registration order, and a mount at "/" registered earlier would answer /api
+# and /docs with an HTML page. The failure would surface in the browser as a
+# JSON parse error, nowhere near this file.
+#
+# Absence is the normal case in development — `make dev` serves the frontend
+# from Next's own server on :3000 and never exports at all.
+_web_dist = web_dist()
+if _web_dist is not None:
+    app.mount("/", StaticFiles(directory=_web_dist, html=True), name="web")

@@ -33,6 +33,10 @@ data/*.db-wal
 # Build artefacts
 tsconfig.tsbuildinfo
 
+# Packaged desktop build (`make bundle`) — an 11MB binary per platform
+dist/
+build/
+
 # Client source documents — NEVER commit (repo is public)
 private/
 *.pdf

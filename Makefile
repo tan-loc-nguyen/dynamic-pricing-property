@@ -11,7 +11,7 @@ WEB   := $(ROOT)/apps/web
 PY    := $(API)/.venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web seed reseed test test-watch lint clean check env
+.PHONY: help setup dev api web seed reseed test test-watch lint clean check env bundle run-bundle
 
 help:
 	@echo ""
@@ -21,6 +21,7 @@ help:
 	@echo "  make dev       Start API (:8000) and web (:3000) together"
 	@echo "  make test      Run the pricing + feature engine tests"
 	@echo "  make lint      Check for unreachable / dead code"
+	@echo "  make bundle    Build the single-file desktop app into dist/"
 	@echo ""
 	@echo "  make api       Backend only"
 	@echo "  make web       Frontend only"
@@ -50,6 +51,21 @@ reseed:
 
 test:
 	@cd $(API) && $(PY) -m pytest -q
+
+bundle:
+	@echo "  Exporting the web app…"
+	@cd $(WEB) && npm run build
+	@echo "  Packaging the binary…"
+	@cd $(ROOT) && $(PY) -m PyInstaller --clean --noconfirm \
+		--distpath $(ROOT)/dist --workpath $(ROOT)/build/pyinstaller \
+		packaging/dynamic_pricing.spec
+	@echo ""
+	@echo "  Built: dist/DynamicPricingProperty"
+	@echo "  PyInstaller cannot cross-compile — this binary runs on $$(uname -s) only."
+	@echo ""
+
+run-bundle: bundle
+	@$(ROOT)/dist/DynamicPricingProperty
 
 lint:
 	@cd $(API) && $(PY) -m ruff check dynamic_pricing tests

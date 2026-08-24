@@ -1,0 +1,72 @@
+name: Build desktop app
+
+# PyInstaller embeds a native Python interpreter, so it CANNOT cross-compile:
+# a Windows .exe must be built on Windows and a macOS binary on macOS. That is
+# the only reason this workflow exists — everything it does can be run locally
+# with `make bundle`, just not for the other platform.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: # so a demo build can be cut without tagging a release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false # a Windows failure must not hide a working macOS build
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: DynamicPricingProperty-macos
+            binary: dist/DynamicPricingProperty
+          - os: windows-latest
+            artifact: DynamicPricingProperty-windows
+            binary: dist/DynamicPricingProperty.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: python -m pip install -r apps/api/requirements.txt
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      # Runs before the build so a broken message file fails here rather than
+      # shipping a binary that renders a raw key in front of the client.
+      - name: Check ICU messages
+        working-directory: apps/web
+        run: npm run check:messages
+
+      - name: Export the web app
+        working-directory: apps/web
+        run: npm run build
+
+      - name: Test
+        working-directory: apps/api
+        run: python -m pytest -q
+
+      - name: Package
+        run: >
+          python -m PyInstaller --clean --noconfirm
+          --distpath dist --workpath build/pyinstaller
+          packaging/dynamic_pricing.spec
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.binary }}
+          if-no-files-found: error

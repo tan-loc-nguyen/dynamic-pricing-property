@@ -235,6 +235,47 @@ is data, not UI. See **D30** in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ---
 
+## Shipping it to the client
+
+`make dev` is for developing. To hand the operator something they can
+double-click, build the desktop app:
+
+```bash
+make bundle          # exports the web app, then packages one binary
+./dist/DynamicPricingProperty
+```
+
+One ~11MB executable. It serves the API and the web app from a single process
+on the first free port, then opens the operator's browser on the Vietnamese
+dashboard. No Python, no Node, no terminal, no install.
+
+Its database lives in the platform's application-data directory
+(`%APPDATA%` on Windows, `~/Library/Application Support` on macOS) — *not*
+beside the binary, because `--onefile` unpacks into a temporary directory that
+is deleted the moment the app closes.
+
+**PyInstaller cannot cross-compile.** A Windows `.exe` must be built on
+Windows and a macOS binary on macOS, so `.github/workflows/release.yml` runs
+both on a matrix and uploads an artefact per platform. Push a `v*` tag, or run
+the workflow manually for a demo build.
+
+**The binaries are unsigned.** macOS Gatekeeper blocks the app until the
+operator right-clicks → Open; Windows SmartScreen shows "Unknown Publisher".
+Warn them, or the first launch reads as broken. Note that EV certificates
+stopped bypassing SmartScreen in 2024, so buying one does not remove the
+warning for a new app.
+
+> **Never put a secret in the binary.** PyInstaller archives extract with
+> `pyinstxtractor-ng`, encrypted ones included. Demo mode needs no credentials
+> and Blue Jay's key is read from the environment — when that access arrives,
+> the key belongs on a server, not in a file handed to the client.
+
+The same FastAPI application is what would run on a server: making this a
+hosted web app later means deleting one `webbrowser.open` call, not
+rearchitecting. See **D32** in [docs/DECISIONS.md](docs/DECISIONS.md).
+
+---
+
 ## Demo mode
 
 Default, no credentials, no network. Seeded on first run:

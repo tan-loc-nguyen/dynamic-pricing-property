@@ -543,3 +543,68 @@ to ~424px. On a 1080px screen the table gets ~550px (roughly nine rows); on an
 the reclaimable space is the summary cards (116px) and the filter card's own
 border and padding (88px) — not the table.
 
+
+## D32 — One binary that serves its own frontend, not an Electron shell
+
+`make bundle` exports the Next app to static HTML, mounts it on the FastAPI app
+at `/`, and PyInstaller packages the result as a single ~11MB executable. The
+operator double-clicks it; their own browser opens on the Vietnamese dashboard.
+
+**Why not Electron.** The client already has a browser. Electron would add
+80–150MB and ~250MB of RAM for a window, a second toolchain, a second signing
+problem, and the sidecar lifecycle bug where the Python child outlives a killed
+shell and keeps holding the port. Most of all it is the one option that does
+not pay forward: the shell is thrown away the day this becomes a web app,
+whereas *this* build is the same FastAPI application that would run on a
+server. Going hosted means deleting the `webbrowser.open` call.
+
+**Why this was cheap.** The frontend was already six `"use client"` pages with
+no route handlers and no server actions, and `generateStaticParams` +
+`setRequestLocale` were already in place. D30's "no middleware" was chosen for
+exactly this and had already been paid for.
+
+**Four things that had to change, each of which fails silently:**
+
+- **`app/page.tsx` called `redirect()`.** That is a SERVER redirect and there
+  is no server in a static export — Next exports the route as an *error
+  document*, so bare `/` rendered blank. It forwards on the client now, which
+  `LocaleRedirect` already did for pre-i18n URLs.
+- **The API host was baked into the bundle.** `lib/api.ts` fell back to
+  `http://127.0.0.1:8000`, which appeared in five chunks. The runner takes
+  whatever port is free, so `.env.production` sets `NEXT_PUBLIC_API_URL=/` and
+  every call is relative. The empty string is meaningful there ("same origin"),
+  which is why the fallback tests for *absence* rather than falsiness.
+- **The database would have been deleted on exit.** `--onefile` unpacks into a
+  temp directory that PyInstaller removes when the process ends, and
+  `REPO_ROOT` resolves inside it. `packaging.user_data_dir()` sends a frozen
+  build to `%APPDATA%` / `~/Library/Application Support` instead; a checkout
+  still uses `data/`.
+- **The entry script cannot be a package module.** A frozen entry runs as
+  `__main__` with no package context, so `runner.py`'s relative imports raised
+  before anything else. `packaging/entrypoint.py` imports it by absolute name.
+
+**The API banner moved from `/` to `/api`.** Starlette matches routes before
+mounts, so a route at `/` would have served JSON to every operator who opened
+the address. The mount is registered last for the same reason.
+
+**A console window, deliberately.** It prints the address and the data
+directory, and closing it is how the operator stops the app. A windowed build
+gives them no feedback and no way to quit short of Task Manager.
+
+**What is NOT solved.** PyInstaller cannot cross-compile — a Windows `.exe`
+must be built on Windows — so `.github/workflows/release.yml` runs a
+`macos-latest` + `windows-latest` matrix. And the binary is unsigned: macOS
+Gatekeeper blocks it until the operator right-clicks → Open, and Windows
+SmartScreen shows "Unknown Publisher". EV certificates stopped bypassing
+SmartScreen in 2024, so paying does not buy an instant clean launch. For a
+demo to one known client, warn them rather than buy a certificate.
+
+**Secrets cannot live in here.** PyInstaller archives extract with
+`pyinstxtractor-ng`, encrypted ones included. There is nothing to hide today —
+demo mode is credential-free and Blue Jay's key is read from the environment —
+and that has to stay true: when Blue Jay access arrives, its key belongs on a
+server, not in a binary handed to the client.
+
+**If a real window is ever wanted:** pywebview first (pure Python, no new
+toolchain, ~10 lines, same binary), and Tauri rather than Electron if it must
+be a properly installed desktop app.

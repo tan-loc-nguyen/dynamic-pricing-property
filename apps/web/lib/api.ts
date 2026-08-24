@@ -17,8 +17,24 @@ import type {
   SystemStatus,
 } from "./types";
 
+/**
+ * Where the API lives.
+ *
+ * `make dev` runs the frontend on :3000 and the API on :8000, so a bare build
+ * needs the absolute address. The PACKAGED build serves both from one process
+ * on whatever port was free, so it sets `NEXT_PUBLIC_API_URL=/` and every call
+ * becomes a relative path — baking in a port the runner may not get is how the
+ * whole app breaks on the one laptop that already has something on 8000.
+ *
+ * The empty string is a meaningful value here (it means "same origin"), which
+ * is why this tests for absence rather than falsiness.
+ */
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
+
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://127.0.0.1:8000";
+  configuredApiUrl === undefined || configuredApiUrl === ""
+    ? "http://127.0.0.1:8000"
+    : configuredApiUrl.replace(/\/$/, "");
 
 export class ApiError extends Error {
   status: number;
