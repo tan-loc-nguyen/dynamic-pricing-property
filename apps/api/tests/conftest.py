@@ -10,8 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dynamic_pricing.features.context import PricingContext  # noqa: E402
 from dynamic_pricing.pricing import default_config, get_engine  # noqa: E402
+from dynamic_pricing.pricing.rate_book import SeasonalRateBook  # noqa: E402
 
-STAY = date(2026, 9, 10)  # a Thursday -> weekday factor 1.00, keeps maths readable
+# A Thursday in Low Season 2 (Sep–Oct). 2BR Regular there is
+# MIN 1,800,000 / BASE 2,100,000 / MAX 2,300,000 — wide enough that the
+# dynamic layer can move without immediately hitting a clamp.
+STAY = date(2026, 9, 10)
 
 
 @pytest.fixture
@@ -21,50 +25,61 @@ def config() -> dict:
 
 @pytest.fixture
 def engine():
-    return get_engine("v1")
+    return get_engine("v2")
+
+
+@pytest.fixture
+def rate_book() -> SeasonalRateBook:
+    return SeasonalRateBook()
 
 
 def make_context(**overrides) -> PricingContext:
     """A deliberately NEUTRAL baseline context.
 
-    Every factor lands on x1.00, so any test that changes one signal isolates
-    exactly that signal's effect.
+    Every dynamic signal lands on 0.0%, so a test that changes one signal
+    isolates exactly that signal's effect.
     """
+    band = SeasonalRateBook().lookup(
+        overrides.get("room_category", "2br_regular"),
+        overrides.get("stay_date", STAY),
+    )
     base = dict(
         property_id=1,
-        property_name="Luminous Test Property",
-        room_id=1,
-        room_name="Test Studio",
-        room_type="Studio",
+        property_name="Luminous Luxury Apartments",
+        room_type_id=1,
+        room_type_name="2BR Regular",
+        room_category="2br_regular",
+        room_category_label="2BR Regular",
         stay_date=STAY,
         currency="VND",
-        base_price=1_000_000.0,
-        current_price=1_000_000.0,
-        min_price=500_000.0,
-        max_price=5_000_000.0,
+        season_key=band.season_key,
+        season_label=band.season_label,
+        band_min_net_rate=band.min_net_rate,
+        band_base_net_rate=band.base_net_rate,
+        band_max_net_rate=band.max_net_rate,
+        rate_band_source=band.source,
+        current_net_rate=band.base_net_rate,
         units_total=10,
-        units_sold=6,          # 60% -> "Healthy occupancy" x1.00
-        occupancy=0.60,
-        days_to_checkin=20,    # "Normal lead time" x1.00
+        units_sold=4,
+        units_available=6,
+        occupancy=0.40,
+        days_to_arrival=30,
+        expected_occupancy=0.40,   # exactly on pace -> 0.0%
+        pace_gap=0.0,
         recent_pickup=1.0,
         expected_pickup=1.0,
-        booking_pace_index=1.0,  # "On-pace" x1.00
-        day_of_week="thursday",  # x1.00
+        pickup_delta=0.0,          # as expected -> 0.0%
+        day_of_week="thursday",
         is_weekend=False,
-        month=9,
-        is_event=False,
+        month=STAY.month,
         market_price_index=1.0,
-        market_reference_price=1_000_000.0,
-        market_baseline_price=1_000_000.0,
+        market_reference_net_rate=band.base_net_rate,
+        market_baseline_net_rate=band.base_net_rate,
+        market_confidence="HIGH",
         market_observation_count=3,
+        market_qualified_count=3,
+        market_ignored_count=0,
         missing=(),
     )
     base.update(overrides)
     return PricingContext(**base)
-
-
-@pytest.fixture
-def neutral_config(config) -> dict:
-    """Baseline config with September seasonality flattened to 1.00."""
-    config["season"]["month_multipliers"]["9"] = 1.00
-    return config

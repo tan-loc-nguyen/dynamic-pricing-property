@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "./ui";
-import { formatOccupancy, formatPct } from "@/lib/format";
+import { formatAdjPct, formatOccupancy, formatPaceGap, formatPct } from "@/lib/format";
 import type { Summary } from "@/lib/types";
 
 function Stat({
@@ -41,10 +41,16 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
     );
   }
 
+  const gap = summary.average_pace_gap;
   const change = summary.average_recommended_change_pct;
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-      <Stat label="Active rooms" value={String(summary.active_rooms)} sub="Room types being priced" />
+      <Stat
+        label="Apartments"
+        value={String(summary.total_units)}
+        sub={`${summary.room_types} room categories priced`}
+      />
       <Stat
         label="Upcoming nights"
         value={summary.upcoming_nights.toLocaleString()}
@@ -54,18 +60,18 @@ export function SummaryCards({ summary }: { summary: Summary | null }) {
             : undefined
         }
       />
-      <Stat label="Avg occupancy" value={formatOccupancy(summary.average_occupancy)} sub="Across the horizon" />
+      <Stat label="Avg occupancy" value={formatOccupancy(summary.average_occupancy)} sub="On the books" />
+      <Stat
+        label="Avg pace position"
+        value={formatPaceGap(gap)}
+        tone={gap === null ? "neutral" : gap < -0.03 ? "down" : gap > 0.03 ? "up" : "neutral"}
+        sub="vs booking curve expectation"
+      />
       <Stat
         label="Pending review"
         value={summary.pending_recommendations.toLocaleString()}
         tone={summary.pending_recommendations > 0 ? "warn" : "neutral"}
         sub={`${summary.accepted_recommendations} accepted · ${summary.overridden_recommendations} overridden`}
-      />
-      <Stat
-        label="Avg suggested change"
-        value={formatPct(change)}
-        tone={change > 0.05 ? "up" : change < -0.05 ? "down" : "neutral"}
-        sub="Recommended vs current price"
       />
     </div>
   );

@@ -1,8 +1,13 @@
 """SQLAlchemy domain model.
 
-Deliberately small. A "Room" models a *room type* that has N physical units,
-because occupancy only becomes a meaningful pricing signal when there is more
-than one sellable unit. See docs/DECISIONS.md (D2).
+Grain: the primary pricing entity is **RoomType x StayDate**. Luminous defines
+rates by room category and Blue Jay distributes by room type, so a physical
+apartment does not receive its own rate. PhysicalRoom exists because units
+still drive inventory and occupancy, and so unit-level overrides remain
+possible later without a reshape.
+
+Money: every rate field is a **NET rate** (what Luminous receives), never an
+OTA/guest-facing price. The two are deliberately not interchangeable.
 """
 
 from __future__ import annotations
@@ -32,6 +37,7 @@ class Base(DeclarativeBase):
     pass
 
 
+# ---------------------------------------------------------------- portfolio
 class Property(Base):
     __tablename__ = "properties"
 
@@ -45,64 +51,131 @@ class Property(Base):
     source: Mapped[str] = mapped_column(String(32), default="mock")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    rooms: Mapped[list["Room"]] = relationship(back_populates="property", cascade="all, delete-orphan")
+    room_types: Mapped[list["RoomType"]] = relationship(
+        back_populates="property", cascade="all, delete-orphan"
+    )
 
 
-class Room(Base):
-    """A sellable room type within a property (may have several units)."""
+class RoomType(Base):
+    """A sellable room category — the unit of pricing.
 
-    __tablename__ = "rooms"
-    __table_args__ = (UniqueConstraint("property_id", "external_id", name="uq_room_external"),)
+    ``category`` is the key into the SeasonalRateBook (2br_regular /
+    2br_premium / 3br for Luminous).
+    """
+
+    __tablename__ = "room_types"
+    __table_args__ = (UniqueConstraint("property_id", "external_id", name="uq_room_type_external"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     property_id: Mapped[int] = mapped_column(ForeignKey("properties.id", ondelete="CASCADE"), index=True)
     external_id: Mapped[str] = mapped_column(String(64), index=True)
     name: Mapped[str] = mapped_column(String(160))
-    room_type: Mapped[str] = mapped_column(String(80), default="Studio")
-    capacity: Mapped[int] = mapped_column(Integer, default=2)
-    units_total: Mapped[int] = mapped_column(Integer, default=4)
+    category: Mapped[str] = mapped_column(String(48), index=True)
+    capacity: Mapped[int] = mapped_column(Integer, default=4)
+    units_total: Mapped[int] = mapped_column(Integer, default=1)
 
-    # Provisional commercial guardrails (UNVALIDATED — see ASSUMPTIONS.md A1/A2/A3)
-    base_price: Mapped[float] = mapped_column(Float, default=1_500_000.0)
-    min_price: Mapped[float] = mapped_column(Float, default=900_000.0)
-    max_price: Mapped[float] = mapped_column(Float, default=3_500_000.0)
+    # Legacy fallback only. Live MIN/BASE/MAX come from the SeasonalRateBook;
+    # these are used solely by PricingEngineV1 and when no band matches.
+    fallback_base_net_rate: Mapped[float] = mapped_column(Float, default=2_000_000.0)
+    fallback_min_net_rate: Mapped[float] = mapped_column(Float, default=1_500_000.0)
+    fallback_max_net_rate: Mapped[float] = mapped_column(Float, default=4_000_000.0)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     source: Mapped[str] = mapped_column(String(32), default="mock")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    property: Mapped[Property] = relationship(back_populates="rooms")
+    property: Mapped[Property] = relationship(back_populates="room_types")
+    physical_rooms: Mapped[list["PhysicalRoom"]] = relationship(
+        back_populates="room_type", cascade="all, delete-orphan"
+    )
     inventory: Mapped[list["StayDateInventory"]] = relationship(
-        back_populates="room", cascade="all, delete-orphan"
+        back_populates="room_type", cascade="all, delete-orphan"
     )
 
 
+class PhysicalRoom(Base):
+    """One physical apartment.
+
+    Drives inventory and occupancy. Deliberately does NOT carry a rate: units
+    inherit their room type's price. The table exists so unit-level overrides
+    can be added later without reshaping the model.
+    """
+
+    __tablename__ = "physical_rooms"
+    __table_args__ = (UniqueConstraint("room_type_id", "unit_label", name="uq_unit_label"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    room_type_id: Mapped[int] = mapped_column(ForeignKey("room_types.id", ondelete="CASCADE"), index=True)
+    external_id: Mapped[str] = mapped_column(String(64), index=True)
+    unit_label: Mapped[str] = mapped_column(String(48))
+    floor: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    source: Mapped[str] = mapped_column(String(32), default="mock")
+
+    room_type: Mapped[RoomType] = relationship(back_populates="physical_rooms")
+
+
+# ------------------------------------------------------- validated rate book
+class SeasonalRateBand(Base):
+    """CLIENT-VALIDATED seasonal MIN/BASE/MAX NET rates.
+
+    This is operator-supplied business fact, not a modelling assumption. It is
+    a lookup table, deliberately NOT something the engine derives or multiplies
+    a seasonality factor against.
+    """
+
+    __tablename__ = "seasonal_rate_bands"
+    __table_args__ = (
+        UniqueConstraint("season_key", "room_category", name="uq_band_season_category"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    season_key: Mapped[str] = mapped_column(String(48), index=True)
+    season_label: Mapped[str] = mapped_column(String(120))
+    months: Mapped[list] = mapped_column(JSON)  # e.g. [11, 12, 1]
+    room_category: Mapped[str] = mapped_column(String(48), index=True)
+
+    min_net_rate: Mapped[float] = mapped_column(Float)
+    base_net_rate: Mapped[float] = mapped_column(Float)
+    max_net_rate: Mapped[float] = mapped_column(Float)
+
+    currency: Mapped[str] = mapped_column(String(8), default="VND")
+    rate_basis: Mapped[str] = mapped_column(String(16), default="NET")
+    source: Mapped[str] = mapped_column(String(32), default="CLIENT_VALIDATED")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+# ----------------------------------------------------------------- operations
 class StayDateInventory(Base):
     """One room type on one stay date: the atomic unit that gets priced."""
 
     __tablename__ = "stay_date_inventory"
-    __table_args__ = (UniqueConstraint("room_id", "stay_date", name="uq_inventory_room_date"),)
+    __table_args__ = (
+        UniqueConstraint("room_type_id", "stay_date", name="uq_inventory_room_type_date"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
+    room_type_id: Mapped[int] = mapped_column(ForeignKey("room_types.id", ondelete="CASCADE"), index=True)
     stay_date: Mapped[date] = mapped_column(Date, index=True)
 
-    units_total: Mapped[int] = mapped_column(Integer, default=4)
+    units_total: Mapped[int] = mapped_column(Integer, default=1)
     units_sold: Mapped[int] = mapped_column(Integer, default=0)
-    current_price: Mapped[float] = mapped_column(Float, default=1_500_000.0)
 
-    is_event: Mapped[bool] = mapped_column(Boolean, default=False)
-    event_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    season: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # What Luminous currently receives for this date, where known.
+    current_net_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    # Guest-facing price, only when genuinely available. Never derived.
+    current_ota_price: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    # Same-room historical reference for the same weekday (demo-generated).
+    season_key: Mapped[str | None] = mapped_column(String(48), nullable=True)
+
     historical_occupancy: Mapped[float | None] = mapped_column(Float, nullable=True)
-    historical_avg_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    historical_avg_net_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     source: Mapped[str] = mapped_column(String(32), default="mock")
     synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    room: Mapped[Room] = relationship(back_populates="inventory")
+    room_type: Mapped[RoomType] = relationship(back_populates="inventory")
 
     @property
     def occupancy(self) -> float | None:
@@ -110,18 +183,26 @@ class StayDateInventory(Base):
             return None
         return round(self.units_sold / self.units_total, 4)
 
+    @property
+    def units_available(self) -> int:
+        return max(self.units_total - self.units_sold, 0)
+
 
 class Booking(Base):
     __tablename__ = "bookings"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     external_id: Mapped[str] = mapped_column(String(64), index=True)
-    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
+    room_type_id: Mapped[int] = mapped_column(ForeignKey("room_types.id", ondelete="CASCADE"), index=True)
+    physical_room_id: Mapped[int | None] = mapped_column(
+        ForeignKey("physical_rooms.id", ondelete="SET NULL"), nullable=True
+    )
     stay_date: Mapped[date] = mapped_column(Date, index=True)
     booked_at: Mapped[date] = mapped_column(Date, index=True)
     nights: Mapped[int] = mapped_column(Integer, default=1)
     guests: Mapped[int] = mapped_column(Integer, default=2)
-    price: Mapped[float] = mapped_column(Float, default=0.0)
+
+    net_rate: Mapped[float] = mapped_column(Float, default=0.0)
     channel: Mapped[str] = mapped_column(String(48), default="Airbnb")
     status: Mapped[str] = mapped_column(String(24), default="confirmed")
     source: Mapped[str] = mapped_column(String(32), default="mock")
@@ -131,8 +212,71 @@ class Booking(Base):
         return max((self.stay_date - self.booked_at).days, 0)
 
 
+# --------------------------------------------------------------------- events
+class Event(Base):
+    """A known exceptional-demand date. Manually curated."""
+
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    property_id: Mapped[int | None] = mapped_column(
+        ForeignKey("properties.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    start_date: Mapped[date] = mapped_column(Date, index=True)
+    end_date: Mapped[date] = mapped_column(Date, index=True)
+    impact_level: Mapped[str] = mapped_column(String(24), default="medium")  # low|medium|high
+    # Optional explicit override; when null the configured per-level value is used.
+    adjustment_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    event_type: Mapped[str] = mapped_column(String(48), default="other")
+    source: Mapped[str] = mapped_column(String(80), default="manual")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    def covers(self, day: date) -> bool:
+        return self.is_active and self.start_date <= day <= self.end_date
+
+
+# --------------------------------------------------------------- market data
+class Competitor(Base):
+    """A deliberately-selected comparable property (the comp set)."""
+
+    __tablename__ = "competitors"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    property_id: Mapped[int | None] = mapped_column(
+        ForeignKey("properties.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    name: Mapped[str] = mapped_column(String(160))
+    location: Mapped[str] = mapped_column(String(160), default="")
+    comparable_category: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(80), default="manual")
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    observations: Mapped[list["MarketObservation"]] = relationship(
+        back_populates="competitor", cascade="all, delete-orphan"
+    )
+
+
+# Confidence in an observation as evidence about a comparable rate.
+CONFIDENCE_HIGH = "HIGH"
+CONFIDENCE_MEDIUM = "MEDIUM"
+CONFIDENCE_LOW = "LOW"
+CONFIDENCE_UNUSABLE = "UNUSABLE"
+CONFIDENCE_ORDER = {CONFIDENCE_UNUSABLE: 0, CONFIDENCE_LOW: 1, CONFIDENCE_MEDIUM: 2, CONFIDENCE_HIGH: 3}
+
+
 class MarketObservation(Base):
-    """A single observed competitor/reference price for a stay date."""
+    """One observed competitor price, with the provenance needed to judge it.
+
+    A price without its basis (taxes? refundable? which LOS? which date?) is
+    not comparable to a Luminous NET rate, so the metadata is first-class and
+    drives the confidence level.
+    """
 
     __tablename__ = "market_observations"
 
@@ -140,25 +284,46 @@ class MarketObservation(Base):
     property_id: Mapped[int | None] = mapped_column(
         ForeignKey("properties.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    room_id: Mapped[int | None] = mapped_column(
-        ForeignKey("rooms.id", ondelete="CASCADE"), nullable=True, index=True
+    room_type_id: Mapped[int | None] = mapped_column(
+        ForeignKey("room_types.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    stay_date: Mapped[date] = mapped_column(Date, index=True)
+    competitor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("competitors.id", ondelete="CASCADE"), nullable=True, index=True
+    )
 
+    stay_date: Mapped[date] = mapped_column(Date, index=True)
     competitor_name: Mapped[str] = mapped_column(String(160))
     observed_price: Mapped[float] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(8), default="VND")
+
+    # --- comparability metadata ---------------------------------------
+    room_category: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    length_of_stay: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    guests: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    price_basis: Mapped[str] = mapped_column(String(24), default="UNKNOWN")  # NET|OTA_SELL|UNKNOWN
+    tax_inclusion: Mapped[str] = mapped_column(String(24), default="UNKNOWN")
+    fee_inclusion: Mapped[str] = mapped_column(String(24), default="UNKNOWN")
+    promotion_status: Mapped[str] = mapped_column(String(24), default="UNKNOWN")
+    is_refundable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+    confidence: Mapped[str] = mapped_column(String(16), default=CONFIDENCE_LOW, index=True)
+    confidence_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     source: Mapped[str] = mapped_column(String(48), default="mock")
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    collected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+    competitor: Mapped[Competitor | None] = relationship(back_populates="observations")
 
 
+# ------------------------------------------------------------- configuration
 class PricingConfiguration(Base):
-    """Versioned snapshot of every provisional business assumption.
+    """Versioned snapshot of the EXPERIMENTAL dynamic strategy.
 
-    Stored as a JSON payload so the shape can evolve after operator interviews
-    without a schema migration.
+    The client-validated rate book lives in ``seasonal_rate_bands`` and is
+    deliberately kept out of this payload so validated fact and unvalidated
+    experiment are never mixed.
     """
 
     __tablename__ = "pricing_configurations"
@@ -172,28 +337,36 @@ class PricingConfiguration(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+# ----------------------------------------------------------- recommendations
 class PricingRecommendation(Base):
     __tablename__ = "pricing_recommendations"
     __table_args__ = (
-        UniqueConstraint("room_id", "stay_date", "run_id", name="uq_reco_room_date_run"),
+        UniqueConstraint("room_type_id", "stay_date", "run_id", name="uq_reco_room_type_date_run"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     run_id: Mapped[str] = mapped_column(String(48), index=True)
+    mode: Mapped[str] = mapped_column(String(24), default="shadow", index=True)
 
     property_id: Mapped[int] = mapped_column(ForeignKey("properties.id", ondelete="CASCADE"), index=True)
-    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
+    room_type_id: Mapped[int] = mapped_column(ForeignKey("room_types.id", ondelete="CASCADE"), index=True)
     stay_date: Mapped[date] = mapped_column(Date, index=True)
 
-    base_price: Mapped[float] = mapped_column(Float)
-    current_price: Mapped[float] = mapped_column(Float)
-    price_before_bounds: Mapped[float] = mapped_column(Float)
-    recommended_price: Mapped[float] = mapped_column(Float)
+    # --- rate band snapshot (validated input at time of recommendation) ---
+    season_key: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    band_min_net_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    band_base_net_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    band_max_net_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    base_net_rate: Mapped[float] = mapped_column(Float)
+    current_net_rate: Mapped[float] = mapped_column(Float)
+    net_rate_before_clamp: Mapped[float] = mapped_column(Float)
+    recommended_net_rate: Mapped[float] = mapped_column(Float)
     change_pct: Mapped[float] = mapped_column(Float, default=0.0)
-    total_multiplier: Mapped[float] = mapped_column(Float, default=1.0)
+    total_adjustment_pct: Mapped[float] = mapped_column(Float, default=0.0)
 
     explanation: Mapped[str] = mapped_column(Text, default="")
-    engine_version: Mapped[str] = mapped_column(String(48), default="v1")
+    engine_version: Mapped[str] = mapped_column(String(48), default="v2")
     config_version: Mapped[int] = mapped_column(Integer, default=1)
 
     features: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -212,10 +385,17 @@ class PricingRecommendation(Base):
         cascade="all, delete-orphan",
         order_by="OperatorDecision.created_at",
     )
+    outcomes: Mapped[list["RecommendationOutcome"]] = relationship(
+        back_populates="recommendation", cascade="all, delete-orphan"
+    )
 
 
 class PricingAdjustment(Base):
-    """One explainable step of the pricing calculation."""
+    """One explainable step of the calculation.
+
+    V2 is additive: ``adjustment_pct`` is the contribution in percentage
+    points. ``factor`` is retained so V1 breakdowns still render.
+    """
 
     __tablename__ = "pricing_adjustments"
 
@@ -225,13 +405,17 @@ class PricingAdjustment(Base):
     )
     sequence: Mapped[int] = mapped_column(Integer, default=0)
     code: Mapped[str] = mapped_column(String(48))
-    label: Mapped[str] = mapped_column(String(160))
+    label: Mapped[str] = mapped_column(String(200))
+
+    adjustment_pct: Mapped[float] = mapped_column(Float, default=0.0)
     factor: Mapped[float] = mapped_column(Float, default=1.0)
     price_before: Mapped[float] = mapped_column(Float)
     price_after: Mapped[float] = mapped_column(Float)
     delta: Mapped[float] = mapped_column(Float, default=0.0)
+
     reason: Mapped[str] = mapped_column(Text, default="")
     is_neutral: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_ignored: Mapped[bool] = mapped_column(Boolean, default=False)
 
     recommendation: Mapped[PricingRecommendation] = relationship(back_populates="adjustments")
 
@@ -243,15 +427,46 @@ class OperatorDecision(Base):
     recommendation_id: Mapped[int] = mapped_column(
         ForeignKey("pricing_recommendations.id", ondelete="CASCADE"), index=True
     )
-    decision: Mapped[str] = mapped_column(String(24), index=True)  # accepted | overridden
-    recommended_price: Mapped[float] = mapped_column(Float)
-    final_price: Mapped[float] = mapped_column(Float)
-    previous_price: Mapped[float] = mapped_column(Float, default=0.0)
+    decision: Mapped[str] = mapped_column(String(24), index=True)
+    recommended_net_rate: Mapped[float] = mapped_column(Float)
+    final_net_rate: Mapped[float] = mapped_column(Float)
+    previous_net_rate: Mapped[float] = mapped_column(Float, default=0.0)
     reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    engine_version: Mapped[str] = mapped_column(String(48), default="v1")
+    engine_version: Mapped[str] = mapped_column(String(48), default="v2")
     config_version: Mapped[int] = mapped_column(Integer, default=1)
     operator: Mapped[str] = mapped_column(String(80), default="demo-operator")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
     recommendation: Mapped[PricingRecommendation] = relationship(back_populates="decisions")
+
+
+class RecommendationOutcome(Base):
+    """What actually happened after a recommendation.
+
+    Empty in production until real post-stay data arrives. Demo outcomes are
+    flagged ``is_synthetic`` so they can never be mistaken for measurement.
+    """
+
+    __tablename__ = "recommendation_outcomes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recommendation_id: Mapped[int] = mapped_column(
+        ForeignKey("pricing_recommendations.id", ondelete="CASCADE"), index=True
+    )
+    room_type_id: Mapped[int] = mapped_column(ForeignKey("room_types.id", ondelete="CASCADE"), index=True)
+    stay_date: Mapped[date] = mapped_column(Date, index=True)
+
+    units_booked: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    final_occupancy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    realized_net_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    realized_revenue: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cancellations: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    first_booking_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    source: Mapped[str] = mapped_column(String(48), default="demo")
+    captured_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    recommendation: Mapped[PricingRecommendation] = relationship(back_populates="outcomes")

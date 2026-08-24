@@ -1,21 +1,17 @@
 from .base import (
     BookingDTO,
     InventoryDTO,
+    PhysicalRoomDTO,
     PMSProvider,
+    PropertyDTO,
     ProviderStatus,
     ProviderUnavailable,
-    PropertyDTO,
-    RoomDTO,
+    RoomTypeDTO,
 )
-from .factory import get_pms_provider
+from .factory import get_pms_provider, list_pms_providers
 
 __all__ = [
-    "BookingDTO",
-    "InventoryDTO",
-    "PMSProvider",
-    "ProviderStatus",
-    "ProviderUnavailable",
-    "PropertyDTO",
-    "RoomDTO",
-    "get_pms_provider",
+    "BookingDTO", "InventoryDTO", "PMSProvider", "PhysicalRoomDTO", "PropertyDTO",
+    "ProviderStatus", "ProviderUnavailable", "RoomTypeDTO", "get_pms_provider",
+    "list_pms_providers",
 ]

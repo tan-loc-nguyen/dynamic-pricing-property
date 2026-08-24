@@ -2,10 +2,9 @@
 
 ## Status: boundary implemented, **not wired to a live API**
 
-The project brief stated that Blue Jay API documentation and credentials would
-be available locally. **They were not present** in this repository, or anywhere
-on the build machine (the whole workspace was searched for `blue jay`,
-`bluejay`, and `luminous`).
+The Blue Jay API documentation is **not yet available**. The client document
+states plainly that API access has been requested and Luminous is *awaiting
+confirmation from Blue Jay*. Nothing was found on the build machine either.
 
 Per the brief's explicit instruction — *"do not invent endpoints, do not invent
 request schemas, do not invent field mappings"* — **nothing has been assumed**.
@@ -61,12 +60,13 @@ they are visible rather than buried.
 3. Rate limits and quota policy. Is bulk/date-range fetching supported, or must
    we page per date?
 
-### Properties & rooms
+### Properties, room types & units
 4. Endpoint listing properties, and its pagination contract.
-5. Endpoint listing room types.
-6. **Does Blue Jay expose "number of physical units" per room type?** This is
-   required for the occupancy signal. If it only exposes individual units, the
-   grain decision in `DECISIONS.md` D2 needs revisiting.
+5. Endpoint listing **room types**, and how the category (2BR Regular / 2BR
+   Premium / 3BR) is keyed.
+6. Endpoint listing **physical rooms**, and how many of the 22 units belong to
+   each room type. **HARD BLOCKER** — occupancy is computed per room type, so
+   without the unit split the pace signal is wrong (see ASSUMPTIONS U11).
 
 ### Availability / inventory
 7. Endpoint for per-date availability.
@@ -79,15 +79,26 @@ they are visible rather than buried.
 
 ### Bookings
 11. Endpoint for reservations.
-12. **Is a booking creation timestamp available?** This is a hard requirement
-    for the booking-pace signal (A11–A13). Without a `created_at`, booking pace
-    cannot be computed and the engine will apply a neutral factor.
+12. **Is a booking creation timestamp available? HARD BLOCKER.** Required twice
+    over: for the recent-pickup signal, and to fit real booking curves to
+    replace the demo curve (ASSUMPTIONS U1/U16). Without it, pickup is
+    permanently neutral and pace position rests on invented curves.
+12b. **How far back can reservation history be exported?** The client reports
+    Blue Jay has no data retention but that history *can* be extracted with
+    time. This is the single biggest unlock in the project (ASSUMPTIONS U15).
 13. Is the OTA/channel recorded per booking?
 14. How are cancellations represented — status change, or deletion?
 
-### Pricing guardrails
-15. Do min/max price constraints already exist in Blue Jay, or are they
-    Luminous-side policy that this system should own? (See A2/A3.)
+### Rates
+15. Which field carries the **NET revenue to Luminous**, versus the guest-facing
+    OTA sell price? The seasonal rate book is NET, so this determines whether
+    'current rate' is comparable at all (ASSUMPTIONS U14).
+16. Do rate plans / length-of-stay pricing exist, and how do they collapse to a
+    single nightly rate?
+17. **Is Blue Jay's built-in rule-based Yield Management active?** If it is
+    already moving rates by remaining inventory, its behaviour must be
+    understood before this system's recommendations are applied, or the two
+    will fight each other.
 
 ### Write-back (future, explicitly out of scope for the MVP)
 16. Is there a rate-update endpoint, and what are its idempotency semantics?
@@ -106,14 +117,17 @@ model needs; the right is what Blue Jay actually calls it.
 | `Property.external_id` | str | | |
 | `Property.name` | str | | |
 | `Property.currency` | str | | assume VND? |
-| `Room.external_id` | str | | |
-| `Room.units_total` | int | | **required for occupancy** |
-| `Room.base_price` | float | | net or gross? |
-| `Room.min_price` / `max_price` | float | | may not exist in Blue Jay |
+| `RoomType.external_id` | str | | |
+| `RoomType.category` | str | | 2br_regular / 2br_premium / 3br |
+| `RoomType.units_total` | int | | **HARD BLOCKER — required for occupancy** |
+| `PhysicalRoom.unit_label` | str | | the 22 individual apartments |
+| `StayDateInventory.current_net_rate` | float | | **NET to Luminous**, not OTA sell |
+| `StayDateInventory.current_ota_price` | float | | only if genuinely available |
 | `StayDateInventory.stay_date` | date | | |
 | `StayDateInventory.units_sold` | int | | or derive from units remaining |
-| `StayDateInventory.current_price` | float | | which rate plan? |
-| `Booking.booked_at` | date | | **required for booking pace** |
+
+| `Booking.booked_at` | date | | **HARD BLOCKER — pickup + booking curves** |
+| `Booking.net_rate` | float | | NET revenue received |
 | `Booking.stay_date` | date | | expand multi-night stays? |
 | `Booking.channel` | str | | |
 | `Booking.status` | str | | cancellation representation |
@@ -122,6 +136,8 @@ model needs; the right is what Blue Jay actually calls it.
 
 ## Security
 
+- Blue Jay is only ever reached through `BlueJayPMSProvider`; no other module
+  knows the vendor exists.
 - No credential is ever written to source. `Settings.redacted()` exposes only
   `bluejay_api_key_present: true|false`, never the value.
 - `.env` is gitignored; `.env.example` contains empty placeholders.

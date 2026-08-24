@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Chip, Empty, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatDateTime, formatStayDate, formatVND, todayISO } from "@/lib/format";
-import type { MarketObservation, Property } from "@/lib/types";
+import { confidenceTone, formatDateTime, formatStayDate, formatVND, todayISO } from "@/lib/format";
+import type { Competitor, MarketObservation, Property } from "@/lib/types";
 
 interface ProviderInfo {
   key: string;
@@ -13,40 +13,58 @@ interface ProviderInfo {
   mode: string;
   detail: string;
   remediation: string;
+  max_confidence: string;
 }
 
 export default function MarketPage() {
   const [observations, setObservations] = useState<MarketObservation[]>([]);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [meta, setMeta] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [sourceFilter, setSourceFilter] = useState("all");
+  const [tab, setTab] = useState<"observations" | "compset">("observations");
+  const [confidenceFilter, setConfidenceFilter] = useState("all");
 
   const [form, setForm] = useState({
-    room_id: "",
+    room_type_id: "",
     stay_date: todayISO(),
     competitor_name: "",
     observed_price: "",
-    notes: "",
+    length_of_stay: "1",
+    guests: "2",
+    price_basis: "NET",
+    tax_inclusion: "EXCLUSIVE",
+    fee_inclusion: "EXCLUSIVE",
+    promotion_status: "NONE",
     source_url: "",
+    notes: "",
   });
 
-  const rooms = properties.flatMap((p) => p.rooms.map((r) => ({ ...r, propertyName: p.name })));
+  const [compForm, setCompForm] = useState({ name: "", location: "", comparable_category: "" });
+
+  const roomTypes = properties.flatMap((p) => p.room_types);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setObservations(await api.observations({ source: sourceFilter, }));
+      const [obs, comps] = await Promise.all([
+        api.observations({ confidence: confidenceFilter }),
+        api.competitors(),
+      ]);
+      setObservations(obs);
+      setCompetitors(comps);
     } finally {
       setLoading(false);
     }
-  }, [sourceFilter]);
+  }, [confidenceFilter]);
 
   useEffect(() => {
     api.properties().then(setProperties).catch(() => setProperties([]));
     api.marketProviders().then(setProviders).catch(() => setProviders([]));
+    api.marketMeta().then(setMeta).catch(() => setMeta(null));
   }, []);
   useEffect(() => {
     load();
@@ -57,17 +75,30 @@ export default function MarketPage() {
     setBusy(true);
     setMessage(null);
     try {
-      await api.addObservation({
+      const created = await api.addObservation({
         stay_date: form.stay_date,
         competitor_name: form.competitor_name,
         observed_price: Number(form.observed_price),
-        room_id: form.room_id ? Number(form.room_id) : null,
+        room_type_id: form.room_type_id ? Number(form.room_type_id) : null,
+        length_of_stay: form.length_of_stay ? Number(form.length_of_stay) : null,
+        guests: form.guests ? Number(form.guests) : null,
+        price_basis: form.price_basis,
+        tax_inclusion: form.tax_inclusion,
+        fee_inclusion: form.fee_inclusion,
+        promotion_status: form.promotion_status,
         source: "manual",
         source_url: form.source_url || null,
         notes: form.notes || null,
       });
-      setForm({ ...form, competitor_name: "", observed_price: "", notes: "", source_url: "" });
-      setMessage({ ok: true, text: "Observation saved. Recalculate on the dashboard to fold it into pricing." });
+      setForm({ ...form, competitor_name: "", observed_price: "", source_url: "", notes: "" });
+      setMessage({
+        ok: true,
+        text: `Saved at ${created.confidence} confidence. ${
+          created.confidence === "HIGH" || created.confidence === "MEDIUM"
+            ? "This can influence recommended rates."
+            : "This will be shown but will not move rates."
+        }`,
+      });
       await load();
     } catch (e: any) {
       setMessage({ ok: false, text: e.message });
@@ -80,11 +111,11 @@ export default function MarketPage() {
     setBusy(true);
     setMessage(null);
     try {
-      const result = await api.collectMarket(form.stay_date, form.room_id ? Number(form.room_id) : null);
-      setMessage({
-        ok: result.ok,
-        text: result.ok ? result.message : `${result.message} ${result.remediation}`,
-      });
+      const result = await api.collectMarket(
+        form.stay_date,
+        form.room_type_id ? Number(form.room_type_id) : null,
+      );
+      setMessage({ ok: result.ok, text: result.ok ? result.message : `${result.message} ${result.remediation}` });
       if (result.ok) await load();
     } catch (e: any) {
       setMessage({ ok: false, text: e.message });
@@ -93,186 +124,377 @@ export default function MarketPage() {
     }
   };
 
-  const remove = async (id: number) => {
-    await api.deleteObservation(id);
-    await load();
+  const addCompetitor = async () => {
+    if (!compForm.name) return;
+    setBusy(true);
+    try {
+      await api.addCompetitor({
+        ...compForm,
+        comparable_category: compForm.comparable_category || null,
+      });
+      setCompForm({ name: "", location: "", comparable_category: "" });
+      await load();
+    } finally {
+      setBusy(false);
+    }
   };
 
+  const options = (list: any[] | undefined) =>
+    (list || []).map((o: any) => (
+      <option key={o.code} value={o.code}>
+        {o.label}
+      </option>
+    ));
+
   return (
-    <div className="px-7 py-6 space-y-5 max-w-[1500px]">
+    <div className="px-7 py-6 space-y-5 max-w-[1600px]">
       <PageHeader
-        title="Market data"
-        subtitle="Reference prices from competitors. The engine turns these into a market signal — and applies a neutral factor whenever they are missing."
+        title="Market evidence"
+        subtitle="Competitor rates and how much they can be trusted. Only observations you can interpret — known basis, category and stay date — are allowed to move a recommended NET rate."
       />
 
       <div className="flex flex-wrap gap-2">
         {providers.map((p) => (
-          <Chip key={p.key} tone={p.healthy ? "up" : "warn"} title={p.detail + (p.remediation ? ` — ${p.remediation}` : "")}>
-            {p.name.replace("MarketDataProvider", "")}: {p.healthy ? "available" : "unavailable"}
+          <Chip
+            key={p.key}
+            tone={p.healthy ? "up" : "warn"}
+            title={p.detail + (p.remediation ? ` — ${p.remediation}` : "")}
+          >
+            {p.name.replace("MarketDataProvider", "")}: max {p.max_confidence}
           </Chip>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-5 items-start">
-        <Card className="p-5">
-          <h2 className="text-[14px] font-semibold text-ink-900">Add an observation</h2>
-          <p className="text-[12px] text-ink-500 mt-0.5 leading-snug">
-            Manual entry is always available — it is the fallback when automated collection is not.
-          </p>
+      <Card className="p-4 bg-amber-50 border-amber-200">
+        <p className="text-[12px] text-amber-900 leading-relaxed">
+          <span className="font-semibold">A price you cannot interpret is not evidence.</span> The same
+          number can be a refundable OTA sell price including taxes for a 3-night stay, or a one-night NET
+          rate — only one is comparable to a Luminous NET rate. Confidence is derived from the metadata you
+          supply, and LOW-confidence observations never move a rate.
+        </p>
+      </Card>
 
-          <div className="mt-4 space-y-3">
-            <Field label="Room" hint="Leave blank to apply to the whole property">
-              <select
-                className={inputClass}
-                value={form.room_id}
-                onChange={(e) => setForm({ ...form, room_id: e.target.value })}
-              >
-                <option value="">— select a room —</option>
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.propertyName} · {r.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Stay date">
-              <input
-                type="date"
-                className={inputClass}
-                value={form.stay_date}
-                onChange={(e) => setForm({ ...form, stay_date: e.target.value })}
-              />
-            </Field>
-            <Field label="Competitor / reference name">
-              <input
-                className={inputClass}
-                placeholder="e.g. Saigon Sky Apartments"
-                value={form.competitor_name}
-                onChange={(e) => setForm({ ...form, competitor_name: e.target.value })}
-              />
-            </Field>
-            <Field label="Observed price (VND)">
-              <input
-                type="number"
-                step={10000}
-                className={inputClass}
-                placeholder="1500000"
-                value={form.observed_price}
-                onChange={(e) => setForm({ ...form, observed_price: e.target.value })}
-              />
-            </Field>
-            <Field label="Source URL (optional)">
-              <input
-                className={inputClass}
-                placeholder="https://…"
-                value={form.source_url}
-                onChange={(e) => setForm({ ...form, source_url: e.target.value })}
-              />
-            </Field>
-            <Field label="Notes (optional)">
-              <input
-                className={inputClass}
-                placeholder="Comparable size, includes breakfast…"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </Field>
+      <div className="flex gap-1 border-b border-ink-200">
+        {(["observations", "compset"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+              tab === t
+                ? "border-brand-500 text-brand-700"
+                : "border-transparent text-ink-500 hover:text-ink-800"
+            }`}
+          >
+            {t === "observations" ? `Observations (${observations.length})` : `Comp set (${competitors.length})`}
+          </button>
+        ))}
+      </div>
 
-            <div className="flex items-center gap-2 pt-1">
-              <Button variant="primary" onClick={submit} disabled={busy || !form.competitor_name || !form.observed_price}>
-                Save observation
-              </Button>
-              <Button onClick={runCollector} disabled={busy} >
-                Try public collector
+      {tab === "compset" ? (
+        <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-5 items-start">
+          <Card className="p-5">
+            <h2 className="text-[14px] font-semibold text-ink-900">Add a comparable property</h2>
+            <p className="text-[12px] text-ink-500 mt-0.5 leading-snug">
+              A comp set is a deliberate choice, not a search result. Pick properties a Luminous guest
+              would genuinely consider instead.
+            </p>
+            <div className="mt-4 space-y-3">
+              <Field label="Property name">
+                <input
+                  className={inputClass}
+                  value={compForm.name}
+                  onChange={(e) => setCompForm({ ...compForm, name: e.target.value })}
+                />
+              </Field>
+              <Field label="Location">
+                <input
+                  className={inputClass}
+                  placeholder="e.g. District 1"
+                  value={compForm.location}
+                  onChange={(e) => setCompForm({ ...compForm, location: e.target.value })}
+                />
+              </Field>
+              <Field label="Comparable to which category">
+                <select
+                  className={inputClass}
+                  value={compForm.comparable_category}
+                  onChange={(e) => setCompForm({ ...compForm, comparable_category: e.target.value })}
+                >
+                  <option value="">— any —</option>
+                  {roomTypes.map((rt) => (
+                    <option key={rt.category} value={rt.category}>
+                      {rt.category_label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Button variant="primary" onClick={addCompetitor} disabled={busy || !compForm.name}>
+                Add to comp set
               </Button>
             </div>
+          </Card>
 
-            {message && (
-              <div
-                className={`rounded-lg border px-3 py-2 text-[11.5px] ${
-                  message.ok
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    : "bg-amber-50 border-amber-200 text-amber-800"
-                }`}
-              >
-                {message.text}
-              </div>
-            )}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">
-            <div className="text-[13px] font-semibold text-ink-900">
-              Observations <span className="text-ink-400 font-normal">({observations.length})</span>
-            </div>
-            <select
-              className={`${inputClass} w-40`}
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-            >
-              <option value="all">All sources</option>
-              <option value="mock">Mock</option>
-              <option value="manual">Manual</option>
-              <option value="public_web">Public web</option>
-            </select>
-          </div>
-
-          {loading ? (
-            <Spinner label="Loading observations…" />
-          ) : observations.length === 0 ? (
-            <Empty title="No observations for this filter" hint="Add one on the left, or switch source." />
-          ) : (
-            <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
+          <Card>
+            {competitors.length === 0 ? (
+              <Empty title="No comparable properties yet" />
+            ) : (
               <table className="w-full text-[13px]">
-                <thead className="sticky top-0 bg-ink-50">
-                  <tr className="border-b border-ink-200">
-                    {["Stay date", "Competitor", "Room", "Price", "Source", "Collected", ""].map((h) => (
-                      <th
-                        key={h}
-                        className={`px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 ${
-                          h === "Price" ? "text-right" : "text-left"
-                        }`}
-                      >
+                <thead>
+                  <tr className="border-b border-ink-200 bg-ink-50/60">
+                    {["Property", "Location", "Comparable to", "Observations", "Source", ""].map((h) => (
+                      <th key={h} className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 text-left">
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {observations.map((o) => (
-                    <tr key={o.id} className="border-b border-ink-100 hover:bg-ink-50">
-                      <td className="px-3 py-2 text-ink-700 whitespace-nowrap">{formatStayDate(o.stay_date)}</td>
-                      <td className="px-3 py-2">
-                        <div className="text-ink-900">{o.competitor_name}</div>
-                        {o.notes && <div className="text-[11px] text-ink-400 italic">{o.notes}</div>}
-                      </td>
-                      <td className="px-3 py-2 text-[12px] text-ink-500">{o.room_name || o.property_name || "—"}</td>
-                      <td className="px-3 py-2 text-right tnum font-medium text-ink-900 whitespace-nowrap">
-                        {formatVND(o.observed_price)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Chip tone={o.source === "manual" ? "info" : "neutral"}>{o.source}</Chip>
-                      </td>
-                      <td className="px-3 py-2 text-[11px] text-ink-400 whitespace-nowrap">
-                        {formatDateTime(o.collected_at)}
-                      </td>
-                      <td className="px-3 py-2 text-right">
+                  {competitors.map((c) => (
+                    <tr key={c.id} className="border-b border-ink-100 hover:bg-ink-50">
+                      <td className="px-3 py-2.5 font-medium text-ink-900">{c.name}</td>
+                      <td className="px-3 py-2.5 text-ink-600">{c.location || "—"}</td>
+                      <td className="px-3 py-2.5 text-ink-600">{c.comparable_category || "any"}</td>
+                      <td className="px-3 py-2.5 tnum text-ink-600">{c.observation_count}</td>
+                      <td className="px-3 py-2.5 text-[11px] text-ink-400">{c.source}</td>
+                      <td className="px-3 py-2.5 text-right">
                         <button
-                          onClick={() => remove(o.id)}
-                          className="text-[11px] text-ink-400 hover:text-rose-600 transition-colors"
+                          onClick={() => api.deleteCompetitor(c.id).then(load)}
+                          className="text-[11px] text-ink-400 hover:text-rose-600"
                         >
-                          Delete
+                          Remove
                         </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            )}
+          </Card>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-5 items-start">
+          <Card className="p-5">
+            <h2 className="text-[14px] font-semibold text-ink-900">Record an observation</h2>
+            <p className="text-[12px] text-ink-500 mt-0.5 leading-snug">
+              The more basis you can state, the higher the confidence — and only you can state it.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <Field label="Room category">
+                <select
+                  className={inputClass}
+                  value={form.room_type_id}
+                  onChange={(e) => setForm({ ...form, room_type_id: e.target.value })}
+                >
+                  <option value="">— select —</option>
+                  {roomTypes.map((rt) => (
+                    <option key={rt.id} value={rt.id}>
+                      {rt.category_label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Stay date">
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={form.stay_date}
+                    onChange={(e) => setForm({ ...form, stay_date: e.target.value })}
+                  />
+                </Field>
+                <Field label="Observed price (VND)">
+                  <input
+                    type="number"
+                    step={10000}
+                    className={inputClass}
+                    value={form.observed_price}
+                    onChange={(e) => setForm({ ...form, observed_price: e.target.value })}
+                  />
+                </Field>
+              </div>
+              <Field label="Competitor">
+                <input
+                  className={inputClass}
+                  placeholder="e.g. The Riverside Residences"
+                  value={form.competitor_name}
+                  onChange={(e) => setForm({ ...form, competitor_name: e.target.value })}
+                  list="comp-list"
+                />
+                <datalist id="comp-list">
+                  {competitors.map((c) => (
+                    <option key={c.id} value={c.name} />
+                  ))}
+                </datalist>
+              </Field>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Price basis">
+                  <select
+                    className={inputClass}
+                    value={form.price_basis}
+                    onChange={(e) => setForm({ ...form, price_basis: e.target.value })}
+                  >
+                    {options(meta?.price_bases)}
+                  </select>
+                </Field>
+                <Field label="Promotion">
+                  <select
+                    className={inputClass}
+                    value={form.promotion_status}
+                    onChange={(e) => setForm({ ...form, promotion_status: e.target.value })}
+                  >
+                    {options(meta?.promotion_options)}
+                  </select>
+                </Field>
+                <Field label="Taxes">
+                  <select
+                    className={inputClass}
+                    value={form.tax_inclusion}
+                    onChange={(e) => setForm({ ...form, tax_inclusion: e.target.value })}
+                  >
+                    {options(meta?.inclusion_options)}
+                  </select>
+                </Field>
+                <Field label="Fees">
+                  <select
+                    className={inputClass}
+                    value={form.fee_inclusion}
+                    onChange={(e) => setForm({ ...form, fee_inclusion: e.target.value })}
+                  >
+                    {options(meta?.inclusion_options)}
+                  </select>
+                </Field>
+                <Field label="Length of stay">
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={form.length_of_stay}
+                    onChange={(e) => setForm({ ...form, length_of_stay: e.target.value })}
+                  />
+                </Field>
+                <Field label="Guests">
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={form.guests}
+                    onChange={(e) => setForm({ ...form, guests: e.target.value })}
+                  />
+                </Field>
+              </div>
+
+              <Field label="Notes (optional)">
+                <input
+                  className={inputClass}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </Field>
+
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  variant="primary"
+                  onClick={submit}
+                  disabled={busy || !form.competitor_name || !form.observed_price}
+                >
+                  Save observation
+                </Button>
+                <Button onClick={runCollector} disabled={busy}>
+                  Try public collector
+                </Button>
+              </div>
+
+              {message && (
+                <div
+                  className={`rounded-lg border px-3 py-2 text-[11.5px] ${
+                    message.ok
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                      : "bg-amber-50 border-amber-200 text-amber-800"
+                  }`}
+                >
+                  {message.text}
+                </div>
+              )}
             </div>
-          )}
-        </Card>
-      </div>
+          </Card>
+
+          <Card>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">
+              <div className="text-[13px] font-semibold text-ink-900">
+                Observations <span className="text-ink-400 font-normal">({observations.length})</span>
+              </div>
+              <select
+                className={`${inputClass} w-44`}
+                value={confidenceFilter}
+                onChange={(e) => setConfidenceFilter(e.target.value)}
+              >
+                <option value="all">All confidence</option>
+                <option value="HIGH">High only</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+              </select>
+            </div>
+
+            {loading ? (
+              <Spinner label="Loading observations…" />
+            ) : observations.length === 0 ? (
+              <Empty title="No observations for this filter" />
+            ) : (
+              <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
+                <table className="w-full text-[13px]">
+                  <thead className="sticky top-0 bg-ink-50">
+                    <tr className="border-b border-ink-200">
+                      {["Stay date", "Competitor", "Category", "Price", "Basis", "Confidence", "Source", ""].map((h) => (
+                        <th
+                          key={h}
+                          className={`px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 ${
+                            h === "Price" ? "text-right" : "text-left"
+                          }`}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {observations.map((o) => (
+                      <tr key={o.id} className="border-b border-ink-100 hover:bg-ink-50">
+                        <td className="px-3 py-2 text-ink-700 whitespace-nowrap">{formatStayDate(o.stay_date)}</td>
+                        <td className="px-3 py-2">
+                          <div className="text-ink-900">{o.competitor_name}</div>
+                          {o.notes && <div className="text-[11px] text-ink-400 italic">{o.notes}</div>}
+                        </td>
+                        <td className="px-3 py-2 text-[12px] text-ink-500">{o.room_category || "—"}</td>
+                        <td className="px-3 py-2 text-right tnum font-medium text-ink-900 whitespace-nowrap">
+                          {formatVND(o.observed_price)}
+                        </td>
+                        <td className="px-3 py-2 text-[11px] text-ink-500">{o.price_basis}</td>
+                        <td className="px-3 py-2">
+                          <Chip tone={confidenceTone(o.confidence)} title={o.confidence_reason || ""}>
+                            {o.confidence}
+                          </Chip>
+                        </td>
+                        <td className="px-3 py-2 text-[11px] text-ink-400 whitespace-nowrap">
+                          {o.source}
+                          <div>{formatDateTime(o.observed_at)}</div>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            onClick={() => api.deleteObservation(o.id).then(load)}
+                            className="text-[11px] text-ink-400 hover:text-rose-600 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,8 +4,8 @@ import { Chip } from "./ui";
 import type { SystemStatus } from "@/lib/types";
 
 /**
- * Honest integration status. If Blue Jay or market collection is degraded the
- * operator is told plainly, rather than being shown a silently-empty product.
+ * Honest status. Shows what is validated, what is not, and which integrations
+ * are degraded — rather than a silently-empty product.
  */
 export function StatusBanner({ status }: { status: SystemStatus | null }) {
   if (!status) return null;
@@ -15,15 +15,28 @@ export function StatusBanner({ status }: { status: SystemStatus | null }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
-      <Chip tone={status.demo_mode ? "info" : "up"}>
+      <Chip tone="up" title="Recommendations only — nothing is written to Blue Jay or any OTA.">
+        Shadow Mode
+      </Chip>
+      <Chip tone="up" title={`${status.rate_book.bands} seasonal NET bands supplied by Luminous.`}>
+        Rate book: client-validated
+      </Chip>
+      <Chip
+        tone="warn"
+        title={status.booking_curve.note || "Demo booking curve — not Luminous data."}
+      >
+        Booking curve: demo
+      </Chip>
+      <Chip tone={status.demo_mode ? "info" : "neutral"} title={status.pms.detail}>
         {status.demo_mode ? "Demo data" : `PMS: ${status.pms.mode}`}
       </Chip>
-      <Chip tone={pmsDegraded ? "warn" : "neutral"} title={status.pms.detail}>
-        {status.pms.name.replace("PMSProvider", "")} {pmsDegraded ? "unavailable" : "connected"}
-      </Chip>
+      {pmsDegraded && (
+        <Chip tone="warn" title={status.pms.detail}>
+          Blue Jay unavailable
+        </Chip>
+      )}
       <Chip tone={marketDegraded ? "warn" : "neutral"} title={status.market.detail}>
         Market: {status.market.mode}
-        {marketDegraded ? " (neutral factor)" : ""}
       </Chip>
       <Chip tone="neutral">Engine {status.engine.version}</Chip>
       <Chip tone="neutral">Rules v{status.config_version}</Chip>

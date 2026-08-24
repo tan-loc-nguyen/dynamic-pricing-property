@@ -1,4 +1,10 @@
-"""Pricing configuration lifecycle.
+"""EXPERIMENTAL dynamic-strategy configuration lifecycle.
+
+Only the unvalidated dynamic layer lives here. The client-validated
+SeasonalRateBook is managed separately in ``services/rate_book.py`` so the
+two categories can never be confused.
+
+Original notes follow.
 
 Every save creates a NEW version rather than mutating the active row, so any
 past recommendation can always be traced back to the exact rule set that

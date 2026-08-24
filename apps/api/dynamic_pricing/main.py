@@ -9,7 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .config import get_settings
-from .routers import history, market, recommendations, settings as settings_router, system
+from .routers import (
+    events,
+    history,
+    market,
+    outcomes,
+    rate_book,
+    recommendations,
+    settings as settings_router,
+    system,
+)
 
 settings = get_settings()
 
@@ -38,8 +47,10 @@ app = FastAPI(
     title="Dynamic Pricing Property API",
     version=__version__,
     description=(
-        "Explainable pricing copilot for Luminous Luxury Apartment. "
-        "Pricing Engine V1 uses provisional, UNVALIDATED business assumptions."
+        "Explainable Revenue Intelligence Copilot above Blue Jay PMS, for Luminous "
+        "Luxury Apartments. Anchored on the client-validated seasonal NET rate book; "
+        "the dynamic layer on top is UNVALIDATED. Runs in Shadow Mode — nothing is "
+        "pushed to Blue Jay or any OTA."
     ),
     lifespan=lifespan,
 )
@@ -57,6 +68,9 @@ app.include_router(recommendations.router)
 app.include_router(settings_router.router)
 app.include_router(history.router)
 app.include_router(market.router)
+app.include_router(rate_book.router)
+app.include_router(events.router)
+app.include_router(outcomes.router)
 
 
 @app.get("/")
@@ -65,5 +79,9 @@ def root():
         "name": "Dynamic Pricing Property API",
         "version": __version__,
         "docs": "/docs",
-        "notice": "Pricing Engine V1 assumptions are provisional and UNVALIDATED.",
+        "mode": "shadow",
+        "notice": (
+            "Seasonal NET rate book is CLIENT_VALIDATED. The dynamic layer "
+            "(pace, pickup, events, market) is UNVALIDATED."
+        ),
     }

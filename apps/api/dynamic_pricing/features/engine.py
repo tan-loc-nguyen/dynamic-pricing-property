@@ -1,14 +1,15 @@
 """FeatureEngine — turns normalized operational data into pricing signals.
 
-    raw data -> normalized rows -> FeatureEngine -> PricingContext -> PricingEngine
+    Blue Jay / Mock -> normalized rows -> FeatureEngine -> PricingContext -> PricingEngine
 
-This layer owns *measurement* only. It contains no pricing policy: it never
-decides what a 78% occupancy is worth, only that occupancy is 78%. The two
-config values it does read (`booking_pace.lookback_days`,
-`booking_pace.expected_pickup_per_week`) define how a signal is *measured*,
-not how it is priced.
+This layer owns *measurement* only. It never decides what a measurement is
+worth: it computes "occupancy is 78%, expected 64%, so pace gap is +14pp";
+the pricing engine decides what that is worth in VND.
 
-Any future pricing engine can reuse this layer unchanged.
+Two responsibilities worth calling out:
+  * it resolves the CLIENT-VALIDATED rate band for each room type + stay date;
+  * it applies the market **confidence gate**, so low-quality observations are
+    counted and reported but never silently priced in.
 """
 
 from __future__ import annotations
@@ -20,231 +21,276 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Booking, MarketObservation, Property, Room, StayDateInventory
+from ..models import (
+    CONFIDENCE_ORDER,
+    Booking,
+    Event,
+    MarketObservation,
+    Property,
+    RoomType,
+    StayDateInventory,
+)
+from ..pricing.rate_book import CATEGORY_LABELS, SeasonalRateBook
+from .booking_curve import get_booking_curve_provider
 from .context import PricingContext
 
-WEEKDAY_NAMES = [
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-]
+WEEKDAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 
 class FeatureEngine:
-    """Builds PricingContexts in bulk, with all lookups pre-loaded.
+    """Builds PricingContexts in bulk with all lookups pre-loaded."""
 
-    Bulk loading keeps a full 1,400-row pricing run to a handful of queries
-    instead of thousands of round trips.
-    """
-
-    def __init__(self, session: Session, config: dict, today: date | None = None) -> None:
+    def __init__(
+        self,
+        session: Session,
+        config: dict,
+        today: date | None = None,
+        rate_book: SeasonalRateBook | None = None,
+    ) -> None:
         self.session = session
         self.config = config or {}
         self.today = today or date.today()
+        self.rate_book = rate_book or SeasonalRateBook()
+        self.curve = get_booking_curve_provider(self.config)
 
-        pace_cfg = self.config.get("booking_pace", {})
-        self.pace_lookback_days = int(pace_cfg.get("lookback_days", 7) or 7)
-        self.expected_pickup_per_week = float(pace_cfg.get("expected_pickup_per_week", 1.0) or 1.0)
+        pickup_cfg = self.config.get("recent_pickup", {})
+        self.pickup_lookback_days = int(pickup_cfg.get("lookback_days", 7) or 7)
+        self.expected_pickup_per_week = float(pickup_cfg.get("expected_pickup_per_week", 1.0) or 1.0)
 
-        self.season_labels = self.config.get("season", {}).get("month_labels", {})
         market_cfg = self.config.get("market", {})
         self.market_max_age_days = int(market_cfg.get("observation_max_age_days", 14) or 14)
+        self.market_min_confidence = str(market_cfg.get("min_confidence", "MEDIUM")).upper()
 
         self._loaded = False
-        self._rooms: dict[int, Room] = {}
+        self._room_types: dict[int, RoomType] = {}
         self._properties: dict[int, Property] = {}
         self._pickup: dict[tuple[int, date], float] = defaultdict(float)
+        self._rooms_with_bookings: set[int] = set()
         self._avg_lead_time: dict[int, float] = {}
         self._market_by_key: dict[tuple[int, date], list[MarketObservation]] = defaultdict(list)
         self._market_baseline: dict[int, float] = {}
-        self._historical: dict[tuple[int, int], tuple[float, float]] = {}
+        self._events: list[Event] = []
 
     # ------------------------------------------------------------------ load
     def prepare(self) -> "FeatureEngine":
-        """Pre-load every lookup the batch will need."""
         session = self.session
 
-        self._rooms = {r.id: r for r in session.scalars(select(Room)).all()}
+        self._room_types = {r.id: r for r in session.scalars(select(RoomType)).all()}
         self._properties = {p.id: p for p in session.scalars(select(Property)).all()}
+        self._events = list(
+            session.scalars(select(Event).where(Event.is_active.is_(True))).all()
+        )
 
-        # --- booking pickup within the lookback window, per (room, stay_date)
-        pace_cutoff = self.today - timedelta(days=self.pace_lookback_days)
+        # --- recent pickup, per (room type, stay date) --------------------
+        cutoff = self.today - timedelta(days=self.pickup_lookback_days)
         bookings = session.scalars(select(Booking).where(Booking.status != "cancelled")).all()
 
         lead_times: dict[int, list[int]] = defaultdict(list)
         for b in bookings:
-            lead_times[b.room_id].append(b.lead_time_days)
-            if pace_cutoff <= b.booked_at <= self.today:
-                self._pickup[(b.room_id, b.stay_date)] += 1
+            lead_times[b.room_type_id].append(b.lead_time_days)
+            self._rooms_with_bookings.add(b.room_type_id)
+            if cutoff <= b.booked_at <= self.today:
+                self._pickup[(b.room_type_id, b.stay_date)] += 1
 
         self._avg_lead_time = {
-            room_id: round(statistics.fmean(values), 2)
-            for room_id, values in lead_times.items()
-            if values
+            rid: round(statistics.fmean(v), 2) for rid, v in lead_times.items() if v
         }
 
-        # --- market observations, filtered by freshness
+        # --- market observations, filtered by freshness -------------------
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         age_cutoff = now - timedelta(days=self.market_max_age_days)
         observations = session.scalars(select(MarketObservation)).all()
 
         per_room_prices: dict[int, list[float]] = defaultdict(list)
-        room_ids_by_property: dict[int, list[int]] = defaultdict(list)
-        for room in self._rooms.values():
-            room_ids_by_property[room.property_id].append(room.id)
+        rooms_by_property: dict[int, list[int]] = defaultdict(list)
+        for rt in self._room_types.values():
+            rooms_by_property[rt.property_id].append(rt.id)
 
         for obs in observations:
-            if obs.collected_at and obs.collected_at < age_cutoff:
+            if obs.observed_at and obs.observed_at < age_cutoff:
                 continue
-            # A property-level observation applies to every room in that property.
-            target_rooms = (
-                [obs.room_id]
-                if obs.room_id
-                else room_ids_by_property.get(obs.property_id or -1, [])
+            targets = (
+                [obs.room_type_id]
+                if obs.room_type_id
+                else rooms_by_property.get(obs.property_id or -1, [])
             )
-            for room_id in target_rooms:
-                if room_id is None:
+            for room_type_id in targets:
+                if room_type_id is None:
                     continue
-                self._market_by_key[(room_id, obs.stay_date)].append(obs)
-                per_room_prices[room_id].append(obs.observed_price)
+                self._market_by_key[(room_type_id, obs.stay_date)].append(obs)
+                # Baseline uses only observations good enough to price on.
+                if self._qualifies(obs):
+                    per_room_prices[room_type_id].append(obs.observed_price)
 
-        # Baseline = median observed market price for that room across the whole
-        # horizon. Using the market's own central tendency (rather than our base
-        # price) keeps the index independent of our pricing. See DECISIONS.md D5.
         self._market_baseline = {
-            room_id: statistics.median(prices)
-            for room_id, prices in per_room_prices.items()
-            if prices
+            rid: statistics.median(p) for rid, p in per_room_prices.items() if p
         }
-
-        # --- historical reference: same room, same weekday, past stay dates
-        past_rows = session.scalars(
-            select(StayDateInventory).where(StayDateInventory.stay_date < self.today)
-        ).all()
-        grouped: dict[tuple[int, int], list[StayDateInventory]] = defaultdict(list)
-        for row in past_rows:
-            grouped[(row.room_id, row.stay_date.weekday())].append(row)
-        for key, rows in grouped.items():
-            occs = [r.occupancy for r in rows if r.occupancy is not None]
-            prices = [r.current_price for r in rows if r.current_price]
-            if occs and prices:
-                self._historical[key] = (
-                    round(statistics.fmean(occs), 4),
-                    round(statistics.fmean(prices), 2),
-                )
 
         self._loaded = True
         return self
+
+    # ---------------------------------------------------------------- helper
+    def _qualifies(self, obs: MarketObservation) -> bool:
+        """Is this observation good enough to move a price?"""
+        return CONFIDENCE_ORDER.get(obs.confidence, 0) >= CONFIDENCE_ORDER.get(
+            self.market_min_confidence, 2
+        )
 
     # ----------------------------------------------------------------- build
     def build(self, inventory: StayDateInventory) -> PricingContext:
         if not self._loaded:
             self.prepare()
 
-        room = self._rooms.get(inventory.room_id)
-        if room is None:
-            room = self.session.get(Room, inventory.room_id)
-        prop = self._properties.get(room.property_id) if room else None
-        if prop is None and room is not None:
-            prop = self.session.get(Property, room.property_id)
+        room_type = self._room_types.get(inventory.room_type_id) or self.session.get(
+            RoomType, inventory.room_type_id
+        )
+        prop = self._properties.get(room_type.property_id) if room_type else None
+        if prop is None and room_type is not None:
+            prop = self.session.get(Property, room_type.property_id)
 
         missing: list[str] = []
         notes: list[str] = []
 
-        # --- occupancy ---------------------------------------------------
+        # --- validated rate band -----------------------------------------
+        band = self.rate_book.lookup(room_type.category, inventory.stay_date) if room_type else None
+        if band is None:
+            missing.append("rate_band")
+            notes.append(
+                f"No validated rate band for category '{getattr(room_type, 'category', '?')}' "
+                f"in {inventory.stay_date:%B}; falling back to the room type's stored rates."
+            )
+
+        # --- occupancy ----------------------------------------------------
         occupancy = inventory.occupancy
         if occupancy is None:
             missing.append("occupancy")
 
-        # --- lead time ---------------------------------------------------
-        days_to_checkin: int | None = (inventory.stay_date - self.today).days
-        if days_to_checkin < 0:
-            days_to_checkin = None
-            missing.append("lead_time")
-            notes.append("Stay date is in the past; lead-time signal not applicable.")
+        # --- lead time ----------------------------------------------------
+        days_to_arrival: int | None = (inventory.stay_date - self.today).days
+        if days_to_arrival < 0:
+            days_to_arrival = None
+            notes.append("Stay date is in the past; forward-looking signals not applicable.")
 
-        # --- booking pace -------------------------------------------------
-        expected = self.expected_pickup_per_week * (self.pace_lookback_days / 7.0)
-        recent = self._pickup.get((inventory.room_id, inventory.stay_date))
-        pace_index: float | None = None
-        if recent is None:
-            # No booking rows at all for this room -> genuinely no pace signal.
-            if not self._has_any_bookings(inventory.room_id):
-                missing.append("booking_pace")
+        # --- pace position (the primary demand signal) --------------------
+        expected_occupancy = None
+        pace_gap = None
+        if days_to_arrival is not None and room_type is not None:
+            expected_occupancy = self.curve.expected_occupancy(
+                room_type.category, band.season_key if band else None, days_to_arrival
+            )
+        if expected_occupancy is None or occupancy is None:
+            missing.append("pace_gap")
+            if expected_occupancy is None and days_to_arrival is not None:
+                notes.append("No booking curve available; pace position could not be computed.")
+        else:
+            pace_gap = round(occupancy - expected_occupancy, 4)
+
+        # --- recent pickup (acceleration, distinct from pace position) ----
+        expected_pickup = self.expected_pickup_per_week * (self.pickup_lookback_days / 7.0)
+        recent_pickup = self._pickup.get((inventory.room_type_id, inventory.stay_date))
+        pickup_delta = None
+        if recent_pickup is None:
+            if inventory.room_type_id not in self._rooms_with_bookings:
+                missing.append("recent_pickup")
             else:
-                recent = 0.0
-        if recent is not None and expected > 0:
-            pace_index = round(recent / expected, 4)
+                recent_pickup = 0.0
+        if recent_pickup is not None:
+            pickup_delta = round(recent_pickup - expected_pickup, 4)
 
         # --- calendar ------------------------------------------------------
         weekday = inventory.stay_date.weekday()
-        day_name = WEEKDAY_NAMES[weekday]
-        month = inventory.stay_date.month
-        season_label = inventory.season or self.season_labels.get(str(month))
 
-        # --- history --------------------------------------------------------
-        hist = self._historical.get((inventory.room_id, weekday))
-        hist_occ = inventory.historical_occupancy
-        hist_price = inventory.historical_avg_price
-        if hist_occ is None and hist:
-            hist_occ = hist[0]
-        if hist_price is None and hist:
-            hist_price = hist[1]
-        if hist_occ is None:
-            missing.append("historical_occupancy")
+        # --- events ---------------------------------------------------------
+        event = next(
+            (
+                e
+                for e in self._events
+                if e.covers(inventory.stay_date)
+                and (e.property_id is None or e.property_id == (prop.id if prop else None))
+            ),
+            None,
+        )
 
-        # --- market ----------------------------------------------------------
-        observations = self._market_by_key.get((inventory.room_id, inventory.stay_date), [])
-        market_reference: float | None = None
-        market_index: float | None = None
-        baseline = self._market_baseline.get(inventory.room_id)
-        sources: tuple[str, ...] = ()
-        if observations:
-            market_reference = round(
-                statistics.median([o.observed_price for o in observations]), 2
+        # --- market, with the confidence gate ------------------------------
+        observations = self._market_by_key.get(
+            (inventory.room_type_id, inventory.stay_date), []
+        )
+        qualified = [o for o in observations if self._qualifies(o)]
+        ignored = len(observations) - len(qualified)
+
+        market_reference = market_index = None
+        market_confidence = None
+        baseline = self._market_baseline.get(inventory.room_type_id)
+        sources: tuple[str, ...] = tuple(sorted({o.source for o in observations}))
+
+        if qualified:
+            market_reference = round(statistics.median([o.observed_price for o in qualified]), 2)
+            market_confidence = min(
+                (o.confidence for o in qualified), key=lambda c: CONFIDENCE_ORDER.get(c, 0)
             )
-            sources = tuple(sorted({o.source for o in observations}))
             if baseline:
                 market_index = round(market_reference / baseline, 4)
+        elif observations:
+            market_confidence = max(
+                (o.confidence for o in observations), key=lambda c: CONFIDENCE_ORDER.get(c, 0)
+            )
+            notes.append(
+                f"{ignored} market observation(s) seen but below the "
+                f"{self.market_min_confidence} confidence bar; not used for pricing."
+            )
+
         if market_index is None:
             missing.append("market")
 
         return PricingContext(
             property_id=prop.id if prop else 0,
             property_name=prop.name if prop else "Unknown property",
-            room_id=room.id if room else inventory.room_id,
-            room_name=room.name if room else "Unknown room",
-            room_type=room.room_type if room else "",
+            room_type_id=room_type.id if room_type else inventory.room_type_id,
+            room_type_name=room_type.name if room_type else "Unknown room type",
+            room_category=room_type.category if room_type else "",
+            room_category_label=CATEGORY_LABELS.get(
+                room_type.category if room_type else "", room_type.name if room_type else ""
+            ),
             stay_date=inventory.stay_date,
             currency=prop.currency if prop else "VND",
-            base_price=room.base_price if room else inventory.current_price,
-            current_price=inventory.current_price,
-            min_price=room.min_price if room else None,
-            max_price=room.max_price if room else None,
+            season_key=band.season_key if band else None,
+            season_label=band.season_label if band else None,
+            season_note=band.note if band else None,
+            band_min_net_rate=band.min_net_rate if band else (room_type.fallback_min_net_rate if room_type else None),
+            band_base_net_rate=band.base_net_rate if band else (room_type.fallback_base_net_rate if room_type else None),
+            band_max_net_rate=band.max_net_rate if band else (room_type.fallback_max_net_rate if room_type else None),
+            rate_band_source=band.source if band else "FALLBACK",
+            current_net_rate=inventory.current_net_rate,
+            current_ota_price=inventory.current_ota_price,
             units_total=inventory.units_total,
             units_sold=inventory.units_sold,
+            units_available=inventory.units_available,
             occupancy=occupancy,
-            days_to_checkin=days_to_checkin,
-            avg_booking_lead_time=self._avg_lead_time.get(inventory.room_id),
-            recent_pickup=recent,
-            expected_pickup=round(expected, 4),
-            booking_pace_index=pace_index,
-            historical_occupancy=hist_occ,
-            historical_avg_price=hist_price,
-            day_of_week=day_name,
-            is_weekend=weekday >= 4,  # Fri/Sat/Sun priced as weekend for STR. A20
-            month=month,
-            season_label=season_label,
-            is_event=bool(inventory.is_event),
-            event_name=inventory.event_name,
-            market_reference_price=market_reference,
-            market_baseline_price=round(baseline, 2) if baseline else None,
+            days_to_arrival=days_to_arrival,
+            expected_occupancy=expected_occupancy,
+            pace_gap=pace_gap,
+            booking_curve_source=self.curve.name,
+            booking_curve_validated=self.curve.validated,
+            recent_pickup=recent_pickup,
+            expected_pickup=round(expected_pickup, 4),
+            pickup_delta=pickup_delta,
+            avg_booking_lead_time=self._avg_lead_time.get(inventory.room_type_id),
+            historical_occupancy=inventory.historical_occupancy,
+            historical_avg_net_rate=inventory.historical_avg_net_rate,
+            day_of_week=WEEKDAY_NAMES[weekday],
+            is_weekend=weekday >= 4,
+            month=inventory.stay_date.month,
+            is_event=event is not None,
+            event_name=event.name if event else None,
+            event_impact_level=event.impact_level if event else None,
+            event_adjustment_pct=event.adjustment_pct if event else None,
+            market_reference_net_rate=market_reference,
+            market_baseline_net_rate=round(baseline, 2) if baseline else None,
             market_price_index=market_index,
+            market_confidence=market_confidence,
             market_observation_count=len(observations),
+            market_qualified_count=len(qualified),
+            market_ignored_count=ignored,
             market_sources=sources,
             missing=tuple(missing),
             notes=tuple(notes),
@@ -254,7 +300,3 @@ class FeatureEngine:
         if not self._loaded:
             self.prepare()
         return [self.build(inv) for inv in inventories]
-
-    # ---------------------------------------------------------------- helper
-    def _has_any_bookings(self, room_id: int) -> bool:
-        return room_id in self._avg_lead_time

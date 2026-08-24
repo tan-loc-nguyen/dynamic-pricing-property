@@ -1,4 +1,8 @@
-"""Pydantic API schemas (transport only — no business logic)."""
+"""Pydantic API schemas (transport only — no business logic).
+
+Naming rule: every monetary field says whether it is a NET rate or an OTA
+price. There is no bare "price".
+"""
 
 from __future__ import annotations
 
@@ -8,17 +12,25 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class RoomOut(BaseModel):
+# ---------------------------------------------------------------- portfolio
+class PhysicalRoomOut(BaseModel):
+    id: int
+    external_id: str
+    unit_label: str
+    floor: str | None = None
+    is_active: bool
+
+
+class RoomTypeOut(BaseModel):
     id: int
     external_id: str
     name: str
-    room_type: str
+    category: str
+    category_label: str
     capacity: int
     units_total: int
-    base_price: float
-    min_price: float
-    max_price: float
     is_active: bool
+    physical_rooms: list[PhysicalRoomOut] = []
 
 
 class PropertyOut(BaseModel):
@@ -28,27 +40,53 @@ class PropertyOut(BaseModel):
     city: str
     district: str
     currency: str
-    rooms: list[RoomOut] = []
+    room_types: list[RoomTypeOut] = []
 
 
+# ---------------------------------------------------------------- rate book
+class RateBandOut(BaseModel):
+    id: int
+    season_key: str
+    season_label: str
+    months: list[int]
+    room_category: str
+    room_category_label: str
+    min_net_rate: float
+    base_net_rate: float
+    max_net_rate: float
+    currency: str
+    rate_basis: str
+    source: str
+    note: str | None = None
+
+
+class RateBandUpdateIn(BaseModel):
+    min_net_rate: float = Field(gt=0)
+    base_net_rate: float = Field(gt=0)
+    max_net_rate: float = Field(gt=0)
+
+
+# ----------------------------------------------------------- recommendations
 class AdjustmentOut(BaseModel):
     sequence: int
     code: str
     label: str
+    adjustment_pct: float
     factor: float
     price_before: float
     price_after: float
     delta: float
     reason: str
     is_neutral: bool
+    is_ignored: bool
 
 
 class DecisionOut(BaseModel):
     id: int
     decision: str
-    recommended_price: float
-    final_price: float
-    previous_price: float
+    recommended_net_rate: float
+    final_net_rate: float
+    previous_net_rate: float
     reason_code: str | None = None
     reason_label: str | None = None
     note: str | None = None
@@ -58,36 +96,71 @@ class DecisionOut(BaseModel):
     created_at: datetime
 
 
+class OutcomeOut(BaseModel):
+    id: int
+    units_booked: int | None = None
+    final_occupancy: float | None = None
+    realized_net_rate: float | None = None
+    realized_revenue: float | None = None
+    cancellations: int | None = None
+    is_synthetic: bool
+    source: str
+    captured_at: datetime
+    notes: str | None = None
+
+
 class RecommendationOut(BaseModel):
     id: int
     run_id: str
+    mode: str
     property_id: int
     property_name: str
-    room_id: int
-    room_name: str
-    room_type: str
+    room_type_id: int
+    room_type_name: str
+    room_category: str
+    room_category_label: str
     stay_date: date
     day_of_week: str | None = None
     currency: str = "VND"
 
-    base_price: float
-    current_price: float
-    price_before_bounds: float
-    recommended_price: float
+    # validated rate band
+    season_key: str | None = None
+    season_label: str | None = None
+    band_min_net_rate: float | None = None
+    band_base_net_rate: float | None = None
+    band_max_net_rate: float | None = None
+    rate_band_source: str | None = None
+
+    base_net_rate: float
+    current_net_rate: float
+    current_ota_price: float | None = None
+    net_rate_before_clamp: float
+    recommended_net_rate: float
     change_pct: float
     change_abs: float
-    total_multiplier: float
+    total_adjustment_pct: float
 
-    occupancy: float | None = None
-    units_sold: int | None = None
+    # demand signals
     units_total: int | None = None
-    days_to_checkin: int | None = None
-    booking_pace_index: float | None = None
-    market_price_index: float | None = None
-    market_reference_price: float | None = None
-    market_observation_count: int = 0
+    units_sold: int | None = None
+    units_available: int | None = None
+    occupancy: float | None = None
+    days_to_arrival: int | None = None
+    expected_occupancy: float | None = None
+    pace_gap: float | None = None
+    recent_pickup: float | None = None
+    pickup_delta: float | None = None
+
     is_event: bool = False
     event_name: str | None = None
+    event_impact_level: str | None = None
+
+    market_price_index: float | None = None
+    market_reference_net_rate: float | None = None
+    market_confidence: str | None = None
+    market_observation_count: int = 0
+    market_qualified_count: int = 0
+    market_ignored_count: int = 0
 
     status: str
     explanation: str
@@ -95,19 +168,23 @@ class RecommendationOut(BaseModel):
     config_version: int
     created_at: datetime
     missing_signals: list[str] = []
+    clamp_applied: str | None = None
 
 
 class RecommendationDetailOut(RecommendationOut):
     adjustments: list[AdjustmentOut] = []
     decisions: list[DecisionOut] = []
+    outcomes: list[OutcomeOut] = []
     features: dict[str, Any] = {}
     metadata: dict[str, Any] = {}
 
 
 class SummaryOut(BaseModel):
-    active_rooms: int
+    room_types: int
+    total_units: int
     upcoming_nights: int
     average_occupancy: float | None
+    average_pace_gap: float | None
     pending_recommendations: int
     accepted_recommendations: int
     overridden_recommendations: int
@@ -116,6 +193,7 @@ class SummaryOut(BaseModel):
     currency: str = "VND"
     horizon_start: date | None = None
     horizon_end: date | None = None
+    mode: str = "shadow"
 
 
 class AcceptIn(BaseModel):
@@ -124,12 +202,13 @@ class AcceptIn(BaseModel):
 
 
 class OverrideIn(BaseModel):
-    final_price: float = Field(gt=0)
+    final_net_rate: float = Field(gt=0)
     reason_code: str
     note: str | None = None
     operator: str = "demo-operator"
 
 
+# ------------------------------------------------------------- configuration
 class ConfigOut(BaseModel):
     version: int
     label: str
@@ -148,47 +227,93 @@ class ConfigIn(BaseModel):
 
 class PreviewIn(BaseModel):
     payload: dict[str, Any]
-    room_id: int | None = None
+    room_type_id: int | None = None
     stay_date: date | None = None
 
 
 class PreviewOut(BaseModel):
-    room_id: int
-    room_name: str
+    room_type_id: int
+    room_type_name: str
+    room_category_label: str
     stay_date: date
     currency: str
-    base_price: float
-    current_price: float
-    recommended_price: float
+    season_label: str | None = None
+    band_min_net_rate: float | None = None
+    band_base_net_rate: float | None = None
+    band_max_net_rate: float | None = None
+    base_net_rate: float
+    current_net_rate: float
+    recommended_net_rate: float
     change_pct: float
-    price_before_bounds: float
+    total_adjustment_pct: float
     adjustments: list[AdjustmentOut]
     explanation: str
     engine_version: str
 
 
+# -------------------------------------------------------------------- market
+class CompetitorOut(BaseModel):
+    id: int
+    name: str
+    location: str
+    comparable_category: str | None = None
+    source: str
+    source_url: str | None = None
+    is_active: bool
+    notes: str | None = None
+    observation_count: int = 0
+
+
+class CompetitorIn(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    location: str = ""
+    comparable_category: str | None = None
+    source: str = "manual"
+    source_url: str | None = None
+    notes: str | None = None
+    is_active: bool = True
+
+
 class MarketObservationOut(BaseModel):
     id: int
     property_id: int | None
-    room_id: int | None
-    property_name: str | None = None
-    room_name: str | None = None
+    room_type_id: int | None
+    competitor_id: int | None
+    room_type_name: str | None = None
     stay_date: date
     competitor_name: str
     observed_price: float
     currency: str
+    room_category: str | None = None
+    length_of_stay: int | None = None
+    guests: int | None = None
+    price_basis: str
+    tax_inclusion: str
+    fee_inclusion: str
+    promotion_status: str
+    is_refundable: bool | None = None
+    confidence: str
+    confidence_reason: str | None = None
     source: str
     source_url: str | None = None
     notes: str | None = None
-    collected_at: datetime
+    observed_at: datetime
 
 
 class MarketObservationIn(BaseModel):
     stay_date: date
     competitor_name: str = Field(min_length=1, max_length=160)
     observed_price: float = Field(gt=0)
-    room_id: int | None = None
+    room_type_id: int | None = None
     property_id: int | None = None
+    room_category: str | None = None
+    length_of_stay: int | None = None
+    guests: int | None = None
+    price_basis: str = "UNKNOWN"
+    tax_inclusion: str = "UNKNOWN"
+    fee_inclusion: str = "UNKNOWN"
+    promotion_status: str = "UNKNOWN"
+    is_refundable: bool | None = None
     source: str = "manual"
     source_url: str | None = None
     notes: str | None = None
@@ -196,20 +321,52 @@ class MarketObservationIn(BaseModel):
 
 class MarketCollectIn(BaseModel):
     stay_date: date
-    room_id: int | None = None
+    room_type_id: int | None = None
     property_id: int | None = None
 
 
+# -------------------------------------------------------------------- events
+class EventOut(BaseModel):
+    id: int
+    property_id: int | None
+    name: str
+    start_date: date
+    end_date: date
+    impact_level: str
+    adjustment_pct: float | None = None
+    event_type: str
+    source: str
+    notes: str | None = None
+    is_active: bool
+    created_at: datetime
+
+
+class EventIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    start_date: date
+    end_date: date
+    impact_level: str = "medium"
+    adjustment_pct: float | None = None
+    event_type: str = "other"
+    source: str = "manual"
+    notes: str | None = None
+    property_id: int | None = None
+    is_active: bool = True
+
+
+# ------------------------------------------------------------------- history
 class HistoryOut(BaseModel):
     id: int
     created_at: datetime
     property_name: str
-    room_name: str
+    room_type_name: str
+    room_category_label: str
     stay_date: date
+    season_label: str | None = None
     decision: str
-    recommended_price: float
-    final_price: float
-    previous_price: float
+    recommended_net_rate: float
+    final_net_rate: float
+    previous_net_rate: float
     difference: float
     difference_pct: float
     reason_code: str | None = None
@@ -221,6 +378,7 @@ class HistoryOut(BaseModel):
     currency: str = "VND"
 
 
+# -------------------------------------------------------------------- system
 class ProviderStatusOut(BaseModel):
     name: str
     healthy: bool
@@ -232,8 +390,11 @@ class ProviderStatusOut(BaseModel):
 
 class SystemStatusOut(BaseModel):
     api_version: str
+    mode: str
     engine: dict[str, Any]
     available_engines: list[dict[str, str]]
+    booking_curve: dict[str, Any]
+    rate_book: dict[str, Any]
     config_version: int
     config_label: str
     pms: ProviderStatusOut
@@ -242,5 +403,7 @@ class SystemStatusOut(BaseModel):
     market_provider_setting: str
     counts: dict[str, int]
     override_reasons: list[dict[str, str]]
+    vocabularies: dict[str, Any]
+    outcome_readiness: dict[str, Any]
     demo_mode: bool
     last_run_id: str | None = None

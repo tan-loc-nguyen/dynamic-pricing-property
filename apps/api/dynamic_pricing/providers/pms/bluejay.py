@@ -37,24 +37,32 @@ from ...config import get_settings
 from .base import (
     BookingDTO,
     InventoryDTO,
+    PhysicalRoomDTO,
     PMSProvider,
     PropertyDTO,
     ProviderStatus,
     ProviderUnavailable,
-    RoomDTO,
+    RoomTypeDTO,
 )
 
 UNRESOLVED_MAPPINGS = [
-    "Base URL and API version prefix for the Blue Jay tenant.",
+    "Base URL and API version prefix for the Luminous tenant.",
     "Authentication scheme (Bearer token / X-API-Key header / OAuth2 client credentials?).",
     "Endpoint that lists properties, and its pagination contract.",
-    "Endpoint that lists room types, and whether 'units per room type' is exposed.",
-    "Endpoint for per-date availability/inventory, and whether it returns units sold or units remaining.",
-    "Endpoint for bookings/reservations, and whether a booking creation timestamp is available "
-    "(required for the booking-pace signal).",
-    "Field carrying the currently published nightly rate, and whether it is net or gross of taxes/fees.",
-    "Whether rate plans / length-of-stay pricing exist and how they map onto a single nightly price.",
-    "Whether min/max price guardrails already exist in Blue Jay or are Luminous-side policy only.",
+    "Endpoint that lists ROOM TYPES (2BR Regular / 2BR Premium / 3BR) and how the category is keyed.",
+    "Endpoint that lists PHYSICAL ROOMS, and how many units belong to each room type.",
+    "Endpoint for per-date availability, and whether it returns units sold or units remaining.",
+    "Endpoint for reservations, and whether a booking CREATION timestamp is exposed "
+    "(hard requirement for booking pace and for fitting historical booking curves).",
+    "Whether cancellation status and cancellation timestamps are available.",
+    "Booking source / channel field.",
+    "Which field carries the NET revenue to Luminous, versus the guest-facing OTA sell price.",
+    "Which field carries the currently published rate, and whether it is NET or gross.",
+    "Whether rate plans / length-of-stay pricing exist and how they collapse to one nightly rate.",
+    "How far back reservation history can be extracted (the client reports Blue Jay has no "
+    "data retention, but that history can be exported with time).",
+    "Whether Blue Jay's built-in rule-based Yield Management is active, and whether it would "
+    "conflict with rates recommended by this system.",
     "Rate-limit and quota policy.",
 ]
 
@@ -62,7 +70,7 @@ UNRESOLVED_MAPPINGS = [
 class BlueJayPMSProvider(PMSProvider):
     name = "BlueJayPMSProvider"
     mode = "bluejay"
-    supports_price_push = False
+    supports_rate_push = False
 
     def __init__(self) -> None:
         settings = get_settings()
@@ -136,11 +144,17 @@ class BlueJayPMSProvider(PMSProvider):
         #   Required mapping: id, name, city/district, currency, timezone.
         raise self._not_implemented("property listing")
 
-    def fetch_rooms(self) -> list[RoomDTO]:
+    def fetch_room_types(self) -> list[RoomTypeDTO]:
         # TODO(bluejay): GET <room-types endpoint> -> map into RoomDTO.
         #   Required mapping: id, parent property id, display name, occupancy
         #   capacity, number of physical units, published base rate.
-        raise self._not_implemented("room listing")
+        raise self._not_implemented("room-type listing")
+
+    def fetch_physical_rooms(self) -> list[PhysicalRoomDTO]:
+        # TODO(bluejay): GET <physical rooms endpoint> -> map into PhysicalRoomDTO.
+        #   Required mapping: unit id, parent room-type id, unit label/number.
+        #   Needed for inventory and occupancy; units do NOT carry their own rate.
+        raise self._not_implemented("physical room listing")
 
     def fetch_inventory(self, start: date, end: date) -> list[InventoryDTO]:
         # TODO(bluejay): GET <availability/calendar endpoint>?from=..&to=..

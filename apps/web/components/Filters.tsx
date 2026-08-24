@@ -4,8 +4,8 @@ import { inputClass } from "./ui";
 import type { Property } from "@/lib/types";
 
 export interface FilterState {
-  propertyId: number | null;
-  roomId: number | null;
+  roomTypeId: number | null;
+  roomCategory: string;
   startDate: string;
   endDate: string;
   status: string;
@@ -21,43 +21,22 @@ export function Filters({
   value: FilterState;
   onChange: (next: FilterState) => void;
 }) {
-  const rooms = value.propertyId
-    ? properties.find((p) => p.id === value.propertyId)?.rooms || []
-    : properties.flatMap((p) => p.rooms);
-
+  const roomTypes = properties.flatMap((p) => p.room_types);
   const set = (patch: Partial<FilterState>) => onChange({ ...value, ...patch });
 
   return (
     <div className="flex flex-wrap items-end gap-2.5">
-      <div className="w-52">
-        <div className="text-[11px] font-medium text-ink-500 mb-1">Property</div>
+      <div className="w-56">
+        <div className="text-[11px] font-medium text-ink-500 mb-1">Room category</div>
         <select
           className={inputClass}
-          value={value.propertyId ?? ""}
-          onChange={(e) =>
-            set({ propertyId: e.target.value ? Number(e.target.value) : null, roomId: null })
-          }
+          value={value.roomTypeId ?? ""}
+          onChange={(e) => set({ roomTypeId: e.target.value ? Number(e.target.value) : null })}
         >
-          <option value="">All properties</option>
-          {properties.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="w-52">
-        <div className="text-[11px] font-medium text-ink-500 mb-1">Room</div>
-        <select
-          className={inputClass}
-          value={value.roomId ?? ""}
-          onChange={(e) => set({ roomId: e.target.value ? Number(e.target.value) : null })}
-        >
-          <option value="">All rooms</option>
-          {rooms.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
+          <option value="">All room categories</option>
+          {roomTypes.map((rt) => (
+            <option key={rt.id} value={rt.id}>
+              {rt.category_label} ({rt.units_total} units)
             </option>
           ))}
         </select>
@@ -86,7 +65,7 @@ export function Filters({
         <div className="text-[11px] font-medium text-ink-500 mb-1">Search</div>
         <input
           className={inputClass}
-          placeholder="Room or property name…"
+          placeholder="Room category or season…"
           value={value.search}
           onChange={(e) => set({ search: e.target.value })}
         />

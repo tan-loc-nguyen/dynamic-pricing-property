@@ -10,17 +10,17 @@ export default function HistoryPage() {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [decision, setDecision] = useState("all");
-  const [propertyId, setPropertyId] = useState<number | null>(null);
+  const [roomTypeId, setRoomTypeId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setEntries(await api.history({ decision, property_id: propertyId }));
+      setEntries(await api.history({ decision, room_type_id: roomTypeId }));
     } finally {
       setLoading(false);
     }
-  }, [decision, propertyId]);
+  }, [decision, roomTypeId]);
 
   useEffect(() => {
     api.properties().then(setProperties).catch(() => setProperties([]));
@@ -47,15 +47,15 @@ export default function HistoryPage() {
             </select>
           </div>
           <div className="w-56">
-            <div className="text-[11px] font-medium text-ink-500 mb-1">Property</div>
+            <div className="text-[11px] font-medium text-ink-500 mb-1">Room category</div>
             <select
               className={inputClass}
-              value={propertyId ?? ""}
-              onChange={(e) => setPropertyId(e.target.value ? Number(e.target.value) : null)}
+              value={roomTypeId ?? ""}
+              onChange={(e) => setRoomTypeId(e.target.value ? Number(e.target.value) : null)}
             >
-              <option value="">All properties</option>
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+              <option value="">All room categories</option>
+              {properties.flatMap((p) => p.room_types).map((rt) => (
+                <option key={rt.id} value={rt.id}>{rt.category_label}</option>
               ))}
             </select>
           </div>
@@ -75,12 +75,12 @@ export default function HistoryPage() {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-ink-200 bg-ink-50/60">
-                  {["When", "Property / Room", "Stay date", "Recommended", "Operator price", "Difference", "Decision", "Reason", "Engine"].map(
+                  {["When", "Room category", "Stay date", "Recommended NET", "Operator NET", "Difference", "Decision", "Reason", "Engine"].map(
                     (h) => (
                       <th
                         key={h}
                         className={`px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500 ${
-                          ["Recommended", "Operator price", "Difference"].includes(h) ? "text-right" : "text-left"
+                          ["Recommended NET", "Operator NET", "Difference"].includes(h) ? "text-right" : "text-left"
                         }`}
                       >
                         {h}
@@ -96,13 +96,13 @@ export default function HistoryPage() {
                       {formatDateTime(e.created_at)}
                     </td>
                     <td className="px-3 py-2.5">
-                      <div className="font-medium text-ink-900 leading-tight">{e.room_name}</div>
-                      <div className="text-[11px] text-ink-400 leading-tight mt-0.5">{e.property_name}</div>
+                      <div className="font-medium text-ink-900 leading-tight">{e.room_category_label}</div>
+                      <div className="text-[11px] text-ink-400 leading-tight mt-0.5">{e.season_label}</div>
                     </td>
                     <td className="px-3 py-2.5 text-ink-700">{formatStayDate(e.stay_date)}</td>
-                    <td className="px-3 py-2.5 text-right tnum text-ink-500">{formatVND(e.recommended_price)}</td>
+                    <td className="px-3 py-2.5 text-right tnum text-ink-500">{formatVND(e.recommended_net_rate)}</td>
                     <td className="px-3 py-2.5 text-right tnum font-semibold text-ink-900">
-                      {formatVND(e.final_price)}
+                      {formatVND(e.final_net_rate)}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       {Math.abs(e.difference) < 1 ? (

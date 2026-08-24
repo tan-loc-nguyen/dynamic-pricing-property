@@ -1,8 +1,4 @@
-"""System status, portfolio listing, and demo controls.
-
-The status endpoint is what lets the UI show an honest integration banner
-instead of pretending everything is fine.
-"""
+"""System status, portfolio listing, and demo controls."""
 
 from __future__ import annotations
 
@@ -14,25 +10,41 @@ from sqlalchemy.orm import Session
 
 from .. import __version__
 from ..config import get_settings
-from ..constants import OVERRIDE_REASONS
+from ..constants import (
+    CONFIDENCE_LEVELS,
+    EVENT_IMPACT_LEVELS,
+    EVENT_TYPES,
+    INCLUSION_OPTIONS,
+    MODE_SHADOW,
+    OVERRIDE_REASONS,
+    PRICE_BASES,
+    PROMOTION_OPTIONS,
+)
 from ..db import get_session
 from ..models import (
     Booking,
+    Competitor,
+    Event,
     MarketObservation,
     OperatorDecision,
+    PhysicalRoom,
     PricingRecommendation,
     Property,
-    Room,
+    RecommendationOutcome,
+    RoomType,
+    SeasonalRateBand,
     StayDateInventory,
 )
-from ..pricing import get_engine, list_engines
+from ..pricing import DEFAULT_ENGINE, RATE_BOOK_SOURCE, ROOM_CATEGORIES, SEASONS, get_engine, list_engines
 from ..providers.market import get_market_provider
 from ..providers.pms import get_pms_provider
 from ..providers.pms.mock import HISTORY_DAYS, HORIZON_DAYS
 from ..schemas import PropertyOut, SystemStatusOut
 from ..services.configuration import get_active_configuration
+from ..services.outcomes import outcome_summary
 from ..services.recommendations import generate_recommendations, latest_run_id
 from ..services.sync import default_window, sync_market, sync_pms
+from ._shared import category_label
 
 router = APIRouter(prefix="/api", tags=["system"])
 
@@ -53,20 +65,28 @@ def properties(session: Session = Depends(get_session)):
             city=p.city,
             district=p.district,
             currency=p.currency,
-            rooms=[
+            room_types=[
                 {
-                    "id": r.id,
-                    "external_id": r.external_id,
-                    "name": r.name,
-                    "room_type": r.room_type,
-                    "capacity": r.capacity,
-                    "units_total": r.units_total,
-                    "base_price": r.base_price,
-                    "min_price": r.min_price,
-                    "max_price": r.max_price,
-                    "is_active": r.is_active,
+                    "id": rt.id,
+                    "external_id": rt.external_id,
+                    "name": rt.name,
+                    "category": rt.category,
+                    "category_label": category_label(rt.category),
+                    "capacity": rt.capacity,
+                    "units_total": rt.units_total,
+                    "is_active": rt.is_active,
+                    "physical_rooms": [
+                        {
+                            "id": u.id,
+                            "external_id": u.external_id,
+                            "unit_label": u.unit_label,
+                            "floor": u.floor,
+                            "is_active": u.is_active,
+                        }
+                        for u in sorted(rt.physical_rooms, key=lambda x: x.unit_label)
+                    ],
                 }
-                for r in sorted(p.rooms, key=lambda x: x.name)
+                for rt in sorted(p.room_types, key=lambda x: x.name)
             ],
         )
         for p in rows
@@ -82,7 +102,7 @@ def engines():
 def status(session: Session = Depends(get_session)):
     settings = get_settings()
     config = get_active_configuration(session)
-    engine = get_engine("v1")
+    engine = get_engine(DEFAULT_ENGINE)
 
     pms_status = get_pms_provider().status()
     market_status = get_market_provider().status()
@@ -90,15 +110,37 @@ def status(session: Session = Depends(get_session)):
     def count(model) -> int:
         return int(session.scalar(select(func.count()).select_from(model)) or 0)
 
+    from ..features.booking_curve import get_booking_curve_provider
+
+    curve = get_booking_curve_provider(config.payload)
+
     return SystemStatusOut(
         api_version=__version__,
+        mode=str(config.payload.get("mode", MODE_SHADOW)),
         engine={
-            "key": "v1",
+            "key": DEFAULT_ENGINE,
             "name": engine.name,
             "version": engine.version,
             "description": engine.description,
         },
         available_engines=list_engines(),
+        booking_curve={
+            "name": curve.name,
+            "validated": curve.validated,
+            "note": (
+                "Demo curve — NOT Luminous data. Replace with historical curves once "
+                "booking history is available."
+            )
+            if not curve.validated
+            else "",
+        },
+        rate_book={
+            "source": RATE_BOOK_SOURCE,
+            "rate_basis": "NET",
+            "bands": count(SeasonalRateBand),
+            "seasons": len(SEASONS),
+            "categories": len(ROOM_CATEGORIES),
+        },
         config_version=config.version,
         config_label=config.label,
         pms={
@@ -121,14 +163,30 @@ def status(session: Session = Depends(get_session)):
         market_provider_setting=settings.market_provider,
         counts={
             "properties": count(Property),
-            "rooms": count(Room),
+            "room_types": count(RoomType),
+            "physical_rooms": count(PhysicalRoom),
+            "rate_bands": count(SeasonalRateBand),
             "stay_dates": count(StayDateInventory),
             "bookings": count(Booking),
+            "events": count(Event),
+            "competitors": count(Competitor),
             "market_observations": count(MarketObservation),
             "recommendations": count(PricingRecommendation),
             "decisions": count(OperatorDecision),
+            "outcomes": count(RecommendationOutcome),
         },
         override_reasons=OVERRIDE_REASONS,
+        vocabularies={
+            "room_categories": ROOM_CATEGORIES,
+            "seasons": SEASONS,
+            "confidence_levels": CONFIDENCE_LEVELS,
+            "price_bases": PRICE_BASES,
+            "inclusion_options": INCLUSION_OPTIONS,
+            "promotion_options": PROMOTION_OPTIONS,
+            "event_impact_levels": EVENT_IMPACT_LEVELS,
+            "event_types": EVENT_TYPES,
+        },
+        outcome_readiness=outcome_summary(session),
         demo_mode=settings.data_provider == "mock",
         last_run_id=latest_run_id(session),
     )
@@ -166,5 +224,4 @@ def reset_demo(session: Session = Depends(get_session)):
     from ..seed import bootstrap
 
     session.close()
-    summary = bootstrap(force=True, quiet=True)
-    return {"ok": True, "summary": summary}
+    return {"ok": True, "summary": bootstrap(force=True, quiet=True)}

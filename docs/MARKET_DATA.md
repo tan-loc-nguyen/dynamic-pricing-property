@@ -11,27 +11,67 @@ MarketDataProvider
 └── PublicWebMarketDataProvider public pages prototype    (off by default)
 ```
 
+## Confidence comes first
+
+A competitor price is only useful if you know **what it is**. The same headline
+number can be:
+
+* a refundable OTA sell price, taxes included, for a 3-night stay; or
+* a one-night NET rate, taxes excluded, on a promotional discount.
+
+Only one of those is comparable to a Luminous NET rate. So every observation
+carries its basis, and confidence is **derived** from that basis — never
+asserted by the provider that produced it.
+
+| Level | Means | Can move a rate? |
+|---|---|---|
+| `HIGH` | NET basis, comparable category, LOS, tax/fee and promotion all known | yes |
+| `MEDIUM` | Known basis and category, minor gaps | yes (default gate) |
+| `LOW` | Basis unknown — a generic headline price | **no** |
+| `UNUSABLE` | No usable value | no |
+
+Metadata captured per observation: `source`, `observed_at`, `stay_date`,
+`room_category`, `length_of_stay`, `guests`, `price_basis`, `tax_inclusion`,
+`fee_inclusion`, `promotion_status`, `is_refundable`, `confidence`,
+`confidence_reason`, `notes`.
+
+**Low-confidence evidence is shown, never applied.** It appears in the
+recommendation breakdown as an explicitly *ignored* line with the reason, so the
+operator can see it was considered. Silently dropping it would be just as
+misleading as silently pricing on it.
+
+## The comp set
+
+Observations belong to a `Competitor` — a deliberately selected comparable
+property, with location, comparable room category, source and active flag.
+A comp set is a judgement about which properties a guest genuinely chooses
+between; it is not a search result. Managed manually on the **Market** screen.
+
+The demo comp set is invented (ASSUMPTIONS U12) and must be replaced with the
+operator's real list.
+
 ## How the signal is computed
 
 ```
-market_reference_price = median competitor price for this room + stay date
-market_baseline_price  = median competitor price for this room across the horizon
-market_price_index     = market_reference_price / market_baseline_price
+qualified              = observations at or above the confidence gate
+market_reference_rate  = median(qualified for this room type + stay date)
+market_baseline_rate   = median(qualified for this room type across the horizon)
+market_price_index     = market_reference_rate / market_baseline_rate
 
-market_factor = 1 + sensitivity × (market_price_index − 1)     [then clamped]
+adjustment_pct = sensitivity x (market_price_index - 1) x 100   [then capped]
 ```
 
-Guards, all configurable from **Pricing Rules**:
+Guards, all configurable from **Dynamic Rules**:
 
-- fewer than `min_observations` (default 2) → neutral factor, and the UI says so
-- observations older than `observation_max_age_days` (default 14) → ignored
-- factor clamped to 0.90–1.15 so a thin or noisy sample cannot dominate
-- `sensitivity` (default 0.50) damps the signal deliberately — see A16
+- observations below the confidence gate are excluded from both the reference
+  *and* the baseline;
+- fewer than `min_observations` qualified (default 2) → no adjustment;
+- observations older than `observation_max_age_days` (default 14) → ignored;
+- adjustment capped at ±5%;
+- `sensitivity` (default 0.50) damps the signal deliberately.
 
-Rationale for dividing by the market's own median rather than our base price is
-in `DECISIONS.md` D5.
-
----
+Rationale for dividing by the market's own median rather than our BASE rate is
+in `DECISIONS.md` D5: it keeps the signal independent of our own pricing.
 
 ## 1. Mock (default)
 

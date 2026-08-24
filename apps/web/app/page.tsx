@@ -11,9 +11,9 @@ import { api } from "@/lib/api";
 import { addDaysISO, todayISO } from "@/lib/format";
 import type { Property, Recommendation, Summary, SystemStatus } from "@/lib/types";
 
-const PAGE_SIZE = 40;
+const PAGE_SIZE = 45;
 
-export default function DashboardPage() {
+export default function RateReviewPage() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -25,8 +25,8 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState(false);
 
   const [filters, setFilters] = useState<FilterState>(() => ({
-    propertyId: null,
-    roomId: null,
+    roomTypeId: null,
+    roomCategory: "all",
     startDate: todayISO(),
     endDate: addDaysISO(todayISO(), 30),
     status: "all",
@@ -35,8 +35,7 @@ export default function DashboardPage() {
 
   const query = useMemo(
     () => ({
-      property_id: filters.propertyId,
-      room_id: filters.roomId,
+      room_type_id: filters.roomTypeId,
       start_date: filters.startDate || null,
       end_date: filters.endDate || null,
       status: filters.status,
@@ -86,10 +85,10 @@ export default function DashboardPage() {
   const shown = recommendations.slice(0, visible);
 
   return (
-    <div className="px-7 py-6 space-y-5 max-w-[1500px]">
+    <div className="px-7 py-6 space-y-5 max-w-[1700px]">
       <PageHeader
-        title="Pricing recommendations"
-        subtitle="Every price below is explained. Review the reasoning, then accept it or set your own."
+        title="Rate review"
+        subtitle="Recommended NET rates by room category and stay date, anchored to Luminous' validated seasonal rate book. Review the reasoning, then accept or set your own."
         actions={
           <Button variant="secondary" onClick={regenerate} disabled={busy}>
             {busy ? "Recalculating…" : "Recalculate"}
@@ -98,7 +97,6 @@ export default function DashboardPage() {
       />
 
       <StatusBanner status={status} />
-
       <SummaryCards summary={summary} />
 
       <Card className="p-4">
@@ -117,14 +115,15 @@ export default function DashboardPage() {
         ) : recommendations.length === 0 ? (
           <Empty
             title="No recommendations match these filters"
-            hint="Try widening the date range or clearing the property filter."
+            hint="Try widening the date range or clearing the room category filter."
           />
         ) : (
           <>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-200">
               <div className="text-[12px] text-ink-500">
                 Showing <span className="font-medium text-ink-700">{shown.length}</span> of{" "}
-                <span className="font-medium text-ink-700">{recommendations.length}</span> stay dates
+                <span className="font-medium text-ink-700">{recommendations.length}</span> room-type
+                nights
               </div>
             </div>
             <RecommendationTable

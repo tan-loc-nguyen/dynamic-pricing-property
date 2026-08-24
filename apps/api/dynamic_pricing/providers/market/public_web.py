@@ -5,6 +5,13 @@ PURPOSE
         external public source -> normalization -> market signal -> pricing engine
     It is NOT a scraping system and must never become one.
 
+CONFIDENCE POSITION
+    Everything this provider emits is LOW confidence, by construction. A public
+    page rarely states the stay date, length of stay, room category, tax/fee
+    basis or promotion status — without those, the number is not comparable to
+    a Luminous NET rate. LOW-confidence evidence is stored and shown to the
+    operator, but the pricing engine will not act on it.
+
 WHAT IT DOES
     * fetches operator-configured public URLs (MARKET_PUBLIC_SOURCES)
     * checks robots.txt FIRST and obeys a disallow
@@ -39,7 +46,7 @@ import httpx
 
 from ...config import get_settings
 from ..pms.base import ProviderStatus, ProviderUnavailable
-from .base import MarketDataProvider, MarketObservationDTO
+from .base import CONFIDENCE_LOW, MarketDataProvider, MarketObservationDTO
 
 # Hosts we will not touch regardless of configuration.
 BLOCKED_HOSTS = (
@@ -62,6 +69,9 @@ _MAX_PLAUSIBLE_VND = 50_000_000
 class PublicWebMarketDataProvider(MarketDataProvider):
     name = "PublicWebMarketDataProvider"
     mode = "public_web"
+    # A generic web page cannot tell us the price basis, so this provider is
+    # structurally incapable of producing evidence good enough to move a rate.
+    max_confidence = CONFIDENCE_LOW
 
     def __init__(self) -> None:
         settings = get_settings()
@@ -202,7 +212,14 @@ class PublicWebMarketDataProvider(MarketDataProvider):
                 room_external_id=room_external_id,
                 source_url=url,
                 notes="Best-effort extraction from a public, robots-permitted page.",
-                collected_at=now,
+                room_category=None,
+                confidence=CONFIDENCE_LOW,
+                confidence_reason=(
+                    "Generic web price: the page does not state stay date, length of stay, "
+                    "room category, tax/fee basis or promotion status, so it is not "
+                    "comparable to a Luminous NET rate."
+                ),
+                observed_at=now,
             )
             for price in prices
         ]

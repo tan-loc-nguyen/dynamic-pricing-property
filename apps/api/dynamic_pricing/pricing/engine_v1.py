@@ -1,4 +1,16 @@
-"""PricingEngineV1 — deterministic, explainable, provisional.
+"""PricingEngineV1 — LEGACY multiplicative engine, retained for comparison.
+
+SUPERSEDED BY PricingEngineV2. Kept registered so the engine registry is
+demonstrably pluggable and so V1 and V2 can be compared side by side.
+
+Migrated to the RoomType/NET-rate context. Two deliberate changes:
+  * its seasonality factor has been REMOVED — the validated rate band now
+    encodes season, so multiplying one on top would double-count it;
+  * its day-of-week factor is neutral by default (unvalidated).
+It reads its own isolated config under the "legacy_v1" key.
+
+Original description follows.
+
 
     recommended = base
                   x day-of-week
@@ -29,7 +41,7 @@ from .registry import register_engine
 # Human-readable names for the neutral-fallback explanations.
 _MISSING_COPY = {
     "occupancy": "Occupancy unavailable; no occupancy adjustment applied.",
-    "booking_pace": "Booking pace unavailable; no pace adjustment applied.",
+    "recent_pickup": "Booking pace unavailable; no pace adjustment applied.",
     "lead_time": "Days-to-check-in unavailable; no lead-time adjustment applied.",
     "market": "Market signal unavailable; no market adjustment applied.",
     "day_of_week": "Day of week unavailable; no weekday adjustment applied.",
@@ -89,7 +101,7 @@ class PricingEngineV1(PricingEngine):
 
     # ------------------------------------------------------------------ API
     def calculate(self, context: PricingContext, configuration: dict[str, Any]) -> PricingResult:
-        cfg = configuration or {}
+        cfg = (configuration or {}).get("legacy_v1", {}) or {}
         pricing_cfg = cfg.get("pricing", {})
 
         base_price = self._resolve_base_price(context, pricing_cfg)
@@ -107,6 +119,7 @@ class PricingEngineV1(PricingEngine):
                     # 9dp keeps `price_before x factor == price_after` true to the
                     # cent, so an operator can re-derive any line by hand.
                     factor=round(factor, 9),
+                    adjustment_pct=round((factor - 1) * 100, 4),
                     price_before=round(before, 2),
                     price_after=round(after, 2),
                     delta=round(after - before, 2),
@@ -122,7 +135,6 @@ class PricingEngineV1(PricingEngine):
             self._factor_booking_pace,
             self._factor_lead_time,
             self._factor_urgency,
-            self._factor_season,
             self._factor_event,
             self._factor_market,
         ):
@@ -213,11 +225,11 @@ class PricingEngineV1(PricingEngine):
         }
 
         return PricingResult(
-            recommended_price=recommended,
-            base_price=round(base_price, 2),
-            current_price=round(context.current_price, 2),
-            price_before_bounds=round(price_before_bounds, 2),
-            total_multiplier=round(total_multiplier, 6),
+            recommended_net_rate=recommended,
+            base_net_rate=round(base_price, 2),
+            current_net_rate=round(context.current_net_rate, 2),
+            net_rate_before_clamp=round(price_before_bounds, 2),
+            total_adjustment_pct=round((total_multiplier - 1) * 100, 4),
             adjustments=adjustments,
             explanation=self._build_explanation(context, adjustments, recommended),
             engine_version=self.version,
@@ -229,21 +241,21 @@ class PricingEngineV1(PricingEngine):
         override = pricing_cfg.get("base_price_override")
         if override:
             return float(override)
-        if ctx.base_price:
-            return float(ctx.base_price)
-        return float(ctx.current_price or 0.0)
+        if ctx.band_base_net_rate:
+            return float(ctx.band_base_net_rate)
+        return float(ctx.current_net_rate or 0.0)
 
     def _resolve_min_price(self, ctx: PricingContext, pricing_cfg: dict) -> float | None:
         override = pricing_cfg.get("min_price_override")
         if override:
             return float(override)
-        return float(ctx.min_price) if ctx.min_price else None
+        return float(ctx.band_min_net_rate) if ctx.band_min_net_rate else None
 
     def _resolve_max_price(self, ctx: PricingContext, pricing_cfg: dict) -> float | None:
         override = pricing_cfg.get("max_price_override")
         if override:
             return float(override)
-        return float(ctx.max_price) if ctx.max_price else None
+        return float(ctx.band_max_net_rate) if ctx.band_max_net_rate else None
 
     # -------------------------------------------------------------- factors
     # Each returns (code, label, factor, reason, is_neutral) or None to skip.
@@ -285,21 +297,26 @@ class PricingEngineV1(PricingEngine):
         )
 
     def _factor_booking_pace(self, ctx: PricingContext, cfg: dict):
-        node = cfg.get("booking_pace", {})
+        node = cfg.get("recent_pickup", {})
         if not node.get("enabled", True):
             return None
-        if ctx.booking_pace_index is None:
-            return ("booking_pace", "Booking pace", 1.0, _MISSING_COPY["booking_pace"], True)
-        band = _band_for(ctx.booking_pace_index, node.get("bands", []))
+        pace_index = (
+            (ctx.recent_pickup / ctx.expected_pickup)
+            if (ctx.recent_pickup is not None and ctx.expected_pickup)
+            else None
+        )
+        if pace_index is None:
+            return ("recent_pickup", "Booking pace", 1.0, _MISSING_COPY["recent_pickup"], True)
+        band = _band_for(pace_index, node.get("bands", []))
         if band is None:
-            return ("booking_pace", "Booking pace", 1.0, _MISSING_COPY["booking_pace"], True)
+            return ("recent_pickup", "Booking pace", 1.0, _MISSING_COPY["recent_pickup"], True)
         factor = float(band.get("multiplier", 1.0))
         return (
-            "booking_pace",
+            "recent_pickup",
             band.get("label", "Booking pace"),
             factor,
             f"Picked up {ctx.recent_pickup:.0f} unit(s) in the recent window vs "
-            f"{ctx.expected_pickup:.1f} expected (pace index {ctx.booking_pace_index:.2f}).",
+            f"{ctx.expected_pickup:.1f} expected (pace index {pace_index:.2f}).",
             abs(factor - 1.0) < 1e-9,
         )
 
@@ -307,10 +324,10 @@ class PricingEngineV1(PricingEngine):
         node = cfg.get("lead_time", {})
         if not node.get("enabled", True):
             return None
-        if ctx.days_to_checkin is None:
+        if ctx.days_to_arrival is None:
             return ("lead_time", "Lead time", 1.0, _MISSING_COPY["lead_time"], True)
         band = _band_for(
-            float(ctx.days_to_checkin), node.get("bands", []), key="max_days", inclusive=True
+            float(ctx.days_to_arrival), node.get("bands", []), key="max_days", inclusive=True
         )
         if band is None:
             return ("lead_time", "Lead time", 1.0, _MISSING_COPY["lead_time"], True)
@@ -319,7 +336,7 @@ class PricingEngineV1(PricingEngine):
             "lead_time",
             band.get("label", "Lead time"),
             factor,
-            f"{ctx.days_to_checkin} day(s) until check-in.",
+            f"{ctx.days_to_arrival} day(s) until check-in.",
             abs(factor - 1.0) < 1e-9,
         )
 
@@ -328,17 +345,17 @@ class PricingEngineV1(PricingEngine):
         node = cfg.get("lead_time", {}).get("urgency_discount", {})
         if not node.get("enabled", True):
             return None
-        if ctx.days_to_checkin is None or ctx.occupancy is None:
+        if ctx.days_to_arrival is None or ctx.occupancy is None:
             return None
         within = int(node.get("within_days", 7))
         below = float(node.get("occupancy_below", 0.5))
-        if ctx.days_to_checkin <= within and ctx.occupancy < below:
+        if ctx.days_to_arrival <= within and ctx.occupancy < below:
             factor = float(node.get("multiplier", 1.0))
             return (
                 "urgency_discount",
                 node.get("label", "Unsold inventory close to check-in"),
                 factor,
-                f"Only {ctx.occupancy:.0%} sold with {ctx.days_to_checkin} day(s) to go — "
+                f"Only {ctx.occupancy:.0%} sold with {ctx.days_to_arrival} day(s) to go — "
                 f"discounting to stimulate demand.",
                 abs(factor - 1.0) < 1e-9,
             )
@@ -405,7 +422,7 @@ class PricingEngineV1(PricingEngine):
             "market",
             "Market signal",
             factor,
-            f"Reference market price {ctx.market_reference_price:,.0f} {ctx.currency} is "
+            f"Reference market price {ctx.market_reference_net_rate:,.0f} {ctx.currency} is "
             f"{abs(ctx.market_price_index - 1) * 100:.0f}% {direction} the market baseline "
             f"({ctx.market_observation_count} observation(s), sensitivity {sensitivity:.2f})"
             f"{clamp_note}.",
@@ -425,7 +442,7 @@ class PricingEngineV1(PricingEngine):
         if not applied:
             text = (
                 f"No pricing signals moved this date away from its base price of "
-                f"{ctx.base_price:,.0f} {ctx.currency}. Recommendation held at "
+                f"{ctx.band_base_net_rate:,.0f} {ctx.currency}. Recommendation held at "
                 f"{recommended:,.0f} {ctx.currency}."
             )
             if blind_spots:
@@ -436,7 +453,7 @@ class PricingEngineV1(PricingEngine):
             arrow = "increases" if adj.delta > 0 else "decreases"
             parts.append(f"{adj.label} {arrow} the price by {abs(adj.delta):,.0f}")
         text = (
-            f"Starting from a base of {ctx.base_price:,.0f} {ctx.currency}: "
+            f"Starting from a base of {ctx.band_base_net_rate:,.0f} {ctx.currency}: "
             + "; ".join(parts)
             + f". Final recommendation {recommended:,.0f} {ctx.currency}."
         )

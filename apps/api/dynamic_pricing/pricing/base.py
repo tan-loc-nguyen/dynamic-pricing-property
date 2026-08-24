@@ -1,8 +1,12 @@
 """Pricing engine interface + result types.
 
-Any future engine (FinancePricingEngine, PricingEngineV2, ...) only has to
-subclass ``PricingEngine`` and return a ``PricingResult``. Nothing else in the
-system — UI, API, persistence, providers — needs to change.
+Any future engine (FinancePricingEngine, PricingEngineV3, ...) subclasses
+``PricingEngine`` and returns a ``PricingResult``. Nothing else in the system —
+UI, API, persistence, providers — needs to change.
+
+V2 is **additive**: each step contributes a percentage of the validated BASE
+net rate. ``factor`` is retained so legacy multiplicative breakdowns still
+render in the same UI.
 """
 
 from __future__ import annotations
@@ -20,12 +24,16 @@ class Adjustment:
 
     code: str
     label: str
-    factor: float
     price_before: float
     price_after: float
     delta: float
+    adjustment_pct: float = 0.0
+    factor: float = 1.0
     reason: str = ""
     is_neutral: bool = False
+    # True when a signal was observed but deliberately NOT applied — e.g. a
+    # low-confidence market price. The operator still sees it.
+    is_ignored: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -33,11 +41,11 @@ class Adjustment:
 
 @dataclass(frozen=True)
 class PricingResult:
-    recommended_price: float
-    base_price: float
-    current_price: float
-    price_before_bounds: float
-    total_multiplier: float
+    recommended_net_rate: float
+    base_net_rate: float
+    current_net_rate: float
+    net_rate_before_clamp: float
+    total_adjustment_pct: float
     adjustments: list[Adjustment]
     explanation: str
     engine_version: str
@@ -45,13 +53,15 @@ class PricingResult:
 
     @property
     def change_pct(self) -> float:
-        if not self.current_price:
+        if not self.current_net_rate:
             return 0.0
-        return round((self.recommended_price - self.current_price) / self.current_price * 100, 2)
+        return round(
+            (self.recommended_net_rate - self.current_net_rate) / self.current_net_rate * 100, 2
+        )
 
     @property
     def change_abs(self) -> float:
-        return round(self.recommended_price - self.current_price, 2)
+        return round(self.recommended_net_rate - self.current_net_rate, 2)
 
 
 class PricingEngine(ABC):
@@ -63,10 +73,10 @@ class PricingEngine(ABC):
 
     @abstractmethod
     def calculate(self, context: PricingContext, configuration: dict[str, Any]) -> PricingResult:
-        """Return a recommendation for one room + stay date.
+        """Return a NET-rate recommendation for one room type + stay date.
 
         MUST be pure: identical (context, configuration) -> identical result.
         MUST NOT raise because an optional signal is absent; apply a neutral
-        factor and explain the absence instead.
+        adjustment and explain the absence instead.
         """
         raise NotImplementedError

@@ -21,20 +21,17 @@ four methods", with no changes anywhere downstream.
 
 ---
 
-## D2 — A `Room` is a room *type* with N units, not a physical unit
+## D2 — Pricing grain is RoomType x StayDate; physical units are inventory only
 
-Occupancy is only a meaningful pricing signal when a bucket contains more than
-one sellable unit. With one unit per room, occupancy is always 0% or 100% and
-the whole occupancy factor collapses into a binary.
+Luminous defines rates by room category and Blue Jay distributes by room type,
+so an individual apartment does not get its own rate. `PhysicalRoom` exists
+because the 22 units still drive inventory and occupancy, and so unit-level
+overrides remain possible later without reshaping the model.
 
-**Why:** it makes occupancy, booking pace and pickup expressible.
-
-**Risk:** if Luminous prices each apartment individually (plausible for a small
-luxury portfolio), this is the wrong grain. Flagged as **S1** in ASSUMPTIONS.md.
-Reversing means setting `units_total = 1` and rethinking the occupancy factor —
-the data model itself still holds.
-
----
+**Superseded D2 (pre-refactor):** the earlier model used a generic `Room` that
+conflated "room type" and "physical unit", with an invented multi-property
+portfolio. The client document replaced that guess with fact: one property,
+22 apartments, three categories.
 
 ## D3 — Feature Engine is DB-aware, but contains no pricing policy
 
@@ -196,3 +193,132 @@ wheels were not yet universally available.
 
 **Cost to reverse:** none — remove the preference list once the ecosystem
 catches up.
+
+---
+
+# Refactor decisions — Revenue Intelligence direction
+
+## D16 — The rate book is data, not configuration
+
+Luminous' seasonal MIN/BASE/MAX table lives in its own module
+(`pricing/rate_book.py`), its own table (`seasonal_rate_bands`), its own API
+namespace (`/api/rate-book`) and its own screen — deliberately **not** inside
+the `PricingConfiguration` JSON blob with the experimental settings.
+
+**Why:** the single most important distinction in this product is
+validated-fact vs. unvalidated-guess. If both live in one config object, that
+distinction survives only as a comment. Separate storage makes it structural:
+you cannot accidentally reset the client's rates while resetting demo defaults,
+and the UI can honestly label each.
+
+An operator edit flips a band's `source` from `CLIENT_VALIDATED` to
+`OPERATOR_EDITED`, so provenance is never silently lost.
+
+## D17 — Season selects a band; it never multiplies one
+
+There is no seasonality factor in PricingEngineV2. The rate table already
+encodes the season, so a seasonality multiplier on top would count it twice.
+
+The legacy V1 engine's `_factor_season` was **removed** rather than left
+disabled, so it cannot be re-enabled by a config change and reintroduce the
+double count. Pinned by `test_seasonality_is_not_applied_twice`.
+
+## D18 — Occupancy and lead time are not independent factors
+
+They are folded into one signal — **pace position** — via the booking curve:
+
+    pace_gap = actual_otb_occupancy − BookingCurve(category, season, days_to_arrival)
+
+**Why:** 30% sold at D-90 and 30% sold at D-2 are opposite situations. Pricing
+occupancy directly means the same number pulls the rate the same way in both.
+And rewarding occupancy, lead time *and* pace separately would pay three times
+for one underlying demand condition.
+
+V2 therefore has no `occupancy`, `lead_time` or `urgency_discount` step at all —
+asserted by a test, because it would be easy to "helpfully" add one back.
+
+## D19 — Additive percentages, not stacked multipliers
+
+Each signal contributes percentage points of the BASE rate, summed, bounded,
+then applied.
+
+**Why:** four multipliers of 1.15 compound to 1.75 in a way nobody predicts.
+Four additive percentages are bounded by construction and an operator can check
+the arithmetic by hand — which matters more than mathematical elegance in a
+product whose entire value is trust.
+
+When the total exceeds the bound, each contribution is scaled *proportionally*
+rather than truncated, so the displayed lines still sum to the applied total.
+A breakdown that does not add up destroys the trust the breakdown exists to
+build.
+
+## D20 — Market confidence is derived, not asserted
+
+`score_confidence()` computes HIGH/MEDIUM/LOW/UNUSABLE from what is actually
+known about an observation: price basis, room category, length of stay, tax and
+fee treatment, promotion status.
+
+**Why:** a provider that declares its own data trustworthy is worthless. Because
+confidence is derived from metadata completeness, `PublicWebMarketDataProvider`
+is *structurally incapable* of producing anything above LOW — a generic web page
+does not state those things. Manual entry can reach HIGH because a human can.
+
+Low-confidence evidence is stored and displayed as an **ignored** line in the
+breakdown, not hidden. The operator sees it was considered and why it was
+excluded.
+
+## D21 — NET and OTA prices are different quantities
+
+Every rate field is `*_net_rate`. `current_ota_price` is nullable and never
+derived — it is populated only if a real guest-facing price is known.
+
+The `NET → channel sell` transformation is a documented seam that is
+deliberately **unimplemented**, because inventing commission percentages would
+produce plausible, wrong, guest-facing prices. See ASSUMPTIONS U13.
+
+## D22 — Shadow Mode is the product, not a setting
+
+`mode: "shadow"` is the default and the only supported value.
+`PMSProvider.push_rate()` exists and deliberately raises.
+
+**Why:** the next real-world experiment is comparing system recommendations
+against operator decisions. That experiment is only valid if the system is not
+also changing the prices. Automation is a later decision that this data should
+justify — not precede.
+
+## D23 — Outcomes are never invented in production
+
+`RecommendationOutcome.is_synthetic` separates demo rows from measurement, and
+`outcome_summary()` reports the two counts separately, marking readiness `False`
+while only synthetic data exists.
+
+**Why:** this dataset is the evidence base for every future modelling decision.
+A single unflagged synthetic row would poison it. Demo outcomes are generated
+only for past stay dates and always flagged.
+
+## D24 — Migration by reseed, not by Alembic
+
+The refactor renamed tables and columns wholesale (`rooms` → `room_types`,
+`*_price` → `*_net_rate`) and added six entities. SQLite here is a disposable
+local demo database, so the migration is a model change plus `make reseed`.
+
+**Cost to reverse:** introducing Alembic later is straightforward; doing it now
+would have added ceremony to a database with no production data in it.
+
+## D25 — Demo occupancy is generated *around* the booking curve
+
+`MockPMSProvider` imports the same `DemoBookingCurveProvider` the feature engine
+measures against, and disperses occupancy around it.
+
+**Why:** the first version generated occupancy independently, so almost every
+date read "well behind pace" and the demo showed systematic discounting — a
+convincing-looking artefact of two unrelated generators. Deriving demo
+occupancy from the curve makes pace gaps spread realistically either side of
+zero. It is a slight layering smell (a provider importing from `features/`)
+accepted deliberately: demo data that contradicts the model teaches the wrong
+thing.
+
+The curve also carries a `MAX_EXPECTED_OCCUPANCY` ceiling, because a 22-unit
+building is not expected to be 100% sold on arrival day — without it, the
+season multiplier pushed the D-0 expectation to 100% and every near date looked
+behind pace.

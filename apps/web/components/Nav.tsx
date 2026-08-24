@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/", label: "Dashboard", hint: "Review recommendations" },
-  { href: "/settings", label: "Pricing Rules", hint: "Change the assumptions" },
-  { href: "/market", label: "Market Data", hint: "Competitor prices" },
+  { href: "/", label: "Rate Review", hint: "Recommendations to action" },
+  { href: "/rate-book", label: "Rate Book", hint: "Validated seasonal rates" },
+  { href: "/settings", label: "Dynamic Rules", hint: "Experimental layer" },
+  { href: "/market", label: "Market", hint: "Comp set & evidence" },
+  { href: "/events", label: "Events", hint: "Demand calendar" },
   { href: "/history", label: "History", hint: "Past decisions" },
 ];
 
@@ -23,7 +25,7 @@ export function Nav() {
           <div className="min-w-0">
             <div className="text-[13px] font-semibold leading-tight text-ink-900">Dynamic Pricing</div>
             {/* The operator whose portfolio is being priced. */}
-            <div className="text-[11px] text-ink-500 leading-tight">Luminous Luxury Apartment</div>
+            <div className="text-[11px] text-ink-500 leading-tight">Luminous Luxury Apartments</div>
           </div>
         </div>
       </div>
@@ -48,13 +50,19 @@ export function Nav() {
         })}
       </nav>
 
-      <div className="p-3 border-t border-ink-100">
+      <div className="p-3 border-t border-ink-100 space-y-2">
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2.5">
+          <div className="text-[11px] font-semibold text-emerald-900 leading-tight">Shadow Mode</div>
+          <div className="text-[11px] text-emerald-700 leading-snug mt-1">
+            Recommendations only. Nothing is pushed to Blue Jay or any OTA.
+          </div>
+        </div>
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
           <div className="text-[11px] font-semibold text-amber-900 leading-tight">
-            Provisional pricing rules
+            Dynamic layer unvalidated
           </div>
           <div className="text-[11px] text-amber-700 leading-snug mt-1">
-            Engine V1 uses demo assumptions that have not been validated with Luminous.
+            Seasonal NET rates are client-validated. Pace, pickup, event and market settings are not.
           </div>
         </div>
       </div>

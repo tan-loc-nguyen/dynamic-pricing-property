@@ -1,16 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Card, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
+import Link from "next/link";
+import { Button, Card, Chip, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatFactor, formatPct, formatSignedVND, formatVND } from "@/lib/format";
+import { formatAdjPct, formatPct, formatSignedVND, formatVND } from "@/lib/format";
 import type { PricingConfig, Preview } from "@/lib/types";
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 /** Immutable deep-set by path, so React sees a new object every edit. */
 function setPath(obj: any, path: (string | number)[], value: any): any {
@@ -44,49 +41,55 @@ function Section({
 function NumberInput({
   value,
   onChange,
-  step = 0.01,
-  placeholder,
+  step = 0.5,
+  suffix,
 }: {
   value: number | null | undefined;
   onChange: (v: number | null) => void;
   step?: number;
-  placeholder?: string;
+  suffix?: string;
 }) {
   return (
-    <input
-      type="number"
-      step={step}
-      className={inputClass}
-      placeholder={placeholder}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-    />
+    <div className="relative">
+      <input
+        type="number"
+        step={step}
+        className={`${inputClass} tnum ${suffix ? "pr-7" : ""}`}
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+      />
+      {suffix && (
+        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-ink-400">
+          {suffix}
+        </span>
+      )}
+    </div>
   );
 }
 
-/** Threshold/multiplier band editor, used for occupancy, pace and lead time. */
+/** Threshold + percentage-point adjustment band editor. */
 function BandEditor({
   bands,
   thresholdKey,
   thresholdLabel,
-  onChange,
   thresholdStep = 0.01,
+  onChange,
 }: {
   bands: any[];
   thresholdKey: string;
   thresholdLabel: string;
-  onChange: (bands: any[]) => void;
   thresholdStep?: number;
+  onChange: (bands: any[]) => void;
 }) {
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-[1fr_110px_110px] gap-2 text-[11px] font-medium text-ink-400 px-1">
+      <div className="grid grid-cols-[1fr_130px_130px] gap-2 text-[11px] font-medium text-ink-400 px-1">
         <span>Band</span>
         <span>{thresholdLabel}</span>
-        <span>Multiplier</span>
+        <span>Adjustment</span>
       </div>
       {bands.map((band, i) => (
-        <div key={i} className="grid grid-cols-[1fr_110px_110px] gap-2 items-center">
+        <div key={i} className="grid grid-cols-[1fr_130px_130px] gap-2 items-center">
           <input
             className={inputClass}
             value={band.label ?? ""}
@@ -101,22 +104,25 @@ function BandEditor({
               onChange(bands.map((b, j) => (i === j ? { ...b, [thresholdKey]: Number(e.target.value) } : b)))
             }
           />
-          <input
-            type="number"
-            step={0.01}
-            className={`${inputClass} tnum`}
-            value={band.multiplier ?? 1}
-            onChange={(e) =>
-              onChange(bands.map((b, j) => (i === j ? { ...b, multiplier: Number(e.target.value) } : b)))
-            }
-          />
+          <div className="relative">
+            <input
+              type="number"
+              step={0.5}
+              className={`${inputClass} tnum pr-7`}
+              value={band.adjustment_pct ?? 0}
+              onChange={(e) =>
+                onChange(bands.map((b, j) => (i === j ? { ...b, adjustment_pct: Number(e.target.value) } : b)))
+              }
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-ink-400">%</span>
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-export default function SettingsPage() {
+export default function DynamicRulesPage() {
   const [config, setConfig] = useState<PricingConfig | null>(null);
   const [draft, setDraft] = useState<any>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -143,7 +149,6 @@ export default function SettingsPage() {
     load();
   }, [load]);
 
-  // Live preview: re-price a sample stay date against the UNSAVED draft.
   useEffect(() => {
     if (!draft) return;
     if (debounce.current) clearTimeout(debounce.current);
@@ -161,7 +166,7 @@ export default function SettingsPage() {
     setSaving(true);
     setMessage(null);
     try {
-      const saved = await api.saveConfig(draft, "operator-edit");
+      const saved = await api.saveConfig(draft);
       setConfig(saved);
       setDraft(structuredClone(saved.payload));
       setBaseline(await api.preview(saved.payload));
@@ -175,7 +180,6 @@ export default function SettingsPage() {
 
   const reset = async () => {
     setSaving(true);
-    setMessage(null);
     try {
       const c = await api.resetConfig();
       setConfig(c);
@@ -187,15 +191,15 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading || !draft) return <div className="px-7 py-6"><Spinner label="Loading pricing rules…" /></div>;
+  if (loading || !draft) return <div className="px-7 py-6"><Spinner label="Loading dynamic rules…" /></div>;
 
-  const delta = preview && baseline ? preview.recommended_price - baseline.recommended_price : 0;
+  const delta = preview && baseline ? preview.recommended_net_rate - baseline.recommended_net_rate : 0;
 
   return (
     <div className="px-7 py-6 max-w-[1500px]">
       <PageHeader
-        title="Pricing rules"
-        subtitle="These are the assumptions Pricing Engine V1 uses. None have been validated with Luminous yet — change them freely and watch the sample recommendation react."
+        title="Dynamic rules"
+        subtitle="The experimental layer that sits on top of the validated rate book: pace, pickup, events and market. None of these values has been validated with Luminous."
         actions={
           <>
             <Button onClick={reset} disabled={saving}>Reset to demo defaults</Button>
@@ -206,8 +210,26 @@ export default function SettingsPage() {
         }
       />
 
+      <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[12.5px] font-semibold text-emerald-900">
+            Seasonal MIN / BASE / MAX rates are not on this page
+          </div>
+          <p className="text-[11.5px] text-emerald-800 mt-1 leading-snug max-w-2xl">
+            Those are client-validated business data and live in the Rate Book. Everything here is an
+            unvalidated experiment layered on top, and is always clamped back inside the validated band.
+          </p>
+        </div>
+        <Link
+          href="/rate-book"
+          className="shrink-0 text-[12px] font-medium text-emerald-700 hover:text-emerald-900 whitespace-nowrap"
+        >
+          Open Rate Book →
+        </Link>
+      </div>
+
       {message && (
-        <div className="mt-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-[12.5px] text-emerald-800">
+        <div className="mt-4 rounded-lg bg-brand-50 border border-brand-200 px-4 py-2.5 text-[12.5px] text-brand-700">
           {message}
         </div>
       )}
@@ -215,125 +237,154 @@ export default function SettingsPage() {
       <div className="mt-5 grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-5 items-start">
         <div className="space-y-4">
           <Section
-            title="Price bounds & rounding"
-            description="Global guardrails applied after every factor. Per-room min/max come from the PMS unless overridden here."
+            title="Pace position"
+            description="The primary demand signal: on-the-books occupancy versus what the booking curve expects for this lead time. Thresholds are gaps in fractions (0.20 = 20 percentage points)."
           >
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <Field label="Base price override (VND)" hint="Blank = use each room's own base price">
-                <NumberInput step={10000} placeholder="Per room" value={draft.pricing.base_price_override}
-                  onChange={(v) => update(["pricing", "base_price_override"], v)} />
-              </Field>
-              <Field label="Min price override (VND)" hint="Blank = use each room's floor">
-                <NumberInput step={10000} placeholder="Per room" value={draft.pricing.min_price_override}
-                  onChange={(v) => update(["pricing", "min_price_override"], v)} />
-              </Field>
-              <Field label="Max price override (VND)" hint="Blank = use each room's ceiling">
-                <NumberInput step={10000} placeholder="Per room" value={draft.pricing.max_price_override}
-                  onChange={(v) => update(["pricing", "max_price_override"], v)} />
-              </Field>
-              <Field label="Rounding increment (VND)">
-                <NumberInput step={1000} value={draft.pricing.rounding_increment}
-                  onChange={(v) => update(["pricing", "rounding_increment"], v)} />
-              </Field>
-              <Field label="Lowest allowed multiplier" hint="Stops factors compounding downward">
-                <NumberInput value={draft.pricing.global_multiplier_min}
-                  onChange={(v) => update(["pricing", "global_multiplier_min"], v)} />
-              </Field>
-              <Field label="Highest allowed multiplier" hint="Stops factors compounding upward">
-                <NumberInput value={draft.pricing.global_multiplier_max}
-                  onChange={(v) => update(["pricing", "global_multiplier_max"], v)} />
-              </Field>
-            </div>
+            <BandEditor
+              bands={draft.pace.bands}
+              thresholdKey="max_gap"
+              thresholdLabel="Up to gap"
+              onChange={(b) => update(["pace", "bands"], b)}
+            />
           </Section>
 
-          <Section title="Day of week" description="How much each weekday moves the price relative to base.">
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-              {DAYS.map((day) => (
-                <Field key={day} label={day.slice(0, 3).replace(/^./, (c) => c.toUpperCase())}>
-                  <NumberInput value={draft.day_of_week.multipliers[day]}
-                    onChange={(v) => update(["day_of_week", "multipliers", day], v)} />
-                </Field>
-              ))}
-            </div>
-          </Section>
-
-          <Section title="Occupancy" description="Higher occupancy usually justifies a higher price. Thresholds are fractions (0.85 = 85%).">
-            <BandEditor bands={draft.occupancy.bands} thresholdKey="max" thresholdLabel="Up to (occupancy)"
-              onChange={(b) => update(["occupancy", "bands"], b)} />
-          </Section>
-
-          <Section title="Booking pace" description="Pace index compares recent pickup against expected pickup. 1.0 = exactly on pace.">
+          <Section
+            title="Recent pickup"
+            description="Booking acceleration over the recent window — deliberately a smaller lever than pace, because the two must not double-count the same demand."
+          >
             <div className="grid grid-cols-2 gap-3 mb-4">
               <Field label="Lookback window (days)">
-                <NumberInput step={1} value={draft.booking_pace.lookback_days}
-                  onChange={(v) => update(["booking_pace", "lookback_days"], v)} />
+                <NumberInput
+                  step={1}
+                  value={draft.recent_pickup.lookback_days}
+                  onChange={(v) => update(["recent_pickup", "lookback_days"], v)}
+                />
               </Field>
               <Field label="Expected pickup per week (units)">
-                <NumberInput step={0.1} value={draft.booking_pace.expected_pickup_per_week}
-                  onChange={(v) => update(["booking_pace", "expected_pickup_per_week"], v)} />
+                <NumberInput
+                  step={0.1}
+                  value={draft.recent_pickup.expected_pickup_per_week}
+                  onChange={(v) => update(["recent_pickup", "expected_pickup_per_week"], v)}
+                />
               </Field>
             </div>
-            <BandEditor bands={draft.booking_pace.bands} thresholdKey="max" thresholdLabel="Up to (index)"
-              onChange={(b) => update(["booking_pace", "bands"], b)} />
+            <BandEditor
+              bands={draft.recent_pickup.bands}
+              thresholdKey="max_delta"
+              thresholdLabel="Up to delta"
+              thresholdStep={0.25}
+              onChange={(b) => update(["recent_pickup", "bands"], b)}
+            />
           </Section>
 
-          <Section title="Lead time" description="How far out the stay date is. Thresholds are in days until check-in.">
-            <BandEditor bands={draft.lead_time.bands} thresholdKey="max_days" thresholdLabel="Up to (days)"
-              thresholdStep={1} onChange={(b) => update(["lead_time", "bands"], b)} />
-            <div className="mt-4 pt-4 border-t border-ink-100">
-              <div className="text-[12px] font-semibold text-ink-700 mb-2">
-                Unsold inventory close to check-in
-              </div>
-              <p className="text-[11.5px] text-ink-500 mb-3">
-                An extra discount when a stay date is both near and still largely empty.
-              </p>
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="Within (days)">
-                  <NumberInput step={1} value={draft.lead_time.urgency_discount.within_days}
-                    onChange={(v) => update(["lead_time", "urgency_discount", "within_days"], v)} />
-                </Field>
-                <Field label="Occupancy below">
-                  <NumberInput value={draft.lead_time.urgency_discount.occupancy_below}
-                    onChange={(v) => update(["lead_time", "urgency_discount", "occupancy_below"], v)} />
-                </Field>
-                <Field label="Multiplier">
-                  <NumberInput value={draft.lead_time.urgency_discount.multiplier}
-                    onChange={(v) => update(["lead_time", "urgency_discount", "multiplier"], v)} />
-                </Field>
-              </div>
-            </div>
-          </Section>
-
-          <Section title="Season & events" description="Monthly seasonality and the uplift applied on flagged event dates.">
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-              {MONTHS.map((month, i) => (
-                <Field key={month} label={month.slice(0, 3)}>
-                  <NumberInput value={draft.season.month_multipliers[String(i + 1)]}
-                    onChange={(v) => update(["season", "month_multipliers", String(i + 1)], v)} />
+          <Section
+            title="Events"
+            description="Applied only on dates you have flagged in the demand calendar. Normal seasonality is already in the rate book."
+          >
+            <div className="grid grid-cols-3 gap-3">
+              {["low", "medium", "high"].map((level) => (
+                <Field key={level} label={`${level[0].toUpperCase()}${level.slice(1)} impact`}>
+                  <NumberInput
+                    suffix="%"
+                    value={draft.event.impact_adjustment_pct[level]}
+                    onChange={(v) => update(["event", "impact_adjustment_pct", level], v)}
+                  />
                 </Field>
               ))}
             </div>
-            <div className="mt-4 pt-4 border-t border-ink-100 w-48">
-              <Field label="Event multiplier">
-                <NumberInput value={draft.event.multiplier} onChange={(v) => update(["event", "multiplier"], v)} />
+          </Section>
+
+          <Section
+            title="Market signal"
+            description="Only observations at or above the confidence bar can move a rate. Generic web prices are LOW confidence and are shown but never applied."
+          >
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Field label="Minimum confidence" hint="Evidence below this is ignored">
+                <select
+                  className={inputClass}
+                  value={draft.market.min_confidence}
+                  onChange={(e) => update(["market", "min_confidence"], e.target.value)}
+                >
+                  <option value="HIGH">High only</option>
+                  <option value="MEDIUM">Medium and above</option>
+                  <option value="LOW">Low and above (not advised)</option>
+                </select>
+              </Field>
+              <Field label="Sensitivity" hint="0 ignores the market entirely">
+                <NumberInput
+                  step={0.05}
+                  value={draft.market.sensitivity}
+                  onChange={(v) => update(["market", "sensitivity"], v)}
+                />
+              </Field>
+              <Field label="Max adjustment">
+                <NumberInput
+                  suffix="%"
+                  value={draft.market.max_adjustment_pct}
+                  onChange={(v) => update(["market", "max_adjustment_pct"], v)}
+                />
+              </Field>
+              <Field label="Min observations">
+                <NumberInput
+                  step={1}
+                  value={draft.market.min_observations}
+                  onChange={(v) => update(["market", "min_observations"], v)}
+                />
               </Field>
             </div>
           </Section>
 
-          <Section title="Market signal" description="How strongly competitor prices pull our price. Sensitivity 0 ignores the market; 1 tracks it one-for-one.">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Field label="Sensitivity">
-                <NumberInput value={draft.market.sensitivity} onChange={(v) => update(["market", "sensitivity"], v)} />
+          <Section
+            title="Day of week"
+            description="OFF by default. Luminous' rate table shows no weekday structure, so there is nothing to justify a weekday adjustment yet."
+          >
+            <label className="flex items-center gap-2 mb-3">
+              <input
+                type="checkbox"
+                checked={draft.day_of_week.enabled}
+                onChange={(e) => update(["day_of_week", "enabled"], e.target.checked)}
+              />
+              <span className="text-[12.5px] text-ink-700">Enable day-of-week adjustments</span>
+              {!draft.day_of_week.enabled && <Chip tone="neutral">Disabled</Chip>}
+            </label>
+            <div className={`grid grid-cols-4 sm:grid-cols-7 gap-2 ${draft.day_of_week.enabled ? "" : "opacity-40 pointer-events-none"}`}>
+              {DAYS.map((day) => (
+                <Field key={day} label={day.slice(0, 3).replace(/^./, (c) => c.toUpperCase())}>
+                  <NumberInput
+                    suffix="%"
+                    value={draft.day_of_week.adjustment_pct[day]}
+                    onChange={(v) => update(["day_of_week", "adjustment_pct", day], v)}
+                  />
+                </Field>
+              ))}
+            </div>
+          </Section>
+
+          <Section
+            title="Bounds & rounding"
+            description="A hard limit on the whole dynamic layer, applied before the validated band clamp."
+          >
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Max total adjustment">
+                <NumberInput
+                  suffix="%"
+                  value={draft.dynamic.max_total_adjustment_pct}
+                  onChange={(v) => update(["dynamic", "max_total_adjustment_pct"], v)}
+                />
               </Field>
-              <Field label="Min multiplier">
-                <NumberInput value={draft.market.min_multiplier} onChange={(v) => update(["market", "min_multiplier"], v)} />
+              <Field label="Min total adjustment">
+                <NumberInput
+                  suffix="%"
+                  value={draft.dynamic.min_total_adjustment_pct}
+                  onChange={(v) => update(["dynamic", "min_total_adjustment_pct"], v)}
+                />
               </Field>
-              <Field label="Max multiplier">
-                <NumberInput value={draft.market.max_multiplier} onChange={(v) => update(["market", "max_multiplier"], v)} />
-              </Field>
-              <Field label="Min observations" hint="Below this the signal is ignored">
-                <NumberInput step={1} value={draft.market.min_observations}
-                  onChange={(v) => update(["market", "min_observations"], v)} />
+              <Field label="Rounding increment (VND)">
+                <NumberInput
+                  step={1000}
+                  value={draft.rounding.increment}
+                  onChange={(v) => update(["rounding", "increment"], v)}
+                />
               </Field>
             </div>
           </Section>
@@ -350,19 +401,29 @@ export default function SettingsPage() {
             {preview ? (
               <>
                 <div className="mt-3 text-[12px] text-ink-600">
-                  <span className="font-medium text-ink-800">{preview.room_name}</span> · {preview.stay_date}
+                  <span className="font-medium text-ink-800">{preview.room_category_label}</span> ·{" "}
+                  {preview.stay_date}
                 </div>
+                <div className="text-[11px] text-ink-400">{preview.season_label}</div>
 
                 <div className="mt-3 rounded-lg bg-ink-50 border border-ink-200 p-3">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-[11px] text-ink-500">Recommended</span>
+                  <div className="flex items-baseline justify-between text-[11px] text-ink-500">
+                    <span>Validated BASE</span>
+                    <span className="tnum">{formatVND(preview.band_base_net_rate)}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between mt-1.5">
+                    <span className="text-[11px] text-ink-500">Recommended NET</span>
                     <span className="tnum text-[19px] font-bold text-brand-700">
-                      {formatVND(preview.recommended_price)}
+                      {formatVND(preview.recommended_net_rate)}
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between mt-1">
-                    <span className="text-[11px] text-ink-400">vs current {formatVND(preview.current_price)}</span>
-                    <span className="tnum text-[12px] font-medium text-ink-600">{formatPct(preview.change_pct)}</span>
+                    <span className="text-[11px] text-ink-400">
+                      band {formatVND(preview.band_min_net_rate)} – {formatVND(preview.band_max_net_rate)}
+                    </span>
+                    <span className="tnum text-[12px] font-medium text-ink-600">
+                      {formatAdjPct(preview.total_adjustment_pct)}
+                    </span>
                   </div>
                   {dirty && baseline && (
                     <div className="mt-2 pt-2 border-t border-ink-200 flex items-baseline justify-between">
@@ -381,17 +442,27 @@ export default function SettingsPage() {
                 <div className="mt-3 space-y-1">
                   {preview.adjustments.map((a) => (
                     <div key={a.sequence} className="flex items-center justify-between text-[11.5px]">
-                      <span className={a.is_neutral ? "text-ink-300" : "text-ink-600"}>{a.label}</span>
+                      <span
+                        className={
+                          a.is_ignored ? "text-amber-700" : a.is_neutral ? "text-ink-300" : "text-ink-600"
+                        }
+                      >
+                        {a.label}
+                      </span>
                       <span className="flex items-center gap-2 shrink-0">
-                        <span className={`tnum ${a.is_neutral ? "text-ink-300" : "text-ink-500"}`}>
-                          {formatFactor(a.factor)}
+                        <span className={`tnum ${a.is_neutral || a.is_ignored ? "text-ink-300" : "text-ink-500"}`}>
+                          {a.code === "rate_band" ? "" : formatAdjPct(a.adjustment_pct)}
                         </span>
                         <span
                           className={`tnum w-20 text-right ${
                             a.delta > 0.5 ? "text-emerald-600" : a.delta < -0.5 ? "text-rose-600" : "text-ink-300"
                           }`}
                         >
-                          {a.is_neutral ? "—" : formatSignedVND(a.delta)}
+                          {a.code === "rate_band"
+                            ? formatVND(a.price_after)
+                            : a.is_neutral || a.is_ignored
+                              ? "—"
+                              : formatSignedVND(a.delta)}
                         </span>
                       </span>
                     </div>
@@ -404,10 +475,11 @@ export default function SettingsPage() {
           </Card>
 
           <Card className="p-4 bg-amber-50 border-amber-200">
-            <div className="text-[12px] font-semibold text-amber-900">These values are placeholders</div>
+            <div className="text-[12px] font-semibold text-amber-900">Everything here is unvalidated</div>
             <p className="text-[11.5px] text-amber-800 mt-1 leading-snug">
-              Every multiplier and threshold here was chosen by the engineering team to make the demo legible.
-              They are marked UNVALIDATED in ASSUMPTIONS.md and need to be confirmed with the Luminous operator.
+              Pace thresholds, pickup sensitivity, event impact sizes and market sensitivity were all chosen
+              by the engineering team. They are listed in ASSUMPTIONS.md and need operator validation.
+              The booking curve behind pace position is demo data, not Luminous history.
             </p>
             {config && (
               <div className="text-[11px] text-amber-700 mt-2">

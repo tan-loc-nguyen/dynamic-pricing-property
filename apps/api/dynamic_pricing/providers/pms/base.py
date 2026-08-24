@@ -1,8 +1,10 @@
 """PMSProvider interface + vendor-neutral DTOs.
 
 Nothing outside ``providers/pms`` may know that Blue Jay exists. Adapters map
-vendor payloads into these DTOs; the sync service persists DTOs into the domain
-model; everything downstream sees only domain objects.
+vendor payloads into these DTOs; the sync service persists DTOs into the
+domain model; everything downstream sees only domain objects.
+
+All rates in these DTOs are **NET** unless the field name says otherwise.
 """
 
 from __future__ import annotations
@@ -15,8 +17,8 @@ from datetime import date
 class ProviderUnavailable(RuntimeError):
     """Raised when an external provider cannot serve a request.
 
-    Callers are expected to catch this and fall back to demo/cached data — an
-    integration outage must never take the product down.
+    Callers catch this and fall back to demo/cached data — an integration
+    outage must never take the product down.
     """
 
     def __init__(self, provider: str, message: str, *, remediation: str = "") -> None:
@@ -47,44 +49,53 @@ class PropertyDTO:
 
 
 @dataclass(frozen=True)
-class RoomDTO:
+class RoomTypeDTO:
     external_id: str
     property_external_id: str
     name: str
-    room_type: str = "Studio"
-    capacity: int = 2
+    category: str
+    capacity: int = 4
     units_total: int = 1
-    base_price: float = 0.0
-    min_price: float | None = None
-    max_price: float | None = None
+    # Fallback only — live MIN/BASE/MAX come from the validated SeasonalRateBook.
+    fallback_base_net_rate: float = 0.0
+    fallback_min_net_rate: float = 0.0
+    fallback_max_net_rate: float = 0.0
+    is_active: bool = True
+
+
+@dataclass(frozen=True)
+class PhysicalRoomDTO:
+    external_id: str
+    room_type_external_id: str
+    unit_label: str
+    floor: str | None = None
     is_active: bool = True
 
 
 @dataclass(frozen=True)
 class InventoryDTO:
-    room_external_id: str
+    room_type_external_id: str
     stay_date: date
     units_total: int
     units_sold: int
-    current_price: float
-    is_event: bool = False
-    event_name: str | None = None
-    season: str | None = None
+    current_net_rate: float
+    current_ota_price: float | None = None
     historical_occupancy: float | None = None
-    historical_avg_price: float | None = None
+    historical_avg_net_rate: float | None = None
 
 
 @dataclass(frozen=True)
 class BookingDTO:
     external_id: str
-    room_external_id: str
+    room_type_external_id: str
     stay_date: date
     booked_at: date
     nights: int = 1
     guests: int = 2
-    price: float = 0.0
+    net_rate: float = 0.0
     channel: str = "Airbnb"
     status: str = "confirmed"
+    physical_room_external_id: str | None = None
 
 
 class PMSProvider(ABC):
@@ -92,7 +103,7 @@ class PMSProvider(ABC):
 
     name: str = "abstract"
     mode: str = "unknown"
-    supports_price_push: bool = False
+    supports_rate_push: bool = False
 
     @abstractmethod
     def status(self) -> ProviderStatus: ...
@@ -101,7 +112,10 @@ class PMSProvider(ABC):
     def fetch_properties(self) -> list[PropertyDTO]: ...
 
     @abstractmethod
-    def fetch_rooms(self) -> list[RoomDTO]: ...
+    def fetch_room_types(self) -> list[RoomTypeDTO]: ...
+
+    @abstractmethod
+    def fetch_physical_rooms(self) -> list[PhysicalRoomDTO]: ...
 
     @abstractmethod
     def fetch_inventory(self, start: date, end: date) -> list[InventoryDTO]: ...
@@ -109,14 +123,14 @@ class PMSProvider(ABC):
     @abstractmethod
     def fetch_bookings(self, start: date, end: date) -> list[BookingDTO]: ...
 
-    def push_price(self, room_external_id: str, stay_date: date, price: float) -> None:
-        """Write a price back to the PMS.
+    def push_rate(self, room_type_external_id: str, stay_date: date, net_rate: float) -> None:
+        """Write a rate back to the PMS.
 
-        Out of scope for the MVP (autonomous OTA updates are an explicit
-        non-goal). The hook exists so the seam is visible.
+        NOT enabled: the product runs in Shadow Mode. Blue Jay remains the
+        execution layer; this hook exists so the seam is visible.
         """
         raise ProviderUnavailable(
             self.name,
-            "Writing prices back to the PMS is not enabled in the MVP.",
-            remediation="Operator applies approved prices manually for now.",
+            "Rate push is disabled — the product runs in Shadow Mode.",
+            remediation="The operator applies approved NET rates in Blue Jay manually.",
         )
