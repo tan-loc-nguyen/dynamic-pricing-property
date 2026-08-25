@@ -84,7 +84,7 @@ export default function HistoryPage() {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-ink-200 bg-ink-50/60">
-                  {["When", tc("roomCategory"), tc("stayDate"), t("recommendedNet"), t("operatorNet"), t("difference"), t("decision"), t("reason"), t("engine")].map(
+                  {[t("when"), tc("roomCategory"), tc("stayDate"), t("recommendedNet"), t("operatorNet"), t("difference"), t("decision"), t("reason"), t("engine")].map(
                     (h) => (
                       <th
                         key={h}

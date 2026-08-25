@@ -93,7 +93,7 @@ export default function EventsPage() {
           </p>
 
           <div className="mt-4 space-y-3">
-            <Field label="Name">
+            <Field label={t("name")}>
               <input
                 className={inputClass}
                 placeholder={t("namePlaceholder")}

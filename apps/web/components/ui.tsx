@@ -89,6 +89,7 @@ export function Button({
   disabled,
   type = "button",
   className = "",
+  title,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -97,6 +98,8 @@ export function Button({
   disabled?: boolean;
   type?: "button" | "submit";
   className?: string;
+  /** Hover text. Mainly so a DISABLED button can say why it is disabled. */
+  title?: string;
 }) {
   const variants: Record<string, string> = {
     primary: "bg-brand-600 text-white hover:bg-brand-700 border-transparent",
@@ -113,6 +116,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={`inline-flex items-center justify-center gap-1.5 rounded-lg border font-medium transition-colors disabled:opacity-45 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
     >
       {children}

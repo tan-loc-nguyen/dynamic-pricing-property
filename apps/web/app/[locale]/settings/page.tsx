@@ -8,7 +8,7 @@ import { Button, Card, Chip, Field, PageHeader, Spinner, inputClass } from "@/co
 import { api } from "@/lib/api";
 
 import { useFormat } from "@/lib/useFormat";
-import { useAdjustmentText } from "@/lib/adjustments";
+import { useAdjustmentText, useBandLabel } from "@/lib/adjustments";
 import type { PricingConfig, Preview } from "@/lib/types";
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -74,18 +74,21 @@ function NumberInput({
 /** Threshold + percentage-point adjustment band editor. */
 function BandEditor({
   bands,
+  section,
   thresholdKey,
   thresholdLabel,
   thresholdStep = 0.01,
   onChange,
 }: {
   bands: any[];
+  section: string;
   thresholdKey: string;
   thresholdLabel: string;
   thresholdStep?: number;
   onChange: (bands: any[]) => void;
 }) {
   const t = useTranslations("settings");
+  const bandLabel = useBandLabel();
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-[1fr_130px_130px] gap-2 text-[11px] font-medium text-ink-400 px-1">
@@ -97,8 +100,23 @@ function BandEditor({
         <div key={i} className="grid grid-cols-[1fr_130px_130px] gap-2 items-center">
           <input
             className={inputClass}
-            value={band.label ?? ""}
-            onChange={(e) => onChange(bands.map((b, j) => (i === j ? { ...b, label: e.target.value } : b)))}
+            // A shipped band is named by its KEY, so it reads in the operator's
+            // language here exactly as it does in the preview beside it and in
+            // the Rate Review table. Showing the raw config label left the two
+            // halves of this page disagreeing about what the same band is called.
+            value={bandLabel(band.key ? `adjustments.${section}.${band.key}` : null, band.label ?? "")}
+            onChange={(e) =>
+              onChange(
+                bands.map((b, j) =>
+                  i === j
+                    ? // Retyping the name makes the band THEIRS: dropping the key
+                      // is what stops the engine translating over their wording
+                      // (D30). Keeping it would silently discard the edit.
+                      { ...b, key: null, label: e.target.value }
+                    : b,
+                ),
+              )
+            }
           />
           <input
             type="number"
@@ -144,9 +162,10 @@ function BandEditor({
 export default function DynamicRulesPage() {
   const t = useTranslations("settings");
   const tval = useTranslations("validation");
+  const tv = useTranslations("vocab");
   const tc = useTranslations("common");
   const adjustmentText = useAdjustmentText();
-  const { formatAdjPct, formatSignedVND, formatVND } = useFormat();
+  const { formatAdjPct, formatSignedVND, formatStayDate, formatVND } = useFormat();
   const [config, setConfig] = useState<PricingConfig | null>(null);
   const [draft, setDraft] = useState<any>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -283,6 +302,7 @@ export default function DynamicRulesPage() {
           >
             <BandEditor
               bands={draft.pace.bands}
+              section="pace"
               thresholdKey="max_gap"
               thresholdLabel={t("upToGap")}
               onChange={(b) => update(["pace", "bands"], b)}
@@ -311,6 +331,7 @@ export default function DynamicRulesPage() {
             </div>
             <BandEditor
               bands={draft.recent_pickup.bands}
+              section="recent_pickup"
               thresholdKey="max_delta"
               thresholdLabel={t("upToDelta")}
               thresholdStep={0.25}
@@ -462,11 +483,20 @@ export default function DynamicRulesPage() {
 
             {preview ? (
               <>
+                {/* Codes, not the API's *_label fields: those are English in
+                    every locale, so the preview header read "2BR Regular ·
+                    High Season 1" above a breakdown written in Vietnamese. */}
                 <div className="mt-3 text-[12px] text-ink-600">
-                  <span className="font-medium text-ink-800">{preview.room_category_label}</span> ·{" "}
-                  {preview.stay_date}
+                  <span className="font-medium text-ink-800">
+                    {preview.room_category
+                      ? tv(`roomCategories.${preview.room_category}`)
+                      : preview.room_category_label}
+                  </span>{" "}
+                  · {formatStayDate(preview.stay_date)}
                 </div>
-                <div className="text-[11px] text-ink-400">{preview.season_label}</div>
+                <div className="text-[11px] text-ink-400">
+                  {preview.season_key ? tv(`seasons.${preview.season_key}`) : preview.season_label}
+                </div>
 
                 <div className="mt-3 rounded-lg bg-ink-50 border border-ink-200 p-3">
                   <div className="flex items-baseline justify-between text-[11px] text-ink-500">
@@ -495,7 +525,7 @@ export default function DynamicRulesPage() {
                           delta > 0 ? "text-emerald-600" : delta < 0 ? "text-rose-600" : "text-ink-400"
                         }`}
                       >
-                        {delta === 0 ? "no change" : formatSignedVND(delta)}
+                        {delta === 0 ? t("noEffect") : formatSignedVND(delta)}
                       </span>
                     </div>
                   )}

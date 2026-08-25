@@ -306,3 +306,26 @@ def test_no_config_reaches_an_engine_without_passing_the_boundary():
         "uncoerced, caller-supplied config to the engine. Use prepare_config "
         f"(save) or preview_config (unsaved): {offenders}"
     )
+
+
+def test_no_test_name_is_defined_twice_in_a_module():
+    """A redefined test function silently REPLACES the first one.
+
+    Python rebinds the name without a word, pytest collects only the survivor,
+    and the count goes up by less than you added — which is easy to miss and
+    means a test you believe is protecting you no longer runs. This was written
+    after appending a test whose name already existed 160 lines above it.
+    """
+    offenders: list[str] = []
+    for path in sorted((API_ROOT / "tests").glob("test_*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        seen: set[str] = set()
+        for node in tree.body:  # module level only; a method may legitimately repeat
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if node.name.startswith("test_") and node.name in seen:
+                    offenders.append(f"{path.name}::{node.name} (line {node.lineno})")
+                seen.add(node.name)
+    assert not offenders, (
+        "these test names are defined twice in one module, so only the LAST "
+        f"definition runs: {offenders}"
+    )

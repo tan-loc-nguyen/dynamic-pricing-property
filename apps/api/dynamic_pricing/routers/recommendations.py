@@ -84,9 +84,22 @@ def list_recommendations(
     end_date: date | None = None,
     status: str | None = None,
     search: str | None = None,
+    codes: str | None = None,
     limit: int = Query(1000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
 ):
+    """List the current run's recommendations.
+
+    ``search`` is free text over REAL-WORLD names — a property, a room type —
+    which are never translated and so have no code to resolve to.
+
+    ``codes`` is a comma-separated list of room-category and season CODES. The
+    operator types in their own language and the FRONTEND resolves that against
+    its message files (D30) before calling; the API never learns a second
+    language. Without this, searching the Vietnamese table for the Vietnamese
+    words printed on it returned nothing, because the columns being matched
+    hold English.
+    """
     run_id, query = _current_query(session)
     if query is None:
         return []
@@ -100,27 +113,37 @@ def list_recommendations(
         status=status,
     )
     query = query.order_by(PricingRecommendation.stay_date, PricingRecommendation.room_type_id)
-    if not search:
-        # Only the free-text branch needs the full set. Paging in SQL otherwise
+
+    wanted = {c.strip().lower() for c in (codes or "").split(",") if c.strip()}
+    needle = (search or "").strip().lower()
+
+    if not (needle or wanted):
+        # Only the search branch needs the full set. Paging in SQL otherwise
         # avoids materialising and serialising every matching row to return one.
         query = query.offset(offset).limit(limit)
 
     rows = session.scalars(query).all()
     payloads = [recommendation_dict(r) for r in rows]
-    if not search:
+    if not (needle or wanted):
         return payloads
-    if search:
-        # Free-text search spans denormalised snapshot fields, so it cannot be
-        # pushed into SQL. It is applied BEFORE paging so the page is a slice of
-        # the matches, not a filter of one arbitrary page.
-        needle = search.lower()
-        payloads = [
-            p
-            for p in payloads
-            if needle in p["room_type_name"].lower()
+
+    def matches(p: dict) -> bool:
+        # Alternatives, NOT a narrowing. One box drives both mechanisms, so a
+        # term that resolves to a code is by definition absent from the property
+        # name — anding them would return nothing for every successful lookup.
+        if wanted and (p["room_category"] in wanted or p["season_key"] in wanted):
+            return True
+        if needle and (
+            needle in p["room_type_name"].lower()
             or needle in p["room_category_label"].lower()
             or needle in p["property_name"].lower()
-        ]
+        ):
+            return True
+        return False
+
+    # Applied BEFORE paging, so the page is a slice of the matches rather than a
+    # filter of one arbitrary page.
+    payloads = [p for p in payloads if matches(p)]
     return payloads[offset : offset + limit]
 
 

@@ -432,7 +432,11 @@
     "minNet": "MIN NET",
     "baseNet": "BASE NET",
     "maxNet": "MAX NET",
-    "statement": "These MIN/BASE/MAX figures are NET rates supplied by Luminous and validated by real operation. They already encode seasonality, so the pricing engine selects a band by season rather than multiplying a seasonality factor on top."
+    "statement": "These MIN/BASE/MAX figures are NET rates supplied by Luminous and validated by real operation. They already encode seasonality, so the pricing engine selects a band by season rather than multiplying a seasonality factor on top.",
+    "bandCount": "{count, number} bands",
+    "editedCount": "{count, number} band(s) edited from the client values",
+    "resetDisabled": "Nothing to restore — every band matches the client-validated values.",
+    "resetEnabled": "Restore all 15 bands to the values Luminous supplied."
   },
   "events": {
     "title": "Demand calendar",
@@ -500,7 +504,8 @@
     "observationsHeading": "Observations",
     "saveObservation": "Save observation",
     "basisNote": "The more basis you can state, the higher the confidence — and only you can state it.",
-    "tryPublicCollector": "Try public collector"
+    "tryPublicCollector": "Try public collector",
+    "fees": "Fees"
   },
   "history": {
     "title": "Decision history",
@@ -513,7 +518,8 @@
     "difference": "Difference",
     "reason": "Reason",
     "engine": "Engine",
-    "subtitle": "Every accept and override the operator has made, with the system's recommendation alongside it. This record is what will eventually tell us where the engine is wrong."
+    "subtitle": "Every accept and override the operator has made, with the system's recommendation alongside it. This record is what will eventually tell us where the engine is wrong.",
+    "when": "When"
   },
   "settings": {
     "title": "Dynamic rules",
@@ -569,7 +575,8 @@
     "unvalidatedBody": "Pace thresholds, pickup sensitivity, event impact sizes and market sensitivity were all chosen by the engineering team. They are listed in ASSUMPTIONS.md and need operator validation. The booking curve behind pace position is demo data, not Luminous history.",
     "activeConfig": "Active: rules v{version, number} ({label})",
     "dowDescription": "OFF by default. Luminous' rate table shows no weekday structure, so there is nothing to justify a weekday adjustment yet.",
-    "boundsDescription": "A hard limit on the whole dynamic layer, applied before the validated band clamp."
+    "boundsDescription": "A hard limit on the whole dynamic layer, applied before the validated band clamp.",
+    "noEffect": "no change"
   },
   "validation": {
     "title": "This configuration cannot be saved yet",

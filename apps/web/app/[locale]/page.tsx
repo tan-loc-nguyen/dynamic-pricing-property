@@ -11,6 +11,7 @@ import { SummaryCards } from "@/components/SummaryCards";
 import { Button, Card, Empty, PageHeader, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { addDaysISO, todayISO } from "@/lib/format";
+import { useSearchCodes } from "@/lib/search";
 import type { Property, Recommendation, Summary, SystemStatus } from "@/lib/types";
 
 const PAGE_SIZE = 45;
@@ -49,6 +50,12 @@ export default function RateReviewPage() {
     };
   }, [filters.search]);
 
+  // What the operator typed, resolved against THEIR language's vocabulary.
+  // Sent alongside the raw term rather than instead of it: real-world names
+  // (the property) have no code, translated vocabulary has no English on the
+  // server, and one search box has to find both.
+  const searchCodes = useSearchCodes();
+
   const query = useMemo(
     () => ({
       room_type_id: filters.roomTypeId,
@@ -56,8 +63,16 @@ export default function RateReviewPage() {
       end_date: filters.endDate || null,
       status: filters.status,
       search: debouncedSearch || null,
+      codes: searchCodes(debouncedSearch).join(",") || null,
     }),
-    [filters.roomTypeId, filters.startDate, filters.endDate, filters.status, debouncedSearch],
+    [
+      filters.roomTypeId,
+      filters.startDate,
+      filters.endDate,
+      filters.status,
+      debouncedSearch,
+      searchCodes,
+    ],
   );
 
   const load = useCallback(async () => {

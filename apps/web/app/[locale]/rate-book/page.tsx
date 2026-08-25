@@ -84,7 +84,13 @@ export default function RateBookPage() {
         title={t("title")}
         subtitle={t("subtitleLong")}
         actions={
-          <Button onClick={reset} disabled={saving || edited === 0}>
+          // A disabled control with no stated reason is indistinguishable from a
+          // broken one -- a tester reported exactly that. The title says which.
+          <Button
+            onClick={reset}
+            disabled={saving || edited === 0}
+            title={edited === 0 ? t("resetDisabled") : t("resetEnabled")}
+          >
             {t("reset")}
           </Button>
         }
@@ -93,8 +99,8 @@ export default function RateBookPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Chip tone="up">{t("clientValidated")}</Chip>
         <Chip tone="neutral">{t("subtitle")}</Chip>
-        <Chip tone="neutral">{bands.length} bands</Chip>
-        {edited > 0 && <Chip tone="warn">{edited} band(s) edited from the client values</Chip>}
+        <Chip tone="neutral">{t("bandCount", { count: bands.length })}</Chip>
+        {edited > 0 && <Chip tone="warn">{t("editedCount", { count: edited })}</Chip>}
       </div>
 
       {meta?.statement && (
@@ -179,7 +185,7 @@ export default function RateBookPage() {
                         </td>
                         <td className="px-4 py-2.5 text-right">
                           <Button size="sm" disabled={!dirty || saving} onClick={() => save(band)}>
-                            Save
+                            {tc("save")}
                           </Button>
                         </td>
                       </tr>

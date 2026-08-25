@@ -262,6 +262,13 @@ class PreviewOut(BaseModel):
     stay_date: date
     currency: str
     season_label: str | None = None
+    # The CODES as well as the labels. The labels are English in every locale --
+    # they are what the preview header used, so it read "2BR Regular · High
+    # Season 1" above a breakdown written in Vietnamese. The frontend looks the
+    # code up in its own message file (D30); the labels stay for logs and for a
+    # caller that has no catalogue.
+    room_category: str | None = None
+    season_key: str | None = None
     band_min_net_rate: float | None = None
     band_base_net_rate: float | None = None
     band_max_net_rate: float | None = None

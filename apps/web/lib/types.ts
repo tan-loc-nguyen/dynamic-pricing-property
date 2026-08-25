@@ -248,6 +248,10 @@ export interface Preview {
   stay_date: string;
   currency: string;
   season_label: string | null;
+  /** Codes, translated client-side. The *_label fields above are English in
+   *  every locale and must not be rendered to an operator. */
+  room_category: string | null;
+  season_key: string | null;
   band_min_net_rate: number | null;
   band_base_net_rate: number | null;
   band_max_net_rate: number | null;

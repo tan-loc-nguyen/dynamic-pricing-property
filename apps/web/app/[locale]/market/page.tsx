@@ -376,7 +376,7 @@ export default function MarketPage() {
                     {options(meta?.inclusion_options, "inclusion")}
                   </select>
                 </Field>
-                <Field label="Fees">
+                <Field label={t("fees")}>
                   <select
                     className={inputClass}
                     value={form.fee_inclusion}

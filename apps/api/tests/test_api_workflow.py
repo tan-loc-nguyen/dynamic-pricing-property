@@ -550,3 +550,71 @@ def test_the_preview_endpoint_returns_structured_problems(client):
     problems = response.json()["problems"]
     assert problems and problems[0]["code"] == "not_a_number"
     assert problems[0]["path"] == "market.sensitivity"
+
+
+# ---------------------------------------------------------------------------
+# Search must reach what the OPERATOR can read, not what the database stores.
+#
+# A tester typing "phòng ngủ" — the words printed on every row of the Vietnamese
+# table — got no results, because search matched room_type_name and
+# room_category_label, which are English. The frontend already owns the
+# translations (D30), so it resolves what was typed into CODES and sends those;
+# the backend never learns a second language.
+# ---------------------------------------------------------------------------
+def test_search_by_room_category_code_returns_only_that_category(client):
+    rows = client.get("/api/recommendations?codes=2br_regular&limit=500").json()
+    assert rows, "no rows came back for a category that exists in the demo data"
+    assert {r["room_category"] for r in rows} == {"2br_regular"}
+
+
+def test_search_by_season_key_returns_only_that_season(client):
+    seasons = {r["season_key"] for r in client.get("/api/recommendations?limit=5000").json()}
+    target = sorted(s for s in seasons if s)[0]
+    rows = client.get(f"/api/recommendations?codes={target}&limit=500").json()
+    assert rows
+    assert {r["season_key"] for r in rows} == {target}
+
+
+def test_several_codes_are_matched_as_alternatives(client):
+    """"phòng ngủ" translates to EVERY room category, so codes must OR."""
+    rows = client.get("/api/recommendations?codes=2br_regular,3br&limit=500").json()
+    assert {r["room_category"] for r in rows} == {"2br_regular", "3br"}
+
+
+def test_a_code_that_matches_nothing_returns_nothing(client):
+    assert client.get("/api/recommendations?codes=no_such_code&limit=500").json() == []
+
+
+def test_free_text_still_matches_real_world_names(client):
+    """Property and room-type names are real data and are never translated.
+
+    They stay free-text precisely because there is no code to resolve them to.
+    """
+    rows = client.get("/api/recommendations?search=Luminous&limit=500").json()
+    assert rows, "the property name should still be searchable as free text"
+
+
+def test_codes_and_free_text_are_alternatives_not_a_narrowing(client):
+    """One search box, two mechanisms — a hit in EITHER must show the row.
+
+    Anding them would mean a term that resolves to a code returns nothing,
+    because that same term is not in the property name.
+    """
+    rows = client.get(
+        "/api/recommendations?codes=2br_regular&search=Luminous&limit=500"
+    ).json()
+    categories = {r["room_category"] for r in rows}
+    assert len(categories) > 1, (
+        "codes and free text were ANDed; a row matching either one must be returned"
+    )
+
+
+def test_code_search_is_applied_before_paging(client):
+    """The page must be a slice of the MATCHES, not a filter of one page.
+
+    The free-text branch has its own version of this above; both mechanisms
+    filter the full set, so both need it.
+    """
+    page = client.get("/api/recommendations?codes=3br&limit=5").json()
+    assert len(page) == 5
+    assert {r["room_category"] for r in page} == {"3br"}

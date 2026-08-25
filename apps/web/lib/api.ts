@@ -72,6 +72,9 @@ export interface RecommendationFilters extends Record<string, unknown> {
   end_date?: string | null;
   status?: string | null;
   search?: string | null;
+  /** Comma-separated room-category / season codes, resolved from the
+   *  operator's own language by lib/search.ts. */
+  codes?: string | null;
 }
 
 function toQuery(filters: Record<string, unknown>): string {

@@ -432,7 +432,11 @@
     "minNet": "NET SÀN",
     "baseNet": "NET CƠ SỞ",
     "maxNet": "NET TRẦN",
-    "statement": "Các mức SÀN/CƠ SỞ/TRẦN này là giá NET do Luminous cung cấp và đã được kiểm chứng qua vận hành thực tế. Chúng đã bao hàm yếu tố mùa vụ, nên bộ tính giá chỉ chọn khung theo mùa chứ không nhân thêm hệ số mùa vụ lên trên."
+    "statement": "Các mức SÀN/CƠ SỞ/TRẦN này là giá NET do Luminous cung cấp và đã được kiểm chứng qua vận hành thực tế. Chúng đã bao hàm yếu tố mùa vụ, nên bộ tính giá chỉ chọn khung theo mùa chứ không nhân thêm hệ số mùa vụ lên trên.",
+    "bandCount": "{count, number} khung giá",
+    "editedCount": "{count, number} khung đã khác giá khách hàng",
+    "resetDisabled": "Không có gì để khôi phục — mọi khung đang đúng giá khách hàng đã xác thực.",
+    "resetEnabled": "Đưa toàn bộ 15 khung giá về đúng giá Luminous cung cấp."
   },
   "events": {
     "title": "Lịch nhu cầu",
@@ -500,7 +504,8 @@
     "observationsHeading": "Quan sát",
     "saveObservation": "Lưu quan sát",
     "basisNote": "Bạn nêu được càng nhiều thông tin về cơ sở giá thì độ tin cậy càng cao — và chỉ bạn mới nêu được.",
-    "tryPublicCollector": "Thử thu thập từ web"
+    "tryPublicCollector": "Thử thu thập từ web",
+    "fees": "Phí"
   },
   "history": {
     "title": "Lịch sử quyết định",
@@ -513,7 +518,8 @@
     "difference": "Chênh lệch",
     "reason": "Lý do",
     "engine": "Bộ tính giá",
-    "subtitle": "Toàn bộ các lần chấp nhận và điều chỉnh của người vận hành, đặt cạnh đề xuất của hệ thống. Chính dữ liệu này sau sẽ cho biết bộ tính giá đang sai ở đâu."
+    "subtitle": "Toàn bộ các lần chấp nhận và điều chỉnh của người vận hành, đặt cạnh đề xuất của hệ thống. Chính dữ liệu này sau sẽ cho biết bộ tính giá đang sai ở đâu.",
+    "when": "Thời điểm"
   },
   "settings": {
     "title": "Quy tắc điều chỉnh giá",
@@ -569,7 +575,8 @@
     "unvalidatedBody": "Các ngưỡng tiến độ, độ nhạy với lượng đặt, mức tác động của sự kiện và độ nhạy thị trường đều do đội kỹ thuật tự chọn. Chúng được liệt kê trong ASSUMPTIONS.md và cần người vận hành xác nhận. Đường cong đặt phòng đứng sau tiến độ là dữ liệu mẫu, không phải lịch sử thật của Luminous.",
     "activeConfig": "Đang áp dụng: quy tắc v{version, number} ({label})",
     "dowDescription": "Mặc định TẮT. Bảng giá của Luminous không cho thấy khác biệt nào theo thứ trong tuần, nên chưa có cơ sở để điều chỉnh theo ngày.",
-    "boundsDescription": "Giới hạn cứng cho toàn bộ lớp điều chỉnh động, áp dụng trước khi kéo về khung giá đã xác thực."
+    "boundsDescription": "Giới hạn cứng cho toàn bộ lớp điều chỉnh động, áp dụng trước khi kéo về khung giá đã xác thực.",
+    "noEffect": "không đổi"
   },
   "validation": {
     "title": "Chưa thể lưu cấu hình này",
