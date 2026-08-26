@@ -281,6 +281,29 @@ class PreviewOut(BaseModel):
     engine_version: str
 
 
+# ------------------------------------------------------------------ bookings
+class BookingOut(BaseModel):
+    """One booking, with the range it occupies made explicit.
+
+    `last_night` is derived rather than stored so the frontend never has to
+    repeat the arithmetic (and never gets it off by one).
+    """
+
+    id: int
+    external_id: str
+    room_type_id: int
+    room_category: str | None = None
+    #: NULL for every seeded booking -- unit assignment needs Blue Jay (U11).
+    physical_room_id: int | None = None
+    stay_date: date
+    nights: int
+    last_night: date
+    guests: int
+    net_rate: float
+    channel: str
+    status: str
+
+
 # -------------------------------------------------------------------- market
 class CompetitorOut(BaseModel):
     id: int

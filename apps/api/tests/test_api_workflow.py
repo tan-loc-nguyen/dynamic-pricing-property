@@ -618,3 +618,54 @@ def test_code_search_is_applied_before_paging(client):
     page = client.get("/api/recommendations?codes=3br&limit=5").json()
     assert len(page) == 5
     assert {r["room_category"] for r in page} == {"3br"}
+
+
+# ---------------------------------------------------------------------------
+# Bookings feed the calendar's occupancy timeline. They existed in the database
+# from the first seed and nothing could read them.
+# ---------------------------------------------------------------------------
+def test_bookings_are_exposed_with_the_range_they_occupy(client):
+    rows = client.get("/api/bookings?limit=50").json()
+    assert rows, "the demo seed writes bookings; the endpoint returns none"
+    b = rows[0]
+    assert b["nights"] >= 1
+    assert b["last_night"] >= b["stay_date"], "last_night must not precede check-in"
+
+
+def test_a_booking_spanning_into_the_window_is_not_dropped(client):
+    """A stay that started earlier still occupies nights inside the window.
+
+    Filtering on stay_date alone would hide it and make the month look emptier
+    than it is — the failure would read as missing bookings, not a date bug.
+    """
+    every = client.get("/api/bookings?limit=5000").json()
+    multi = [b for b in every if b["nights"] > 1]
+    assert multi, "demo data has no multi-night bookings to test with"
+
+    sample = multi[0]
+    # A window that begins on the booking's LAST night: it started before the
+    # window and must still be returned.
+    rows = client.get(
+        f"/api/bookings?start_date={sample['last_night']}&end_date={sample['last_night']}"
+    ).json()
+    assert any(r["id"] == sample["id"] for r in rows), (
+        "a booking overlapping the window was dropped because it started before it"
+    )
+
+
+def test_cancelled_bookings_never_reach_the_calendar(client):
+    rows = client.get("/api/bookings?limit=5000").json()
+    assert all(r["status"] != "cancelled" for r in rows)
+
+
+def test_unit_assignment_is_reported_as_absent_rather_than_invented(client):
+    """physical_room_id is NULL on every seeded booking (ASSUMPTIONS U11).
+
+    The calendar degrades to unlabelled lanes because of this. If unit data
+    ever arrives, this test fails and the UI can start labelling them — which
+    is the point: the absence is a fact to notice, not one to paper over.
+    """
+    rows = client.get("/api/bookings?limit=200").json()
+    assert all(r["physical_room_id"] is None for r in rows), (
+        "bookings now carry unit assignments — the calendar can label real units"
+    )

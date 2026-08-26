@@ -1,73 +1,84 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { Link, usePathname } from "@/i18n/navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { DataSourceStatus } from "./DataSourceStatus";
 
-const LINKS = [
-  { href: "/", key: "rateReview" },
-  { href: "/rate-book", key: "rateBook" },
-  { href: "/settings", key: "dynamicRules" },
+/**
+ * Two places to work, and one place where complexity lives.
+ *
+ * The previous nav gave equal billing to four configuration screens (rate
+ * book, dynamic rules, history, raw market) that an owner touches rarely, and
+ * to the one screen they use daily. Everything infrequent now sits behind
+ * Settings; the calendar is the default route.
+ */
+const PRIMARY = [
+  { href: "/calendar", key: "calendar" },
   { href: "/market", key: "market" },
-  { href: "/events", key: "events" },
-  { href: "/history", key: "history" },
 ] as const;
 
 export function Nav() {
-  const pathname = usePathname();
-  const t = useTranslations("nav");
-  const tn = useTranslations("navHints");
   const ta = useTranslations("app");
+  const pathname = usePathname();
+  const locale = useLocale();
+  const t = useTranslations("nav");
+
+  const path = pathname.replace(`/${locale}`, "") || "/calendar";
+  const isActive = (href: string) => path === href || path.startsWith(`${href}/`);
 
   return (
-    <aside className="w-60 shrink-0 border-r border-ink-200 bg-white flex flex-col overflow-y-auto">
-      <div className="px-5 py-5 border-b border-ink-100">
-        <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 grid place-items-center text-white text-sm font-semibold">
-            D
-          </div>
-          <div className="min-w-0">
-            <div className="text-[13px] font-semibold leading-tight text-ink-900">{ta("shortName")}</div>
-            {/* The operator whose portfolio is being priced. */}
-            <div className="text-[11px] text-ink-500 leading-tight">Luminous Luxury Apartments</div>
-          </div>
+    <aside className="flex h-screen w-[212px] shrink-0 flex-col border-r border-ink-200 bg-white">
+      <div className="flex items-center gap-2.5 px-4 py-4">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-[13px] font-bold text-white">
+          D
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-[12.5px] font-semibold text-ink-900">{ta("shortName")}</div>
+          <div className="truncate text-[10.5px] text-ink-400">{ta("propertyName")}</div>
         </div>
       </div>
 
-      <nav className="flex-1 p-3 space-y-0.5">
-        {LINKS.map((link) => {
-          const active = pathname === link.href;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`block rounded-lg px-3 py-2 transition-colors ${
-                active ? "bg-brand-50 text-brand-700" : "text-ink-600 hover:bg-ink-50 hover:text-ink-900"
-              }`}
-            >
-              <div className="text-[13px] font-medium leading-tight">{t(link.key)}</div>
-              <div className={`text-[11px] leading-tight mt-0.5 ${active ? "text-brand-500" : "text-ink-400"}`}>
-                {tn(link.key)}
-              </div>
-            </Link>
-          );
-        })}
+      <nav className="flex flex-col gap-0.5 px-2" aria-label={t("primary")}>
+      {PRIMARY.map((item) => {
+        const active = isActive(item.href);
+        return (
+          <Link
+            key={item.href}
+            href={`/${locale}${item.href}`}
+            aria-current={active ? "page" : undefined}
+            className={`rounded-lg px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+              active ? "bg-brand-50 text-brand-800" : "text-ink-700 hover:bg-ink-100"
+            }`}
+          >
+            <div className="text-[13px] font-medium">{t(`${item.key}.label`)}</div>
+            <div className={`text-[11px] ${active ? "text-brand-600" : "text-ink-400"}`}>
+              {t(`${item.key}.hint`)}
+            </div>
+          </Link>
+        );
+      })}
+
+      <div className="my-2 border-t border-ink-100" />
+
+      <Link
+        href={`/${locale}/settings`}
+        aria-current={isActive("/settings") ? "page" : undefined}
+        className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+          isActive("/settings") ? "bg-brand-50 text-brand-800" : "text-ink-600 hover:bg-ink-100"
+        }`}
+      >
+        <span aria-hidden className="text-[13px]">
+          ⚙
+        </span>
+        <span className="text-[13px] font-medium">{t("settings.label")}</span>
+      </Link>
       </nav>
 
-      <div className="p-3 border-t border-ink-100 space-y-2">
+      <div className="mt-auto border-t border-ink-100 p-2">
         <LanguageSwitcher />
-        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2.5">
-          <div className="text-[11px] font-semibold text-emerald-900 leading-tight">
-            {ta("shadowModeTitle")}
-          </div>
-          <div className="text-[11px] text-emerald-700 leading-snug mt-1">{ta("shadowModeBody")}</div>
-        </div>
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
-          <div className="text-[11px] font-semibold text-amber-900 leading-tight">
-            {ta("unvalidatedTitle")}
-          </div>
-          <div className="text-[11px] text-amber-700 leading-snug mt-1">{ta("unvalidatedBody")}</div>
-        </div>
+        <DataSourceStatus />
       </div>
     </aside>
   );

@@ -3,19 +3,22 @@
     "name": "Dynamic Pricing Property",
     "tagline": "Trí tuệ doanh thu trên nền Blue Jay PMS",
     "shortName": "Dynamic Pricing",
-    "shadowModeTitle": "Chế độ theo dõi",
-    "shadowModeBody": "Chỉ đưa ra đề xuất. Không ghi bất kỳ dữ liệu nào sang Blue Jay hay OTA.",
-    "unvalidatedTitle": "Lớp điều chỉnh chưa được xác thực",
-    "unvalidatedBody": "Bảng giá NET theo mùa đã được khách hàng xác nhận. Các thiết lập về tiến độ, lượng đặt, sự kiện và thị trường thì chưa."
+    "propertyName": "Luminous Luxury Apartments"
   },
   "nav": {
-    "rateReview": "Duyệt giá",
-    "rateBook": "Bảng giá mùa",
-    "dynamicRules": "Quy tắc động",
-    "market": "Thị trường",
-    "events": "Sự kiện",
-    "history": "Lịch sử",
-    "language": "Ngôn ngữ"
+    "primary": "Chính",
+    "language": "Ngôn ngữ",
+    "calendar": {
+      "label": "Lịch giá",
+      "hint": "Nơi làm việc hằng ngày"
+    },
+    "market": {
+      "label": "Thị trường & Sự kiện",
+      "hint": "Điều đang diễn ra xung quanh"
+    },
+    "settings": {
+      "label": "Cài đặt"
+    }
   },
   "adjustments": {
     "rate_band": {
@@ -228,14 +231,6 @@
       "UNKNOWN": "Không rõ"
     }
   },
-  "navHints": {
-    "rateReview": "Đề xuất cần xử lý",
-    "rateBook": "Giá mùa đã xác thực",
-    "dynamicRules": "Lớp thử nghiệm",
-    "market": "Đối thủ & dữ liệu",
-    "events": "Lịch nhu cầu",
-    "history": "Quyết định đã ra"
-  },
   "common": {
     "loading": "Đang tải…",
     "save": "Lưu",
@@ -256,7 +251,17 @@
     "pending": "Chờ duyệt",
     "accepted": "Đã chấp nhận",
     "overridden": "Đã điều chỉnh",
-    "error": "Không định giá được"
+    "error": "Không định giá được",
+    "title": "Dữ liệu & trạng thái",
+    "demoData": "Dữ liệu mẫu",
+    "connected": "Đã kết nối Blue Jay",
+    "mode": "Chế độ",
+    "shadowMode": "Chế độ theo dõi",
+    "pms": "PMS",
+    "marketSource": "Nguồn thị trường",
+    "engine": "Bộ tính giá",
+    "shadowExplain": "Giá chỉ là đề xuất. Không có gì được gửi sang Blue Jay hay OTA — bạn tự áp dụng mức đã chấp nhận.",
+    "unvalidated": "Giá NET theo mùa đã được khách hàng xác thực. Các thiết lập tiến độ, lượng đặt, sự kiện và thị trường thì chưa."
   },
   "table": {
     "stayDate": "Ngày lưu trú",
@@ -290,18 +295,6 @@
     },
     "bandMin": "SÀN",
     "bandMax": "TRẦN"
-  },
-  "dashboard": {
-    "title": "Duyệt giá",
-    "recalculate": "Tính lại",
-    "recalculating": "Đang tính lại…",
-    "recalculationFailed": "Tính lại không thành công.",
-    "loading": "Đang tải đề xuất…",
-    "empty": "Không có đề xuất nào khớp bộ lọc",
-    "emptyHint": "Thử mở rộng khoảng ngày hoặc bỏ lọc theo hạng căn hộ.",
-    "subtitle": "Giá NET đề xuất theo hạng căn hộ và ngày lưu trú, dựa trên bảng giá mùa đã được Luminous xác thực. Xem lý do đằng sau mỗi mức giá, rồi chấp nhận hoặc tự đặt giá của bạn.",
-    "showing": "Đang hiển thị {shown, number} trên {total, number} đêm theo hạng căn hộ",
-    "showMore": "Xem thêm {count, number}"
   },
   "summary": {
     "upcomingNights": "Số đêm sắp tới",
@@ -414,7 +407,27 @@
     "acceptRate": "Chấp nhận {rate}",
     "overrideEllipsis": "Tự đặt giá…",
     "unitsSold": "{sold, number}/{total, number} căn · còn {left, number}",
-    "otaOnFile": " Giá OTA đang lưu: {price}."
+    "otaOnFile": " Giá OTA đang lưu: {price}.",
+    "netRatesPlain": "Giá NET — số tiền bạn thực nhận, không phải giá khách thấy trên OTA.",
+    "bandTitle": "Vị trí trong khung giá cho phép",
+    "paceTitle": "Đêm này đang bán ra sao",
+    "whyTitle": "Vì sao giá thay đổi",
+    "marketTitle": "So với thị trường",
+    "showReasoning": "Xem giải thích bằng lời",
+    "adjust": "Điều chỉnh",
+    "bandHitMin": "Đã giữ ở mức sàn theo mùa — phép tính muốn xuống thấp hơn.",
+    "bandHitMax": "Đã giữ ở mức trần theo mùa — phép tính muốn lên cao hơn.",
+    "pacePlain": "{direction, select, ahead {Đang bán nhanh hơn kỳ vọng {points, number} điểm} other {Đang bán chậm hơn kỳ vọng {points, number} điểm}} so với thời điểm này.",
+    "paceUnknown": "Chưa đủ lịch sử đặt phòng để đánh giá tiến độ của đêm này.",
+    "paceNoCurve": "Chưa đủ số ngày trong kỳ để vẽ đường tiến độ.",
+    "paceExpected": "Kỳ vọng",
+    "paceActual": "Thực tế",
+    "paceOnTheBooks": "Đã đặt",
+    "paceLeadTime": "Còn",
+    "marketYou": "Bạn",
+    "marketSummary": "Ghi nhận {count, number} mức giá tương đương · độ tin cậy {confidence}",
+    "marketReferenceOnly": "Dữ liệu thị trường ở đây chỉ để tham khảo và không ảnh hưởng giá đề xuất.",
+    "marketNone": "Chưa có giá thị trường tương đương cho đêm này."
   },
   "rateBook": {
     "title": "Bảng giá theo mùa",
@@ -612,5 +625,33 @@
     "fee_unknown": "chưa rõ đã gồm phí hay chưa",
     "los_unknown": "chưa rõ số đêm lưu trú",
     "promotion_unknown": "chưa rõ có khuyến mãi hay không"
+  },
+  "calendar": {
+    "title": "Lịch giá",
+    "subtitle": "Phòng trống và giá NET đề xuất theo từng đêm. Bấm vào một đêm để xem lý do.",
+    "roomType": "Hạng căn hộ",
+    "today": "Hôm nay",
+    "previousPeriod": "Kỳ trước",
+    "nextPeriod": "Kỳ sau",
+    "dayCount": "{count, number} ngày",
+    "unitCount": "{count, number} căn",
+    "bookings": "Đặt phòng",
+    "unitUnassigned": "Chưa gán theo căn",
+    "noBookingsInRange": "Không có đặt phòng trong kỳ này.",
+    "expandRow": "Xem đặt phòng",
+    "collapseRow": "Ẩn đặt phòng",
+    "full": "Hết",
+    "occupancyOf": "Đã bán {sold, number}/{total, number}",
+    "needsReview": "Nên xem lại",
+    "empty": "Không có đề xuất nào trong kỳ này.",
+    "attentionHint": "Chỉ hiển thị những đêm nên xem lại.",
+    "openMostUrgent": "Mở đêm đầu tiên",
+    "summary": {
+      "occupancy": "Công suất",
+      "attention": "Cần chú ý",
+      "pending": "Chờ bạn quyết định",
+      "tapToFilter": "chỉ xem các đêm này",
+      "showingOnly": "đang chỉ xem các đêm này"
+    }
   }
 }

@@ -3,19 +3,22 @@
     "name": "Dynamic Pricing Property",
     "tagline": "Revenue intelligence above Blue Jay PMS",
     "shortName": "Dynamic Pricing",
-    "shadowModeTitle": "Shadow Mode",
-    "shadowModeBody": "Recommendations only. Nothing is pushed to Blue Jay or any OTA.",
-    "unvalidatedTitle": "Dynamic layer unvalidated",
-    "unvalidatedBody": "Seasonal NET rates are client-validated. Pace, pickup, event and market settings are not."
+    "propertyName": "Luminous Luxury Apartments"
   },
   "nav": {
-    "rateReview": "Rate Review",
-    "rateBook": "Rate Book",
-    "dynamicRules": "Dynamic Rules",
-    "market": "Market",
-    "events": "Events",
-    "history": "History",
-    "language": "Language"
+    "primary": "Primary",
+    "language": "Language",
+    "calendar": {
+      "label": "Pricing calendar",
+      "hint": "Your daily workspace"
+    },
+    "market": {
+      "label": "Market & events",
+      "hint": "What is happening around you"
+    },
+    "settings": {
+      "label": "Settings"
+    }
   },
   "adjustments": {
     "rate_band": {
@@ -228,14 +231,6 @@
       "UNKNOWN": "Unknown"
     }
   },
-  "navHints": {
-    "rateReview": "Recommendations to action",
-    "rateBook": "Validated seasonal rates",
-    "dynamicRules": "Experimental layer",
-    "market": "Comp set & evidence",
-    "events": "Demand calendar",
-    "history": "Past decisions"
-  },
   "common": {
     "loading": "Loading…",
     "save": "Save",
@@ -256,7 +251,17 @@
     "pending": "Pending",
     "accepted": "Accepted",
     "overridden": "Overridden",
-    "error": "Could not price"
+    "error": "Could not price",
+    "title": "Data & status",
+    "demoData": "Demo data",
+    "connected": "Blue Jay connected",
+    "mode": "Mode",
+    "shadowMode": "Shadow Mode",
+    "pms": "PMS",
+    "marketSource": "Market source",
+    "engine": "Engine",
+    "shadowExplain": "Prices are recommendations only. Nothing is sent to Blue Jay or any OTA — you apply what you accept.",
+    "unvalidated": "Seasonal NET rates are client-validated. Pace, pickup, event and market settings are not."
   },
   "table": {
     "stayDate": "Stay date",
@@ -290,18 +295,6 @@
     },
     "bandMin": "MIN",
     "bandMax": "MAX"
-  },
-  "dashboard": {
-    "title": "Rate review",
-    "recalculate": "Recalculate",
-    "recalculating": "Recalculating…",
-    "recalculationFailed": "Recalculation failed.",
-    "loading": "Loading recommendations…",
-    "empty": "No recommendations match these filters",
-    "emptyHint": "Try widening the date range or clearing the room category filter.",
-    "subtitle": "Recommended NET rates by room category and stay date, anchored to Luminous' validated seasonal rate book. Review the reasoning, then accept or set your own.",
-    "showing": "Showing {shown, number} of {total, number} room-type nights",
-    "showMore": "Show {count, number} more"
   },
   "summary": {
     "upcomingNights": "Upcoming nights",
@@ -414,7 +407,27 @@
     "acceptRate": "Accept {rate}",
     "overrideEllipsis": "Override…",
     "unitsSold": "{sold, number}/{total, number} units · {left, number} left",
-    "otaOnFile": " Current OTA price on file: {price}."
+    "otaOnFile": " Current OTA price on file: {price}.",
+    "netRatesPlain": "NET rate — what you receive, not the price a guest sees on an OTA.",
+    "bandTitle": "Where this sits in your allowed range",
+    "paceTitle": "How this night is selling",
+    "whyTitle": "Why the price moved",
+    "marketTitle": "Compared with the market",
+    "showReasoning": "Show the reasoning in words",
+    "adjust": "Adjust",
+    "bandHitMin": "Held at your seasonal floor — the calculation wanted to go lower.",
+    "bandHitMax": "Held at your seasonal ceiling — the calculation wanted to go higher.",
+    "pacePlain": "{direction, select, ahead {Selling {points, number} points faster than expected} other {Selling {points, number} points slower than expected}} for this far out.",
+    "paceUnknown": "Not enough booking history to judge pace for this night.",
+    "paceNoCurve": "Not enough dates in this period to draw the pace curve.",
+    "paceExpected": "Expected",
+    "paceActual": "Actual",
+    "paceOnTheBooks": "On the books",
+    "paceLeadTime": "Lead time",
+    "marketYou": "You",
+    "marketSummary": "{count, number} comparable prices seen · confidence {confidence}",
+    "marketReferenceOnly": "Market data here is for reference only and did not affect the recommended price.",
+    "marketNone": "No comparable market prices for this night yet."
   },
   "rateBook": {
     "title": "Seasonal rate book",
@@ -612,5 +625,33 @@
     "fee_unknown": "fee treatment unknown",
     "los_unknown": "length of stay unknown",
     "promotion_unknown": "promotion status unknown"
+  },
+  "calendar": {
+    "title": "Pricing calendar",
+    "subtitle": "Availability and recommended NET rates, night by night. Click a night to see why.",
+    "roomType": "Room type",
+    "today": "Today",
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period",
+    "dayCount": "{count, number} days",
+    "unitCount": "{count, number} units",
+    "bookings": "Bookings",
+    "unitUnassigned": "Not assigned to units",
+    "noBookingsInRange": "No bookings in this period.",
+    "expandRow": "Show bookings",
+    "collapseRow": "Hide bookings",
+    "full": "Full",
+    "occupancyOf": "{sold, number} of {total, number} sold",
+    "needsReview": "Worth a look",
+    "empty": "No recommendations in this period.",
+    "attentionHint": "Showing only the nights worth reviewing.",
+    "openMostUrgent": "Open the first one",
+    "summary": {
+      "occupancy": "Occupancy",
+      "attention": "Need attention",
+      "pending": "Awaiting your decision",
+      "tapToFilter": "show only these",
+      "showingOnly": "showing only these"
+    }
   }
 }

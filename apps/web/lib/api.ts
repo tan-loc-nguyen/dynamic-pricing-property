@@ -3,6 +3,7 @@
  * renders was computed by the Python engine and arrives over these calls.
  */
 import type {
+  Booking,
   Competitor,
   EventItem,
   HistoryEntry,
@@ -135,6 +136,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ payload, room_type_id: room_type_id ?? null, stay_date: stay_date ?? null }),
     }),
+
+  // --- bookings (the calendar's occupancy timeline) -----------------------
+  bookings: (params: { start_date?: string | null; end_date?: string | null } = {}) =>
+    request<Booking[]>(`/api/bookings${toQuery(params)}`),
 
   // --- history -----------------------------------------------------------
   history: (params: { decision?: string; room_type_id?: number | null } = {}) =>

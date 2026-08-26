@@ -428,8 +428,11 @@ def _translation_references() -> tuple[set[str], set[str]]:
     """
     exact: set[str] = set()
     prefixes: set[str] = set()
-    for path in list(WEB.glob("app/**/*.tsx")) + list(WEB.glob("components/*.tsx")) + list(
-        WEB.glob("lib/*.ts")
+    # Recursive on purpose: `components/*.tsx` missed everything in a
+    # subdirectory, so moving a component into components/calendar/ silently
+    # dropped it out of this guard and its keys looked dead.
+    for path in list(WEB.glob("app/**/*.tsx")) + list(WEB.glob("components/**/*.tsx")) + list(
+        WEB.glob("lib/**/*.ts")
     ):
         src = path.read_text(encoding="utf-8")
         bindings = dict(

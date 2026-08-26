@@ -16,8 +16,12 @@ export function formatVND(
 ): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   if (opts.compact && Math.abs(value) >= 1_000_000) {
+    // "tr" (triệu) in Vietnamese, "m" in English. The calendar cells and the
+    // rate band both use this, so a mismatch here showed the same rate as
+    // "2,3tr" in one place and "2,3M" in the other on the same screen.
     const sign = value < 0 ? "−" : "";
-    return `${sign}${decimal(value / 1_000_000, locale, 1)}M ₫`;
+    const unit = locale === "vi" ? "tr" : "m";
+    return `${sign}${decimal(value / 1_000_000, locale, 1)}${unit} ₫`;
   }
   return `${Math.round(value).toLocaleString(intlLocale(locale))} ₫`;
 }

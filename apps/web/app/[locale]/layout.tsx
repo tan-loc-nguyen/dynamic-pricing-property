@@ -45,7 +45,7 @@ export default async function LocaleLayout({
               pixels below the fold. Each pane scrolls inside its own box now. */}
           <div className="flex h-screen overflow-hidden">
             <Nav />
-            <main className="flex-1 min-w-0 overflow-y-auto">{children}</main>
+            <main className="flex-1 min-w-0 overflow-hidden p-4">{children}</main>
           </div>
         </NextIntlClientProvider>
       </body>
