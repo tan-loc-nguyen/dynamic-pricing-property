@@ -247,35 +247,6 @@
     "apiUnreachable": "Cannot reach the pricing API. Is the backend running on port 8000?",
     "unknownError": "unknown error"
   },
-  "status": {
-    "pending": "Pending",
-    "accepted": "Accepted",
-    "overridden": "Overridden",
-    "error": "Could not price",
-    "title": "Data & status",
-    "demoData": "Demo data",
-    "connected": "Blue Jay connected",
-    "mode": "Mode",
-    "shadowMode": "Shadow Mode",
-    "pms": "PMS",
-    "marketSource": "Market source",
-    "engine": "Engine",
-    "shadowExplain": "Prices are recommendations only. Nothing is sent to Blue Jay or any OTA — you apply what you accept.",
-    "unvalidated": "Seasonal NET rates are client-validated. Pace, pickup, event and market settings are not."
-  },
-  "filters": {
-    "from": "From",
-    "to": "To",
-    "roomCategory": "Room category",
-    "allRoomCategories": "All room categories",
-    "status": "Status",
-    "allStatuses": "All statuses",
-    "search": "Search",
-    "searchPlaceholder": "Room category or season…",
-    "allDecisions": "All decisions",
-    "decision": "Decision",
-    "categoryOption": "{category} ({units, number} units)"
-  },
   "drawer": {
     "loading": "Loading recommendation…",
     "close": "Close",
@@ -377,7 +348,7 @@
     "sourceClient": "Client",
     "sourceEdited": "Edited",
     "subtitleLong": "Luminous' own MIN / BASE / MAX NET rates by season and room category. This is validated business data — the pricing engine anchors on it rather than modelling seasonality itself.",
-    "updated": "Updated {season} · {category}. Recalculate to apply.",
+    "updated": "Updated {season} · {category}. Prices for those dates have been recalculated.",
     "roomCategory": "Room category",
     "minNet": "MIN NET",
     "baseNet": "BASE NET",
@@ -407,7 +378,7 @@
     "overrideHint": "Leave blank to use the configured value for this impact level",
     "overridePlaceholder": "e.g. 12",
     "notesPlaceholder": "Why this matters for demand…",
-    "saved": "Event saved. Recalculate on Rate Review to fold it into recommendations.",
+    "saved": "Event saved. It will be folded in the next time prices are recalculated.",
     "unvalidated": "Event impact sizes are UNVALIDATED",
     "subtitleLong": "Known exceptional-demand dates. Events are curated by you, not scraped — a wrong event moves real money, so a human decides what counts.",
     "saveEvent": "Save event",
@@ -610,7 +581,11 @@
     "from": "From",
     "to": "To",
     "occupancyOfWeek": "{pct, number}% full across {nights, number} nights",
-    "roomNights": "{count, number} room-nights sold"
+    "roomNights": "{count, number} room-nights sold",
+    "searchPlaceholder": "Room type or season…",
+    "searchLabel": "Filter by room type or season",
+    "filteredOut": "Does not match the current filter.",
+    "noMatch": "Nothing matches that. Try a room type or a season name."
   },
   "marketPage": {
     "title": "Market & events",
@@ -689,5 +664,23 @@
     "unvalidatedBody": "Your seasonal NET rates came from you and are treated as fact. Everything layered on top — booking pace thresholds, event impact sizes, market sensitivity — was chosen by the engineering team and still needs your judgement. The booking curve behind pace is demo data, not your history.",
     "dataset": "What is in the database",
     "lastRun": "Last pricing run: {id}"
+  },
+  "dataStatus": {
+    "title": "Data & status",
+    "demoData": "Demo data",
+    "connected": "Blue Jay connected",
+    "mode": "Mode",
+    "shadowMode": "Shadow Mode",
+    "pms": "PMS",
+    "marketSource": "Market source",
+    "engine": "Engine",
+    "shadowExplain": "Prices are recommendations only. Nothing is sent to Blue Jay or any OTA — you apply what you accept.",
+    "unvalidated": "Seasonal NET rates are client-validated. Pace, pickup, event and market settings are not."
+  },
+  "filters": {
+    "roomCategory": "Room category",
+    "allRoomCategories": "All room categories",
+    "decision": "Decision",
+    "allDecisions": "All decisions"
   }
 }

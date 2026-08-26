@@ -354,7 +354,14 @@ export interface EventItem {
   created_at: string;
 }
 
-/** A booking, with the nights it occupies made explicit by the API. */
+/**
+ * ONE OCCUPIED UNIT-NIGHT, not a stay.
+ *
+ * There is deliberately no `nights` and no `last_night`: the provider emits one
+ * row per occupied room per night, so a span cannot be built from this and an
+ * earlier attempt drew ~3.5x the real occupancy. Stay ranges need Blue Jay
+ * (ASSUMPTIONS U16), as does unit assignment.
+ */
 export interface Booking {
   id: number;
   external_id: string;
@@ -363,8 +370,6 @@ export interface Booking {
   /** NULL for every seeded booking — unit assignment needs Blue Jay (U11). */
   physical_room_id: number | null;
   stay_date: string;
-  nights: number;
-  last_night: string;
   guests: number;
   net_rate: number;
   channel: string;

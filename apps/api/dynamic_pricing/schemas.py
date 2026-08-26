@@ -291,11 +291,13 @@ class BookingOut(BaseModel):
     and FeatureEngine counts one row as one booking ON that date. A row is a
     room that was occupied on one night.
 
-    `nights` is therefore NOT a stay length. The provider assigns it at random
+    `nights` is deliberately NOT published. The provider assigns it at random
     per row and nothing consumed it until a calendar tried to draw stay bars
-    from it, which smeared each unit-night across up to five days and drew ~3.5x
-    more occupancy than exists. There is deliberately no `last_night` field: a
-    derived end date would re-create that falsehood one layer up.
+    from it, smearing each unit-night across up to five days and drawing ~3.5x
+    the occupancy that exists. It is the field whose NAME caused that, so the
+    fix is to withhold it rather than to document it and hope: there is no
+    `nights` and no `last_night` here, and no way to re-derive a span from this
+    payload at all.
 
     Real stay ranges need Blue Jay (ASSUMPTIONS U16), like unit assignment.
     """
@@ -307,8 +309,6 @@ class BookingOut(BaseModel):
     #: NULL for every seeded booking -- unit assignment needs Blue Jay (U11).
     physical_room_id: int | None = None
     stay_date: date
-    #: Random decoration in the mock. Do NOT treat as a stay length.
-    nights: int
     guests: int
     net_rate: float
     channel: str

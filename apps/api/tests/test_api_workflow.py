@@ -662,17 +662,21 @@ def test_a_booking_row_is_one_occupied_unit_night(client):
     assert compared, "the comparison never ran"
 
 
-def test_the_api_never_publishes_a_stay_end_date(client):
-    """`nights` is random decoration in the mock and must not become a range.
+def test_the_api_publishes_nothing_a_span_could_be_built_from(client):
+    """Neither an end date nor a length, so no caller can rebuild the fiction.
 
-    A derived `last_night` was exactly how the fiction got drawn: correct
-    arithmetic over a field that does not mean what its name suggests.
+    A derived `last_night` was how it got drawn the first time: correct
+    arithmetic over a field that does not mean what its name suggests. Removing
+    the end date alone would have left `nights` sitting there for the next
+    reader to make the same inference.
     """
     rows = client.get("/api/bookings?limit=50").json()
     assert rows
-    assert "last_night" not in rows[0], (
-        "the API is publishing a stay end date again; `nights` cannot support one"
-    )
+    for field in ("last_night", "nights"):
+        assert field not in rows[0], (
+            f"/api/bookings publishes `{field}` again — a row is one unit-night "
+            "and cannot support a span"
+        )
 
 
 def test_every_returned_row_falls_inside_the_window(client):
@@ -717,3 +721,46 @@ def test_observations_can_be_fetched_for_a_window(client):
     assert all(lo <= o["stay_date"] <= hi for o in windowed)
     expected = sum(1 for o in every if lo <= o["stay_date"] <= hi)
     assert len(windowed) == expected, "the window dropped or duplicated rows"
+
+
+def test_editing_a_rate_band_reprices_the_dates_it_covers(client):
+    """A saved band that did not re-price left the calendar serving stale rates.
+
+    Every recommendation anchors on a band and is clamped to it, so the two
+    cannot be allowed to disagree — and nothing on screen said they did.
+    """
+    bands = client.get("/api/rate-book").json()
+    band = next(b for b in bands if b["room_category"] and b["base_net_rate"])
+
+    def rate_for(season_key: str, category: str):
+        rows = client.get("/api/recommendations?limit=5000").json()
+        hits = [
+            r
+            for r in rows
+            if r["season_key"] == season_key and r["room_category"] == category
+        ]
+        return hits[0]["band_base_net_rate"] if hits else None
+
+    before = rate_for(band["season_key"], band["room_category"])
+    if before is None:
+        pytest.skip("no recommendation covers this band's season in the demo window")
+
+    moved = round(band["base_net_rate"] * 1.10)
+    response = client.put(
+        f"/api/rate-book/{band['id']}",
+        json={
+            "min_net_rate": band["min_net_rate"],
+            "base_net_rate": moved,
+            "max_net_rate": max(band["max_net_rate"], moved),
+        },
+    )
+    assert response.status_code == 200
+
+    after = rate_for(band["season_key"], band["room_category"])
+    assert after == moved, (
+        f"recommendations still anchor on {after}, not the saved {moved} — "
+        "the edit did not re-price"
+    )
+
+    # Leave the demo data as it was found.
+    client.post("/api/rate-book/reset")

@@ -15,7 +15,7 @@ import type { SystemStatus } from "@/lib/types";
  * into something that states the situation in a line and explains on demand.
  */
 export function DataSourceStatus() {
-  const t = useTranslations("status");
+  const t = useTranslations("dataStatus");
   const [status, setStatus] = useState<SystemStatus | null>(null);
 
   useEffect(() => {

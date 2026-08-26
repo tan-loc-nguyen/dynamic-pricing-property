@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { addDaysISO, nightsBetween, todayISO } from "@/lib/dates";
@@ -9,6 +9,7 @@ import { PricingCalendar } from "@/components/calendar/PricingCalendar";
 import { CalendarLegend } from "@/components/calendar/CalendarLegend";
 import { buildColumns, buildRows, type Column } from "@/lib/calendarModel";
 import { RANGES, granularityFor } from "@/lib/ranges";
+import { useSearchCodes } from "@/lib/search";
 import { RecommendationDrawer } from "@/components/RecommendationDrawer";
 import { Button, Card, Spinner } from "@/components/ui";
 import type { FormatLocale } from "@/lib/format";
@@ -112,6 +113,18 @@ export default function CalendarPage() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [selected, setSelected] = useState<Recommendation | null>(null);
   const [attentionOnly, setAttentionOnly] = useState(false);
+  const [search, setSearch] = useState("");
+  // Debounced separately from the dates and the range, which apply at once:
+  // free text should not fire a request per keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [search]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,12 +151,25 @@ export default function CalendarPage() {
     [start, end, granularity, locale],
   );
 
+  // What was typed, resolved against THIS locale's vocabulary into codes the
+  // API can match. Without it a Vietnamese operator could only search in
+  // English, which is the bug this feature exists to fix.
+  const searchCodes = useSearchCodes();
+  const codes = searchCodes(debouncedSearch).join(",") || null;
+  const filtering = debouncedSearch.trim().length > 0;
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [r, b] = await Promise.all([
-        api.recommendations({ start_date: start, end_date: end, limit: 5000 }),
+        api.recommendations({
+          start_date: start,
+          end_date: end,
+          limit: 5000,
+          search: debouncedSearch || null,
+          codes,
+        }),
         api.bookings({ start_date: start, end_date: end }),
       ]);
       setRecs(r);
@@ -153,7 +179,7 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, [start, end, tc]);
+  }, [start, end, tc, debouncedSearch, codes]);
 
   useEffect(() => {
     load();
@@ -307,6 +333,16 @@ export default function CalendarPage() {
             />
           </div>
 
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            aria-label={t("searchLabel")}
+            className="w-44 rounded-lg border border-ink-200 px-2.5 py-1 text-[12px] text-ink-700
+              placeholder:text-ink-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+          />
+
           {granularity === "week" && (
             <span className="text-[11px] text-ink-400">{t("weeklyNote")}</span>
           )}
@@ -325,7 +361,7 @@ export default function CalendarPage() {
             </div>
           ) : rows.length === 0 ? (
             <div className="flex h-full items-center justify-center text-[12.5px] text-ink-400">
-              {t("empty")}
+              {filtering ? t("noMatch") : t("empty")}
             </div>
           ) : (
             <PricingCalendar
@@ -345,6 +381,7 @@ export default function CalendarPage() {
               onSelect={setSelected}
               onDrillDown={drillDown}
               attentionOnly={attentionOnly}
+              filtering={filtering}
             />
           )}
         </div>

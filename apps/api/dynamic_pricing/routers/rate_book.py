@@ -63,7 +63,25 @@ def rate_book_meta():
 
 
 @router.put("/{band_id}", response_model=RateBandOut)
-def edit_band(band_id: int, body: RateBandUpdateIn, session: Session = Depends(get_session)):
+def edit_band(
+    band_id: int,
+    body: RateBandUpdateIn,
+    session: Session = Depends(get_session),
+    regenerate: bool = True,
+):
+    """Save a band and re-price the dates it covers.
+
+    Regenerating is the whole point of an edit. Every recommendation anchors on
+    a band and is clamped to it, so a saved band that did not re-price left the
+    calendar serving rates derived from the previous one indefinitely — with
+    nothing on screen to say they were stale. Reset already did this; edit did
+    not, and edit is the common case.
+
+    `regenerate=false` exists for a caller changing several bands in sequence
+    that wants to pay for one run at the end, not for skipping it.
+    """
+    from ..services.recommendations import PricingRunFailed, generate_recommendations
+
     if not (body.min_net_rate <= body.base_net_rate <= body.max_net_rate):
         raise HTTPException(
             status_code=422, detail="Rate band must satisfy MIN <= BASE <= MAX."
@@ -77,7 +95,19 @@ def edit_band(band_id: int, body: RateBandUpdateIn, session: Session = Depends(g
     )
     if row is None:
         raise HTTPException(status_code=404, detail="Rate band not found")
-    return _serialise(row)
+
+    payload = _serialise(row)
+    if regenerate:
+        try:
+            generate_recommendations(session)
+        except PricingRunFailed as exc:
+            # The band IS saved at this point. Failing the whole request would
+            # tell the operator their edit was rejected when it was not.
+            raise HTTPException(
+                status_code=422,
+                detail=f"Band saved, but re-pricing failed: {exc}",
+            ) from exc
+    return payload
 
 
 @router.post("/reset")

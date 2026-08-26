@@ -64,6 +64,7 @@ function PricingDateCell({
   column,
   selected,
   dimmed,
+  filtering,
   onSelect,
   onDrillDown,
 }: {
@@ -71,6 +72,8 @@ function PricingDateCell({
   column: Column;
   selected: boolean;
   dimmed: boolean;
+  /** A search is active, so an empty cell means "no match", not "no data". */
+  filtering: boolean;
   onSelect: (rec: Recommendation) => void;
   onDrillDown: (column: Column) => void;
 }) {
@@ -78,15 +81,18 @@ function PricingDateCell({
   const t = useTranslations("calendar");
   const { formatVND } = useFormat();
 
-  // No recommendation for this column at all. Past the engine's horizon this
-  // is the normal case, and saying so is better than an empty box that looks
-  // like a rendering bug.
+  // No recommendation for this column. Two different reasons, and they must
+  // not look alike: past the engine's horizon nothing was ever priced, but
+  // under an active search the night exists and simply did not match. Showing
+  // "no prices yet" for a filtered night would be a lie the operator cannot
+  // see through.
   if (!cell) {
+    const why = filtering ? t("filteredOut") : t("noPricingYet");
     return (
       <div
         className="border-r border-b border-ink-100 bg-[repeating-linear-gradient(135deg,transparent,transparent_5px,rgba(0,0,0,0.025)_5px,rgba(0,0,0,0.025)_10px)]"
-        title={t("noPricingYet")}
-        aria-label={t("noPricingYet")}
+        title={why}
+        aria-label={why}
       />
     );
   }
@@ -292,6 +298,7 @@ export function PricingCalendar({
   onSelect,
   onDrillDown,
   attentionOnly,
+  filtering,
 }: {
   rows: CalendarRow[];
   columns: Column[];
@@ -302,6 +309,8 @@ export function PricingCalendar({
   onSelect: (rec: Recommendation) => void;
   onDrillDown: (column: Column) => void;
   attentionOnly: boolean;
+  /** A search is active, so an empty cell means "no match", not "no data". */
+  filtering: boolean;
 }) {
   const locale = useLocale() as FormatLocale;
   const t = useTranslations("calendar");
@@ -409,6 +418,7 @@ export function PricingCalendar({
                     column={c}
                     selected={!!cell?.single && cell.single.id === selectedId}
                     dimmed={attentionOnly && !!cell && !cell.attention}
+                    filtering={filtering}
                     onSelect={onSelect}
                     onDrillDown={onDrillDown}
                   />

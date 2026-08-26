@@ -14,7 +14,7 @@ export default function HistoryPage() {
   const tv = useTranslations("vocab");
   const tc = useTranslations("common");
   const tf = useTranslations("filters");
-  const tst = useTranslations("status");
+  const tst = useTranslations("vocab.status");
   const { formatDateTime, formatPct, formatSignedVND, formatStayDate, formatVND } = useFormat();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);

@@ -247,35 +247,6 @@
     "apiUnreachable": "Không kết nối được tới API định giá. Backend đã chạy ở cổng 8000 chưa?",
     "unknownError": "lỗi không xác định"
   },
-  "status": {
-    "pending": "Chờ duyệt",
-    "accepted": "Đã chấp nhận",
-    "overridden": "Đã điều chỉnh",
-    "error": "Không định giá được",
-    "title": "Dữ liệu & trạng thái",
-    "demoData": "Dữ liệu mẫu",
-    "connected": "Đã kết nối Blue Jay",
-    "mode": "Chế độ",
-    "shadowMode": "Chế độ theo dõi",
-    "pms": "PMS",
-    "marketSource": "Nguồn thị trường",
-    "engine": "Bộ tính giá",
-    "shadowExplain": "Giá chỉ là đề xuất. Không có gì được gửi sang Blue Jay hay OTA — bạn tự áp dụng mức đã chấp nhận.",
-    "unvalidated": "Giá NET theo mùa đã được khách hàng xác thực. Các thiết lập tiến độ, lượng đặt, sự kiện và thị trường thì chưa."
-  },
-  "filters": {
-    "from": "Từ ngày",
-    "to": "Đến ngày",
-    "roomCategory": "Hạng căn hộ",
-    "allRoomCategories": "Tất cả hạng căn hộ",
-    "status": "Trạng thái",
-    "allStatuses": "Tất cả trạng thái",
-    "search": "Tìm kiếm",
-    "searchPlaceholder": "Hạng căn hộ hoặc mùa…",
-    "allDecisions": "Tất cả quyết định",
-    "decision": "Quyết định",
-    "categoryOption": "{category} ({units, number} căn)"
-  },
   "drawer": {
     "loading": "Đang tải đề xuất…",
     "close": "Đóng",
@@ -377,7 +348,7 @@
     "sourceClient": "Khách hàng",
     "sourceEdited": "Đã sửa",
     "subtitleLong": "Giá NET SÀN / CƠ SỞ / TRẦN của chính Luminous theo mùa và hạng căn hộ. Đây là dữ liệu kinh doanh đã được xác thực — bộ tính giá lấy đây làm gốc thay vì tự mô hình hoá yếu tố mùa vụ.",
-    "updated": "Đã cập nhật {season} · {category}. Bấm Tính lại để áp dụng.",
+    "updated": "Đã cập nhật {season} · {category}. Giá cho những ngày đó đã được tính lại.",
     "roomCategory": "Hạng căn hộ",
     "minNet": "NET SÀN",
     "baseNet": "NET CƠ SỞ",
@@ -407,7 +378,7 @@
     "overrideHint": "Để trống nếu muốn dùng giá trị cấu hình sẵn cho mức tác động này",
     "overridePlaceholder": "ví dụ: 12",
     "notesPlaceholder": "Vì sao điều này ảnh hưởng đến nhu cầu…",
-    "saved": "Đã lưu sự kiện. Vào Duyệt giá và bấm Tính lại để đưa sự kiện vào đề xuất.",
+    "saved": "Đã lưu sự kiện. Sự kiện sẽ được tính vào lần tính giá tiếp theo.",
     "unvalidated": "Mức tác động của sự kiện CHƯA ĐƯỢC XÁC THỰC",
     "subtitleLong": "Những ngày có nhu cầu đột biến đã biết trước. Sự kiện do bạn tự nhập chứ không thu thập tự động — một sự kiện sai sẽ ảnh hưởng đến tiền thật, nên con người phải là người quyết định.",
     "saveEvent": "Lưu sự kiện",
@@ -610,7 +581,11 @@
     "from": "Từ ngày",
     "to": "Đến ngày",
     "occupancyOfWeek": "Đã đầy {pct, number}% trong {nights, number} đêm",
-    "roomNights": "Đã bán {count, number} đêm-phòng"
+    "roomNights": "Đã bán {count, number} đêm-phòng",
+    "searchPlaceholder": "Hạng căn hộ hoặc mùa…",
+    "searchLabel": "Lọc theo hạng căn hộ hoặc mùa",
+    "filteredOut": "Không khớp bộ lọc hiện tại.",
+    "noMatch": "Không có kết quả nào. Thử tên hạng căn hộ hoặc tên mùa."
   },
   "marketPage": {
     "title": "Thị trường & Sự kiện",
@@ -689,5 +664,23 @@
     "unvalidatedBody": "Giá NET theo mùa là do bạn cung cấp và được coi là dữ liệu thật. Mọi thứ đặt lên trên — ngưỡng tiến độ đặt phòng, mức tác động của sự kiện, độ nhạy với thị trường — đều do đội kỹ thuật chọn và vẫn cần bạn xác nhận. Đường cong đặt phòng phía sau phần tiến độ là dữ liệu mẫu, không phải lịch sử của bạn.",
     "dataset": "Dữ liệu đang có",
     "lastRun": "Lần tính giá gần nhất: {id}"
+  },
+  "dataStatus": {
+    "title": "Dữ liệu & trạng thái",
+    "demoData": "Dữ liệu mẫu",
+    "connected": "Đã kết nối Blue Jay",
+    "mode": "Chế độ",
+    "shadowMode": "Chế độ theo dõi",
+    "pms": "PMS",
+    "marketSource": "Nguồn thị trường",
+    "engine": "Bộ tính giá",
+    "shadowExplain": "Giá chỉ là đề xuất. Không có gì được gửi sang Blue Jay hay OTA — bạn tự áp dụng mức đã chấp nhận.",
+    "unvalidated": "Giá NET theo mùa đã được khách hàng xác thực. Các thiết lập tiến độ, lượng đặt, sự kiện và thị trường thì chưa."
+  },
+  "filters": {
+    "roomCategory": "Hạng căn hộ",
+    "allRoomCategories": "Tất cả hạng căn hộ",
+    "decision": "Quyết định",
+    "allDecisions": "Tất cả quyết định"
   }
 }

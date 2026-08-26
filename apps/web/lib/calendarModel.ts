@@ -140,7 +140,12 @@ export function buildColumns(
 export function bucketKeyFor(
   stayISO: string,
   granularity: Granularity,
-  firstColumnKey?: string,
+  // REQUIRED, deliberately. As an optional parameter this said "a caller
+  // cannot forget it" while `bucketKeyFor(iso, "week")` still compiled and
+  // silently returned the unclamped Monday — reintroducing the exact bug the
+  // clamp exists to prevent. A caller with genuinely no columns passes
+  // `undefined` and has to mean it.
+  firstColumnKey: string | undefined,
 ): string {
   if (granularity === "day") return stayISO;
   const key = toISODate(startOfWeek(parseStayDate(stayISO), { weekStartsOn: 1 }));

@@ -46,7 +46,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const t = useTranslations("status");
+  // vocab.status, which is the canonical set. A separate top-level `status`
+  // namespace held a duplicate of these AND the data-source strings, so the two
+  // unrelated ideas shared a prefix and neither owned it.
+  const t = useTranslations("vocab.status");
   return (
     <span
       className={`inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${

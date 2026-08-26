@@ -1,8 +1,9 @@
 """Occupied unit-nights, for the calendar's occupancy detail.
 
 One row is ONE ROOM OCCUPIED ON ONE NIGHT -- see BookingOut, which carries the
-full explanation. It is emphatically not a stay, and `nights` is not a stay
-length; treating it as one draws roughly 3.5x the occupancy that exists.
+full explanation. It is emphatically not a stay, and the model's `nights` is
+not a stay length; treating it as one draws roughly 3.5x the occupancy that
+exists, so this endpoint does not publish it.
 
 Deliberately additive: no model change, no pricing change, no migration.
 """
@@ -58,7 +59,6 @@ def list_bookings(
             # (ASSUMPTIONS U11).
             physical_room_id=b.physical_room_id,
             stay_date=b.stay_date,
-            nights=max(int(b.nights or 1), 1),
             guests=b.guests,
             net_rate=b.net_rate,
             channel=b.channel,
