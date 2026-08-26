@@ -48,10 +48,19 @@ def _locales() -> list[str]:
 
 
 def _routes() -> list[str]:
-    """Every localised page, derived from the app directory."""
+    """Every localised page, derived from the app directory.
+
+    Recursive: a one-level glob stopped covering anything the moment Settings
+    grew sub-pages, so `settings/rate-book` could have failed to export and
+    this test would still have passed.
+    """
     base = WEB / "app" / "[locale]"
     routes = [""]  # the index page itself
-    routes += [p.parent.name for p in base.glob("*/page.tsx")]
+    routes += [
+        str(page.parent.relative_to(base)).replace("\\", "/")
+        for page in base.rglob("page.tsx")
+        if page.parent != base
+    ]
     return sorted(routes)
 
 

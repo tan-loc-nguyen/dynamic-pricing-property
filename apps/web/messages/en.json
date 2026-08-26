@@ -652,6 +652,83 @@
       "pending": "Awaiting your decision",
       "tapToFilter": "show only these",
       "showingOnly": "showing only these"
+    },
+    "nightCount": "{count, number} nights"
+  },
+  "marketPage": {
+    "title": "Market & events",
+    "subtitle": "How your prices compare, who you compete with, and what is happening on the calendar.",
+    "tabs": {
+      "overview": "Overview",
+      "competitors": "Comp set",
+      "events": "Events",
+      "data": "Data details"
     }
+  },
+  "marketOverview": {
+    "loading": "Loading market data…",
+    "position": "Your position",
+    "coverage": "Nights with comparable data",
+    "coverageHint": "of the next 30",
+    "lastUpdated": "Last updated",
+    "positions": {
+      "above": "Above market",
+      "below": "Below market",
+      "inLine": "In line with market",
+      "unknown": "Not enough data"
+    },
+    "chartTitle": "Your price against the market, next 30 nights",
+    "chartHint": "The band is the range of comparable prices seen. It stops where too few were found to call it a range.",
+    "legendMine": "Your recommended price",
+    "legendMedian": "Market middle",
+    "legendBand": "Market range",
+    "gapsExplained": "Comparable prices were found for {covered, number} of {total, number} nights. The band is drawn only where there were enough to be meaningful."
+  },
+  "compSet": {
+    "loading": "Loading comp set…",
+    "empty": "No comparable properties yet",
+    "emptyHint": "Add the places you actually compete with — a short, deliberate list beats a long one.",
+    "observedRange": "Prices seen",
+    "confidence": "Confidence",
+    "lastSeen": "Last seen",
+    "observationCount": "{count, number} observations"
+  },
+  "settingsHub": {
+    "title": "Settings",
+    "subtitle": "Everything you set once and rarely touch again.",
+    "validated": "Client-validated",
+    "experimental": "Experimental",
+    "rateBook": {
+      "title": "Seasonal rate range",
+      "hint": "The MIN, BASE and MAX you gave us. Every recommendation stays inside it."
+    },
+    "strategy": {
+      "title": "Pricing strategy",
+      "hint": "How strongly booking pace, events and the market move your price."
+    },
+    "data": {
+      "title": "Connections & data",
+      "hint": "Where the numbers come from, and whether they arrived today."
+    },
+    "activity": {
+      "title": "Activity log",
+      "hint": "Every price you accepted or changed, and what the system had suggested."
+    }
+  },
+  "dataSettings": {
+    "title": "Connections & data",
+    "subtitle": "Where your numbers come from.",
+    "loading": "Checking connections…",
+    "pms": "Property management system",
+    "market": "Market data",
+    "healthy": "Connected",
+    "notConnected": "Not connected",
+    "toConnect": "To connect these",
+    "shadowTitle": "Shadow Mode",
+    "shadowBody": "Prices are recommendations only. Nothing is sent to Blue Jay or any OTA — you apply what you accept, yourself.",
+    "unvalidatedTitle": "What has not been validated",
+    "unvalidatedBody": "Your seasonal NET rates came from you and are treated as fact. Everything layered on top — booking pace thresholds, event impact sizes, market sensitivity — was chosen by the engineering team and still needs your judgement. The booking curve behind pace is demo data, not your history.",
+    "dataset": "What is in the database",
+    "lastRun": "Last pricing run: {id}"
   }
 }

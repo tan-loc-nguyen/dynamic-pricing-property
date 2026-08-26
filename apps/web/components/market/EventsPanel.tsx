@@ -9,7 +9,7 @@ import { todayISO } from "@/lib/format";
 import { useFormat } from "@/lib/useFormat";
 import type { EventItem } from "@/lib/types";
 
-export default function EventsPage() {
+export function EventsPanel() {
   const t = useTranslations("events");
   const tc = useTranslations("common");
   const tv = useTranslations("vocab");

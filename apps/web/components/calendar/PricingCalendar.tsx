@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { columnHeader, isToday, isWeekend, monthLabel, nightsBetween } from "@/lib/dates";
 import { attentionReasons } from "@/lib/attention";
@@ -8,10 +8,27 @@ import { useFormat } from "@/lib/useFormat";
 import type { FormatLocale } from "@/lib/format";
 import type { Booking, Recommendation } from "@/lib/types";
 
-/** Width of one date column. Wide enough for "2,35tr" without wrapping. */
-const COL = 58;
-/** Width of the frozen room-type column. */
-const ROW_HEAD = 190;
+/**
+ * The grid is CSS, not arithmetic.
+ *
+ * `minmax(3.5rem, 1fr)` states the whole layout in one line: never narrower
+ * than a column that can hold "2,35tr", otherwise share the space equally.
+ * Fourteen days fill a wide screen; sixty days hit the floor and scroll. No
+ * measurement, no ResizeObserver, no re-render on resize — the browser was
+ * always going to do this better than a `useEffect`.
+ *
+ * Booking bars are placed with `grid-column: start / span nights`, so a stay
+ * lands on its dates by definition rather than by multiplying a column width.
+ * That is what makes fluid columns possible at all: pixel-positioned bars are
+ * the thing that forces a fixed column width in the first place.
+ */
+// The floor is set by the widest thing a cell must hold: "2,88tr" plus a
+// direction arrow is ~50px, and the cell has 8px of padding. 3.5rem left the
+// price truncating to "2,8…" at 30 days, which defeats the point of the cell.
+const GRID_MIN_COL = "4rem";
+const ROW_HEAD = "11.5rem";
+/** Height of the month band, so the day header can stick directly beneath it. */
+const MONTH_BAND = "1.6rem";
 
 export type CalendarRow = {
   roomTypeId: number;
@@ -19,6 +36,11 @@ export type CalendarRow = {
   unitsTotal: number;
   byDate: Map<string, Recommendation>;
 };
+
+function templateFor(columns: number, includeRowHead = true) {
+  const dates = `repeat(${columns}, minmax(${GRID_MIN_COL}, 1fr))`;
+  return includeRowHead ? `${ROW_HEAD} ${dates}` : dates;
+}
 
 /** Compact money for a cell: 2.350.000 -> "2,35tr" (vi) / "2.35m" (en). */
 function compactRate(value: number | null | undefined, locale: FormatLocale): string {
@@ -29,22 +51,32 @@ function compactRate(value: number | null | undefined, locale: FormatLocale): st
   return locale === "vi" ? `${n.replace(".", ",")}tr` : `${n}m`;
 }
 
+/** The frozen first column. Sticky is a property of the cell, not the row. */
+function RowHead({ children, tone = "bg-white" }: { children: React.ReactNode; tone?: string }) {
+  return (
+    <div className={`sticky left-0 z-10 border-r border-b border-ink-200 px-2 py-1.5 ${tone}`}>
+      {children}
+    </div>
+  );
+}
+
 /**
  * One night for one room type.
  *
  * Deliberately NOT a metrics panel. Price is the answer the operator came for;
- * everything else is a hint that there is more behind a click. The previous
- * table put ten numbers on this row and made the price compete with them.
+ * everything else is a hint that there is more behind a click.
  */
 function PricingDateCell({
   rec,
   dateISO,
   selected,
+  dimmed,
   onSelect,
 }: {
   rec: Recommendation | undefined;
   dateISO: string;
   selected: boolean;
+  dimmed: boolean;
   onSelect: (rec: Recommendation) => void;
 }) {
   const locale = useLocale() as FormatLocale;
@@ -52,13 +84,7 @@ function PricingDateCell({
   const { formatVND } = useFormat();
 
   if (!rec) {
-    return (
-      <div
-        className="border-r border-b border-ink-100 bg-ink-50/40"
-        style={{ width: COL }}
-        aria-hidden
-      />
-    );
+    return <div className="border-r border-b border-ink-100 bg-ink-50/40" aria-hidden />;
   }
 
   const reasons = attentionReasons(rec);
@@ -68,15 +94,14 @@ function PricingDateCell({
   const soldOut = total > 0 && sold >= total;
   const fill = total > 0 ? Math.min(1, sold / total) : 0;
 
-  // Direction, not magnitude: the exact percentage lives in the drawer. An
-  // arrow reads at a glance where "+4,2%" has to be parsed.
+  // Direction, not magnitude: the exact percentage lives in the drawer.
   const arrow = change > 0.5 ? "↑" : change < -0.5 ? "↓" : "≈";
   const arrowTone =
     change > 0.5 ? "text-emerald-600" : change < -0.5 ? "text-amber-600" : "text-ink-300";
 
   const title = [
-    `${formatVND(rec.recommended_net_rate)}`,
-    `${t("occupancyOf", { sold, total })}`,
+    formatVND(rec.recommended_net_rate),
+    t("occupancyOf", { sold, total }),
     rec.is_event && rec.event_name ? `★ ${rec.event_name}` : "",
     reasons.length ? t("needsReview") : "",
   ]
@@ -88,15 +113,13 @@ function PricingDateCell({
       type="button"
       onClick={() => onSelect(rec)}
       title={title}
-      aria-label={`${dateISO} ${formatVND(rec.recommended_net_rate)}`}
-      className={`group relative border-r border-b border-ink-100 px-1 py-1.5 text-left transition-colors
+      aria-label={`${dateISO} · ${formatVND(rec.recommended_net_rate)}`}
+      className={`group relative min-w-0 border-r border-b border-ink-100 px-1 py-1.5 text-left transition-colors
         focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset
+        ${dimmed ? "opacity-30" : ""}
         ${selected ? "bg-brand-50" : soldOut ? "bg-ink-100/70 hover:bg-ink-100" : "hover:bg-brand-50/50"}`}
-      style={{ width: COL }}
     >
-      {/* At most two marks, both in the corner: something to review, and an
-          event. Not a row of badges — the price has to stay the loudest thing
-          in the cell. */}
+      {/* At most two marks, both in the corner. The price stays loudest. */}
       <span className="absolute top-0.5 right-0.5 flex items-center gap-0.5">
         {rec.is_event && (
           <span className="text-[8px] leading-none text-violet-500" aria-hidden>
@@ -110,7 +133,7 @@ function PricingDateCell({
 
       <div className="flex items-baseline gap-0.5">
         <span
-          className={`tnum text-[12px] font-semibold leading-none ${
+          className={`tnum truncate text-[12px] font-semibold leading-none ${
             soldOut ? "text-ink-400" : "text-ink-900"
           }`}
         >
@@ -123,13 +146,13 @@ function PricingDateCell({
 
       {/* Availability as a shape first, digits second. */}
       <div className="mt-1.5 flex items-center gap-1">
-        <div className="h-1 flex-1 rounded-full bg-ink-150 overflow-hidden">
+        <div className="h-1 min-w-0 flex-1 rounded-full bg-ink-150 overflow-hidden">
           <div
             className={`h-full ${soldOut ? "bg-ink-400" : "bg-brand-400"}`}
             style={{ width: `${fill * 100}%` }}
           />
         </div>
-        <span className="tnum text-[9.5px] leading-none text-ink-400">
+        <span className="tnum shrink-0 text-[9.5px] leading-none text-ink-400">
           {soldOut ? t("full") : total - sold}
         </span>
       </div>
@@ -140,10 +163,10 @@ function PricingDateCell({
 /**
  * Booking lanes for an expanded room type.
  *
- * Bars are positioned by their real check-in and length. They are NOT labelled
- * with an apartment number, because no booking in this system is assigned to
- * one — `physical_room_id` is null on every row (ASSUMPTIONS U11). Lanes are a
- * packing of overlapping stays, not a unit list, and the empty state says so.
+ * Bars are NOT labelled with an apartment number: no booking in this system is
+ * assigned to one (`physical_room_id` is null on every row — ASSUMPTIONS U11).
+ * Lanes are a packing of overlapping stays, not a unit list, and the row head
+ * says so.
  */
 function BookingLanes({
   bookings,
@@ -161,8 +184,7 @@ function BookingLanes({
   // Greedy interval packing: each bar takes the first lane it does not clash in.
   const lanes = useMemo(() => {
     const packed: Booking[][] = [];
-    const sorted = [...bookings].sort((a, b) => a.stay_date.localeCompare(b.stay_date));
-    for (const b of sorted) {
+    for (const b of [...bookings].sort((a, b) => a.stay_date.localeCompare(b.stay_date))) {
       const lane = packed.find(
         (row) => !row.some((x) => x.stay_date <= b.last_night && b.stay_date <= x.last_night),
       );
@@ -174,37 +196,40 @@ function BookingLanes({
 
   if (lanes.length === 0) {
     return (
-      <div
-        className="border-b border-ink-100 px-3 py-2 text-[11.5px] text-ink-400"
-        style={{ width: dates.length * COL }}
-      >
+      <div className="border-b border-ink-100 px-3 py-2 text-[11.5px] text-ink-400">
         {t("noBookingsInRange")}
       </div>
     );
   }
 
   return (
-    <div className="relative border-b border-ink-100" style={{ width: dates.length * COL }}>
+    <div className="border-b border-ink-100 py-0.5">
       {lanes.map((lane, i) => (
-        <div key={i} className="relative h-6">
+        <div
+          key={i}
+          className="grid h-6 items-center"
+          style={{ gridTemplateColumns: templateFor(dates.length, false) }}
+        >
           {lane.map((b) => {
             const offset = nightsBetween(first, b.stay_date);
-            const span = nightsBetween(b.stay_date, b.last_night) + 1;
-            const left = Math.max(0, offset) * COL;
-            // Clip a stay that began before the window rather than dropping it.
-            const clipped = offset < 0 ? span + offset : span;
-            const width = Math.max(1, Math.min(clipped, dates.length - Math.max(0, offset))) * COL;
-            if (width <= 0) return null;
+            const nights = nightsBetween(b.stay_date, b.last_night) + 1;
+            // Clip a stay that began before the window instead of dropping it.
+            const startCol = Math.max(0, offset) + 1;
+            const span = Math.min(
+              offset < 0 ? nights + offset : nights,
+              dates.length - startCol + 1,
+            );
+            if (span <= 0) return null;
             return (
               <button
                 key={b.id}
                 type="button"
                 onClick={() => onSelectBooking(b)}
-                title={`${b.channel} · ${b.nights}đ · ${formatVND(b.net_rate)}`}
-                className="absolute top-0.5 h-5 rounded-md border border-sky-300 bg-sky-100/90 px-1.5
-                  text-left text-[10px] leading-5 text-sky-900 truncate
+                title={`${b.channel} · ${t("nightCount", { count: b.nights })} · ${formatVND(b.net_rate)}`}
+                style={{ gridColumn: `${startCol} / span ${span}` }}
+                className="mx-0.5 h-5 truncate rounded-md border border-sky-300 bg-sky-100/90 px-1.5
+                  text-left text-[10px] leading-5 text-sky-900
                   hover:bg-sky-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-                style={{ left: left + 2, width: width - 4 }}
               >
                 {b.channel}
               </button>
@@ -254,78 +279,68 @@ export function PricingCalendar({
   }, [dates, locale]);
 
   return (
-    <div className="overflow-auto h-full">
-      <div style={{ width: ROW_HEAD + dates.length * COL }}>
-        {/* ---------------------------------------------------- header */}
-        <div className="sticky top-0 z-20 bg-white">
-          <div className="flex border-b border-ink-100">
-            <div
-              className="sticky left-0 z-10 bg-white border-r border-ink-200"
-              style={{ width: ROW_HEAD }}
-            />
-            {months.map((m) => (
-              <div
-                key={m.label}
-                className="border-r border-ink-100 px-2 py-1 text-[10.5px] font-medium uppercase tracking-wide text-ink-400"
-                style={{ width: m.span * COL }}
-              >
-                {m.label}
-              </div>
-            ))}
+    <div className="h-full overflow-auto">
+      <div className="grid" style={{ gridTemplateColumns: templateFor(dates.length) }}>
+        {/* ------------------------------------------------ month band */}
+        <div className="sticky left-0 top-0 z-30 border-r border-b border-ink-100 bg-white" />
+        {months.map((m) => (
+          <div
+            key={m.label}
+            style={{ gridColumn: `span ${m.span}` }}
+            className="sticky top-0 z-20 truncate border-r border-b border-ink-100 bg-white px-2 py-1
+              text-[10.5px] font-medium uppercase tracking-wide text-ink-400"
+          >
+            {m.label}
           </div>
+        ))}
 
-          <div className="flex border-b border-ink-200">
-            <div
-              className="sticky left-0 z-10 flex items-end bg-white border-r border-ink-200 px-3 pb-1.5"
-              style={{ width: ROW_HEAD }}
-            >
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">
-                {t("roomType")}
-              </span>
-            </div>
-            {dates.map((iso) => {
-              const { weekday, day } = columnHeader(iso, locale);
-              const today = isToday(iso);
-              const weekend = isWeekend(iso);
-              return (
-                <div
-                  key={iso}
-                  className={`border-r border-ink-100 px-1 py-1 text-center ${
-                    today ? "bg-brand-50" : weekend ? "bg-ink-50/60" : "bg-white"
-                  }`}
-                  style={{ width: COL }}
-                >
-                  <div
-                    className={`text-[9.5px] font-medium uppercase leading-tight ${
-                      today ? "text-brand-700" : "text-ink-400"
-                    }`}
-                  >
-                    {weekday}
-                  </div>
-                  <div
-                    className={`tnum text-[11.5px] leading-tight ${
-                      today ? "font-bold text-brand-700" : "font-medium text-ink-700"
-                    }`}
-                  >
-                    {day}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        {/* ------------------------------------------------- day header */}
+        <div
+          className="sticky left-0 z-30 flex items-end border-r border-b border-ink-200 bg-white px-3 pb-1.5"
+          style={{ top: MONTH_BAND }}
+        >
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">
+            {t("roomType")}
+          </span>
         </div>
+        {dates.map((iso) => {
+          const { weekday, day } = columnHeader(iso, locale);
+          const today = isToday(iso);
+          const weekend = isWeekend(iso);
+          return (
+            <div
+              key={iso}
+              style={{ top: MONTH_BAND }}
+              className={`sticky z-20 border-r border-b border-ink-200 px-1 py-1 text-center ${
+                today ? "bg-brand-50" : weekend ? "bg-ink-50" : "bg-white"
+              }`}
+            >
+              <div
+                className={`text-[9.5px] font-medium uppercase leading-tight ${
+                  today ? "text-brand-700" : "text-ink-400"
+                }`}
+              >
+                {weekday}
+              </div>
+              <div
+                className={`tnum truncate text-[11.5px] leading-tight ${
+                  today ? "font-bold text-brand-700" : "font-medium text-ink-700"
+                }`}
+              >
+                {day}
+              </div>
+            </div>
+          );
+        })}
 
-        {/* ------------------------------------------------------ rows */}
+        {/* -------------------------------------------------------- rows */}
         {rows.map((row) => {
           const isOpen = expanded.has(row.roomTypeId);
           const bookings = bookingsByRoomType.get(row.roomTypeId) ?? [];
           return (
-            <div key={row.roomTypeId}>
-              <div className="flex">
-                <div
-                  className="sticky left-0 z-10 flex items-center gap-1.5 bg-white border-r border-b border-ink-200 px-2"
-                  style={{ width: ROW_HEAD }}
-                >
+            <Fragment key={row.roomTypeId}>
+              <RowHead>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => onToggleExpand(row.roomTypeId)}
@@ -347,40 +362,40 @@ export function PricingCalendar({
                     </div>
                   </div>
                 </div>
+              </RowHead>
 
-                {dates.map((iso) => {
-                  const rec = row.byDate.get(iso);
-                  const dim = attentionOnly && rec && attentionReasons(rec).length === 0;
-                  return (
-                    <div key={iso} className={dim ? "opacity-30" : undefined}>
-                      <PricingDateCell
-                        rec={rec}
-                        dateISO={iso}
-                        selected={!!rec && rec.id === selectedId}
-                        onSelect={onSelect}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+              {dates.map((iso) => {
+                const rec = row.byDate.get(iso);
+                return (
+                  <PricingDateCell
+                    key={iso}
+                    rec={rec}
+                    dateISO={iso}
+                    selected={!!rec && rec.id === selectedId}
+                    dimmed={attentionOnly && !!rec && attentionReasons(rec).length === 0}
+                    onSelect={onSelect}
+                  />
+                );
+              })}
 
               {isOpen && (
-                <div className="flex bg-ink-50/30">
-                  <div
-                    className="sticky left-0 z-10 bg-ink-50 border-r border-b border-ink-200 px-2 py-2"
-                    style={{ width: ROW_HEAD }}
-                  >
+                <>
+                  <RowHead tone="bg-ink-50">
                     <div className="text-[11px] font-medium text-ink-600">{t("bookings")}</div>
                     <div className="text-[10px] text-ink-400">{t("unitUnassigned")}</div>
+                  </RowHead>
+                  {/* Spans every date column, then lays its own grid on the same
+                      track sizes so bars line up with the dates above. */}
+                  <div className="min-w-0 bg-ink-50/30" style={{ gridColumn: "2 / -1" }}>
+                    <BookingLanes
+                      bookings={bookings}
+                      dates={dates}
+                      onSelectBooking={onSelectBooking}
+                    />
                   </div>
-                  <BookingLanes
-                    bookings={bookings}
-                    dates={dates}
-                    onSelectBooking={onSelectBooking}
-                  />
-                </div>
+                </>
               )}
-            </div>
+            </Fragment>
           );
         })}
       </div>

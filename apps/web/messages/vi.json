@@ -652,6 +652,83 @@
       "pending": "Chờ bạn quyết định",
       "tapToFilter": "chỉ xem các đêm này",
       "showingOnly": "đang chỉ xem các đêm này"
+    },
+    "nightCount": "{count, number} đêm"
+  },
+  "marketPage": {
+    "title": "Thị trường & Sự kiện",
+    "subtitle": "Giá của bạn so với thị trường, bạn đang cạnh tranh với ai, và điều gì đang diễn ra trên lịch.",
+    "tabs": {
+      "overview": "Tổng quan",
+      "competitors": "Nhóm đối thủ",
+      "events": "Sự kiện",
+      "data": "Dữ liệu gốc"
     }
+  },
+  "marketOverview": {
+    "loading": "Đang tải dữ liệu thị trường…",
+    "position": "Vị thế của bạn",
+    "coverage": "Số đêm có dữ liệu so sánh",
+    "coverageHint": "trên 30 đêm tới",
+    "lastUpdated": "Cập nhật lần cuối",
+    "positions": {
+      "above": "Cao hơn thị trường",
+      "below": "Thấp hơn thị trường",
+      "inLine": "Ngang mặt bằng",
+      "unknown": "Chưa đủ dữ liệu"
+    },
+    "chartTitle": "Giá của bạn so với thị trường, 30 đêm tới",
+    "chartHint": "Vùng tô là khoảng giá tương đương ghi nhận được. Vùng này dừng lại ở những đêm có quá ít dữ liệu để gọi là một khoảng.",
+    "legendMine": "Giá bạn được đề xuất",
+    "legendMedian": "Mức giữa thị trường",
+    "legendBand": "Khoảng giá thị trường",
+    "gapsExplained": "Đã ghi nhận giá tương đương cho {covered, number}/{total, number} đêm. Vùng giá chỉ được vẽ ở nơi có đủ dữ liệu để có ý nghĩa."
+  },
+  "compSet": {
+    "loading": "Đang tải nhóm đối thủ…",
+    "empty": "Chưa có cơ sở nào để so sánh",
+    "emptyHint": "Thêm những nơi bạn thực sự cạnh tranh — một danh sách ngắn và có chủ đích tốt hơn một danh sách dài.",
+    "observedRange": "Giá ghi nhận",
+    "confidence": "Độ tin cậy",
+    "lastSeen": "Ghi nhận gần nhất",
+    "observationCount": "{count, number} lượt ghi nhận"
+  },
+  "settingsHub": {
+    "title": "Cài đặt",
+    "subtitle": "Những thứ bạn thiết lập một lần và hiếm khi phải đụng lại.",
+    "validated": "Khách hàng đã xác thực",
+    "experimental": "Thử nghiệm",
+    "rateBook": {
+      "title": "Khung giá theo mùa",
+      "hint": "Mức SÀN, CƠ SỞ và TRẦN bạn đã cung cấp. Mọi đề xuất đều nằm trong khung này."
+    },
+    "strategy": {
+      "title": "Chiến lược giá",
+      "hint": "Tiến độ đặt phòng, sự kiện và thị trường tác động mạnh đến mức nào lên giá của bạn."
+    },
+    "data": {
+      "title": "Kết nối & dữ liệu",
+      "hint": "Số liệu đến từ đâu, và hôm nay có về hay không."
+    },
+    "activity": {
+      "title": "Nhật ký hoạt động",
+      "hint": "Mọi mức giá bạn đã chấp nhận hoặc thay đổi, kèm mức hệ thống từng đề xuất."
+    }
+  },
+  "dataSettings": {
+    "title": "Kết nối & dữ liệu",
+    "subtitle": "Số liệu của bạn đến từ đâu.",
+    "loading": "Đang kiểm tra kết nối…",
+    "pms": "Hệ thống quản lý cơ sở",
+    "market": "Dữ liệu thị trường",
+    "healthy": "Đã kết nối",
+    "notConnected": "Chưa kết nối",
+    "toConnect": "Để kết nối",
+    "shadowTitle": "Chế độ theo dõi",
+    "shadowBody": "Giá chỉ là đề xuất. Không có gì được gửi sang Blue Jay hay OTA — bạn tự áp dụng mức đã chấp nhận.",
+    "unvalidatedTitle": "Những gì chưa được xác thực",
+    "unvalidatedBody": "Giá NET theo mùa là do bạn cung cấp và được coi là dữ liệu thật. Mọi thứ đặt lên trên — ngưỡng tiến độ đặt phòng, mức tác động của sự kiện, độ nhạy với thị trường — đều do đội kỹ thuật chọn và vẫn cần bạn xác nhận. Đường cong đặt phòng phía sau phần tiến độ là dữ liệu mẫu, không phải lịch sử của bạn.",
+    "dataset": "Dữ liệu đang có",
+    "lastRun": "Lần tính giá gần nhất: {id}"
   }
 }
