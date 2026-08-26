@@ -36,7 +36,7 @@ export function RateBand({
   base: number | null;
   max: number | null;
   recommended: number;
-  clamped: string | null;
+  clamped: "min" | "max" | null;
 }) {
   const t = useTranslations("drawer");
   const { formatVND } = useFormat();

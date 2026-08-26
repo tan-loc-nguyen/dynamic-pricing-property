@@ -95,6 +95,7 @@ def recommendation_dict(
         "base_net_rate": rec.base_net_rate,
         "current_net_rate": rec.current_net_rate,
         "current_ota_price": f.get("current_ota_price"),
+        "rate_provenance": f.get("rate_provenance") or "published",
         "net_rate_before_clamp": rec.net_rate_before_clamp,
         "recommended_net_rate": rec.recommended_net_rate,
         "change_pct": rec.change_pct,

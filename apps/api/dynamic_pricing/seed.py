@@ -33,6 +33,7 @@ from .models import (
 from .pricing import get_engine
 from .providers.market import get_market_provider
 from .providers.pms import get_pms_provider
+from .services.integration import get_category_map, get_pms_source
 from .providers.pms.mock import HISTORY_DAYS, HORIZON_DAYS
 from .services.configuration import get_active_configuration
 from .services.outcomes import generate_demo_outcomes
@@ -161,7 +162,9 @@ def bootstrap(force: bool = False, today: date | None = None, quiet: bool = Fals
 
         # --- 3. portfolio ---------------------------------------------------
         try:
-            pms = get_pms_provider(today=today)
+            pms = get_pms_provider(
+                get_pms_source(session), today=today, category_map=get_category_map(session)
+            )
         except UnknownRegistryKey as exc:
             # Say it out loud, then keep the demo working. Silently running the
             # mock is how a typo in DATA_PROVIDER goes unnoticed for a week.

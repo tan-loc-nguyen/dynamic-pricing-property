@@ -612,3 +612,38 @@ server, not in a binary handed to the client.
 **If a real window is ever wanted:** pywebview first (pure Python, no new
 toolchain, ~10 lines, same binary), and Tauri rather than Electron if it must
 be a properly installed desktop app.
+
+## D33 — "No data" and "could not get the data" must never render the same
+
+Two failures in different layers turned out to be one bug:
+
+- **The adapter.** An error envelope from Blue Jay — revoked key, quota, a
+  shape change — parsed as zero reservations. Zero is not neutral here: it
+  means 0% occupancy on every date in the horizon, which is the strongest
+  DISCOUNT signal the engine has. So a failed call read as "price everything
+  down as far as the bounds allow", and the sync reported success.
+- **The UI.** The activity screen caught nothing, so an unreachable API and a
+  genuinely empty decision history rendered identically — and one of them means
+  "you have not made any decisions yet".
+
+The shape: **absence of data and failure to obtain data collapsing into one
+appearance.** It is worse than an ordinary silent failure because the collapsed
+value is not neutral — it is a confident claim, and in both cases the claim
+biased toward action (discount everything; you have done nothing).
+
+The rule, applied wherever data is fetched:
+
+1. An unreadable or error response RAISES. It is never coerced to an empty
+   collection. `_check_envelope` does this for Blue Jay, on the live path and
+   the snapshot path both — sanitisation had been erasing the envelope, which
+   made a captured failure into a file that asserted an empty hotel every time
+   it replayed.
+2. A genuinely empty result must still be allowed to be empty. A check that
+   rejects errors by also rejecting legitimate emptiness is a worse bug than
+   the one it replaces, so both directions get a test.
+3. In the UI, a fetch failure gets its own visible state. Rendering nothing is
+   not a neutral default; it is a claim that there is nothing.
+
+Related: D30's note that a structural guard cannot see English that was never
+keyed. Same family — the check passes because the thing it would have caught
+never reached it.

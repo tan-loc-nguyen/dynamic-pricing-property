@@ -41,6 +41,12 @@ class PricingContext:
     # --- current state ---------------------------------------------------
     current_net_rate: float = 0.0
     current_ota_price: float | None = None
+    #: WHERE current_net_rate came from. "published" when the PMS states a
+    #: forward rate; Blue Jay states none, so a rate reconstructed from bookings
+    #: arrives as "derived_adr"/"last_known_adr", and "unavailable" means no
+    #: source produced one. Travels to the UI because an operator must never
+    #: read an achieved average as a list price.
+    rate_provenance: str = "published"
 
     # --- inventory / demand ----------------------------------------------
     units_total: int | None = None
@@ -114,6 +120,7 @@ class PricingContext:
             "rate_band_source": self.rate_band_source,
             "current_net_rate": self.current_net_rate,
             "current_ota_price": self.current_ota_price,
+            "rate_provenance": self.rate_provenance,
             "units_total": self.units_total,
             "units_sold": self.units_sold,
             "units_available": self.units_available,

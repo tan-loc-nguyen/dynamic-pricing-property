@@ -136,6 +136,20 @@ export interface Recommendation {
   base_net_rate: number;
   current_net_rate: number;
   current_ota_price: number | null;
+  /** Where current_net_rate came from. Blue Jay publishes no forward rate, so
+   *  most live/snapshot rates are reconstructed — and an achieved average must
+   *  never be read as a published list price. */
+  rate_provenance:
+    | "published"
+    | "derived_adr"
+    // The seasonal band's BASE for that date's season. This union OMITTED it,
+    // which is the `Status`-without-"error" bug again: the value was emitted,
+    // TypeScript called the branch handling it dead, and the drawer drew a
+    // styled EMPTY box on every unbooked night. Kept in step with
+    // RATE_PROVENANCE_VALUES in providers/pms/base.py.
+    | "seasonal_base"
+    | "last_known_adr"
+    | "unavailable";
   net_rate_before_clamp: number;
   recommended_net_rate: number;
   change_pct: number;
@@ -175,7 +189,14 @@ export interface Recommendation {
   pace_tone: "up" | "down" | "info" | "neutral" | null;
   unpriced: boolean;
   unpriced_reason: string | null;
-  clamp_applied: string | null;
+  /** Which validated bound stopped the dynamic layer, or null.
+   *
+   *  NARROWED from `string`. viz.tsx renders it with a ternary
+   *  (`clamped === "min" ? … : …`), so a third value would silently render as
+   *  MAX — the blank-box class inverted: not missing text, but confidently
+   *  WRONG text. With the union closed, the ternary is exhaustive by
+   *  construction. Kept in step with pricing/engine.py. */
+  clamp_applied: "min" | "max" | null;
 }
 
 export interface RecommendationDetail extends Recommendation {
@@ -211,6 +232,10 @@ export interface ProviderStatus {
   detail: string;
   remediation: string;
   unresolved_mappings: string[];
+  /** Warnings about the DATA — a snapshot that may still hold guest details,
+   *  or whose pseudonyms are recoverable. Separate from mapping gaps on
+   *  purpose: a guest-data warning under a "mapping" heading reads as a nit. */
+  warnings: string[];
 }
 
 export interface SystemStatus {
@@ -238,6 +263,8 @@ export interface SystemStatus {
     note: string;
   };
   demo_mode: boolean;
+  /** What the last sync could not vouch for. */
+  last_sync_findings: { warnings?: string[]; discrepancies?: string[]; skipped?: number };
   last_run_id: string | null;
 }
 
@@ -374,4 +401,33 @@ export interface Booking {
   net_rate: number;
   channel: string;
   status: string;
+}
+
+export type PmsSource = "mock" | "snapshot" | "bluejay";
+
+/** One documented Blue Jay testing window. `confirmed` is false for the
+ *  `24:00-24:59` entry, which is not clock notation and is never auto-called. */
+export interface TestingWindow {
+  text: string;
+  confirmed: boolean;
+  note: string;
+}
+
+export interface UnmappedRoomType {
+  id: string;
+  name: string;
+}
+
+export interface PmsSourceInfo {
+  active: PmsSource;
+  available: string[];
+  sources: { key: PmsSource; label_key: string; hint_key: string }[];
+  bluejay_window: {
+    timezone: string;
+    now: string;
+    is_open: boolean;
+    next_open_at: string | null;
+    seconds_until_open: number;
+    windows: TestingWindow[];
+  };
 }

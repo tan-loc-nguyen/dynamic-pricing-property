@@ -32,6 +32,7 @@ export function RecommendationDrawer({
   onChanged: () => void;
 }) {
   const t = useTranslations("drawer");
+  const tds = useTranslations("dataSource");
   const tv = useTranslations("vocab");
   const tc = useTranslations("common");
   const { formatVND, formatAdjPct, formatLongDate } = useFormat();
@@ -184,6 +185,27 @@ export function RecommendationDrawer({
                       <div className="tnum text-[14px] text-ink-600">
                         {formatVND(rec.current_net_rate)}
                       </div>
+                      {/* Blue Jay publishes no forward rate, so this figure is
+                          often RECONSTRUCTED from bookings. Silence here would
+                          let an operator read an achieved average as a list
+                          price, which is the whole reason the field exists.
+                          Shown only when it is not a published rate — saying
+                          "published" on every demo row would be noise. */}
+                      {rec.rate_provenance && rec.rate_provenance !== "published" && (
+                        <div
+                          className="mt-0.5 max-w-[13rem] text-[10px] leading-snug text-amber-700"
+                          title={tds("provenanceTitle")}
+                        >
+                          {rec.rate_provenance === "derived_adr" && tds("provenance.derived_adr")}
+                          {rec.rate_provenance === "last_known_adr" && tds("provenance.last_known_adr")}
+                          {/* seasonal_base is the MOST COMMON non-published value:
+                              it catches every night with no bookings, which is most
+                              of a 90-day horizon. Omitting it drew a styled, empty
+                              box on exactly the dates needing the most explanation. */}
+                          {rec.rate_provenance === "seasonal_base" && tds("provenance.seasonal_base")}
+                          {rec.rate_provenance === "unavailable" && tds("provenance.unavailable")}
+                        </div>
+                      )}
                       <div
                         className={`tnum text-[12.5px] font-semibold ${
                           rec.change_pct > 0.5

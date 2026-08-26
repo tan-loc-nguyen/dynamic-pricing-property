@@ -682,5 +682,47 @@
     "allRoomCategories": "Tất cả hạng căn hộ",
     "decision": "Quyết định",
     "allDecisions": "Tất cả quyết định"
+  },
+  "dataSource": {
+    "title": "Nguồn dữ liệu",
+    "subtitle": "Dữ liệu căn hộ dùng để tính giá đề xuất.",
+    "active": "Nguồn đang dùng",
+    "switching": "Đang chuyển…",
+    "mock": {
+      "label": "Dữ liệu demo",
+      "hint": "Dữ liệu mô phỏng tạo ngay trên máy này. Không cần mạng, không phải dữ liệu thật."
+    },
+    "snapshot": {
+      "label": "Bản lưu",
+      "hint": "Dữ liệu thật từ Blue Jay đã tải về trước đó, đã xoá thông tin khách. Dùng được ngoại tuyến và ngoài khung giờ thử nghiệm."
+    },
+    "bluejay": {
+      "label": "Blue Jay (thử nghiệm)",
+      "hint": "API thử nghiệm thật của Blue Jay. Chỉ gọi được trong khung giờ Blue Jay cho phép."
+    },
+    "windowTitle": "Khung giờ thử nghiệm Blue Jay",
+    "windowOpen": "Đang mở",
+    "windowClosed": "Đang đóng",
+    "windowNext": "Mở lại lúc {time} (giờ Việt Nam)",
+    "windowUnconfirmed": "Chưa xác nhận — không bao giờ tự động gọi",
+    "readOnly": "Ứng dụng chỉ đọc dữ liệu từ Blue Jay, không bao giờ ghi ngược lại.",
+    "mapTitle": "Ánh xạ loại căn hộ",
+    "mapIntro": "Mỗi loại căn hộ bên Blue Jay cần trỏ về một hạng giá của bạn. Loại nào chưa ánh xạ sẽ không được tính giá.",
+    "mapEmpty": "Chưa ánh xạ loại nào. Hãy chạy công cụ dò Blue Jay trong khung giờ thử nghiệm để lấy danh sách loại căn hộ.",
+    "mapSave": "Lưu ánh xạ",
+    "mapSaved": "Đã lưu ánh xạ.",
+    "warningsTitle": "Kiểm tra dữ liệu này trước khi cho ai xem",
+    "findingsTitle": "Những điểm lần đồng bộ gần nhất chưa xác minh được",
+    "provenanceTitle": "Giá này lấy từ đâu",
+    "provenance": {
+      "derived_adr": "Tính từ các booking đã có cho đêm này — là mức trung bình thực tế đạt được, không phải giá niêm yết.",
+      "last_known_adr": "Tính từ các booking gần đây của loại căn hộ này, không phải của đêm này.",
+      "unavailable": "Không rõ. Không tìm được giá hiện tại cho đêm này.",
+      "seasonal_base": "Giá cơ bản theo mùa cho đêm này. Phần mềm quản lý không công bố giá hiện tại cho đêm này."
+    },
+    "mapChoose": "Chọn hạng giá",
+    "mapNeedsAttention": "Chưa ánh xạ — loại căn hộ này chưa được tính giá",
+    "saveFailed": "Không lưu được. Ứng dụng không kết nối được tới API.",
+    "appliesNextSync": "Thay đổi này chỉ áp dụng từ lần đồng bộ dữ liệu tiếp theo. Các đề xuất đang hiển thị vẫn được tính từ nguồn trước đó."
   }
 }

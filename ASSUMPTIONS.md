@@ -233,6 +233,45 @@ band — is the product's entire purpose.
 | **Status** | `UNVALIDATED` / blocked on Blue Jay |
 | **Why it matters** | Hard requirement for the recent-pickup signal AND for fitting historical booking curves. Without it, pickup goes permanently neutral. |
 
+## U17 — Is Blue Jay's `roomPrice` a stay total or a nightly rate?
+
+| | |
+|---|---|
+| **Current behaviour** | Treated as a STAY TOTAL and divided by the number of nights. |
+| **Status** | `UNVALIDATED` — and the documentation *cannot* settle it |
+| **Why** | Both reservation samples in the API document are `night: 1`, where a stay total and a nightly rate are the same number. |
+| **Blast radius** | Not a mispricing: the band anchors the recommendation. It drives `change_pct`, which is the calendar's change column and the `bigChange` attention threshold. If `roomPrice` is already nightly, every multi-night date understates the current rate by roughly the mean stay length and gets flagged for review on a division error. |
+| **How to resolve** | One live multi-night reservation. The adapter emits a discrepancy for every `nights > 1` row until then. |
+
+## U18 — The reservation status vocabulary
+
+| | |
+|---|---|
+| **Current value** | Ten Vietnamese strings mapped to seven meanings. **Exactly one (`Đã huỷ`) has ever been observed**; the other nine are inferred from the integer-code table used by the *input* filter. |
+| **Status** | `UNVALIDATED` — the most dangerous unknown in the integration |
+| **Why it matters** | The output is prose, the input is codes, and the document never maps the two. An unknown string is skipped and reported, and a repeated unknown raises — but a **wrong guess does not raise at all**. It silently counts cancelled or held inventory as occupied, which inflates occupancy, inflates pace, and pushes prices UP on dates that are not filling. |
+| **Note** | `đã đặt` (a firm booking) and `giữ chỗ` (a tentative hold) both map to vendor code `1`. We treat only the former as occupancy, deliberately. |
+| **Ask Blue Jay** | *"What is the complete list of reservation status strings the reservation endpoint can return, and which integer code does each correspond to?"* |
+
+## U19 — Does any Blue Jay endpoint publish a forward-looking rate?
+
+| | |
+|---|---|
+| **Current behaviour** | None is documented, so `current_net_rate` is RECONSTRUCTED: derived ADR → last known ADR → seasonal BASE → unavailable. `rate_provenance` records which, per row. |
+| **Status** | `UNVALIDATED` |
+| **Why it matters** | A derived ADR only exists for dates that already have bookings — so it is missing precisely on the far-out empty dates pricing most wants to move. And an achieved average is not a list price. |
+| **Ask Blue Jay** | *"Is there an endpoint for the currently published nightly rate for a future date?"* |
+
+## U20 — Does `report-room-occupancy` project forward?
+
+| | |
+|---|---|
+| **Current behaviour** | Not relied upon. Occupancy is derived from reservations (`dateType=3`), and the report is a cross-check. |
+| **Status** | `UNVALIDATED` |
+| **Why it matters** | Pace needs on-the-books occupancy for FUTURE dates. A backward-only report cannot supply it. |
+
+---
+
 ---
 
 ## Structural decisions (engineering, not business)
@@ -261,4 +300,6 @@ Documented fully in `docs/DECISIONS.md`, but worth an operator sanity-check:
 7. **U12** — Who are your real comparable properties?
 8. **U7** — Do you price weekends differently, or is that already in the table?
 9. **U14** — Which Blue Jay field is the true NET rate?
-10. **U13** — What commission does each OTA take?
+10. **U18** — What is the complete list of reservation status strings? (a wrong guess miscounts occupancy silently)
+11. **U17** — Is `roomPrice` a stay total or a nightly rate?
+12. **U13** — What commission does each OTA take?

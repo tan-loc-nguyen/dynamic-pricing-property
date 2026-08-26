@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { Card, Chip, Spinner } from "@/components/ui";
+import { DataSourcePanel } from "@/components/DataSourcePanel";
+import { RoomTypeMapPanel } from "@/components/RoomTypeMapPanel";
 import type { SystemStatus } from "@/lib/types";
 
 /**
@@ -15,11 +17,12 @@ import type { SystemStatus } from "@/lib/types";
  */
 export default function DataSettingsPage() {
   const t = useTranslations("dataSettings");
+  const tds = useTranslations("dataSource");
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [providers, setProviders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     Promise.all([api.status(), api.marketProviders().catch(() => [])])
       .then(([s, p]) => {
         setStatus(s);
@@ -27,6 +30,10 @@ export default function DataSettingsPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   if (loading) {
     return (
@@ -48,6 +55,29 @@ export default function DataSettingsPage() {
           <h1 className="text-[19px] font-semibold text-ink-900">{t("title")}</h1>
           <p className="text-[12px] text-ink-500">{t("subtitle")}</p>
         </div>
+
+        <DataSourcePanel onChanged={reload} />
+
+        {/* Data warnings travel on their own channel and get their own
+            treatment. These are the ones that mean "do not show this to a
+            client yet", not "you have some configuration left to do". */}
+        {(status?.pms?.warnings?.length ?? 0) > 0 && (
+          <Card className="border-amber-300 bg-amber-50 p-4">
+            <h2 className="text-[12.5px] font-semibold text-amber-900">
+              {tds("warningsTitle")}
+            </h2>
+            <ul className="mt-2 list-disc space-y-1.5 pl-4">
+              {status!.pms.warnings.map((warning, i) => (
+                // Index, not the text: `_as_int` emits an identical string for
+                // every row carrying the same bad value.
+                <li key={`warn-${i}`} className="text-[11.5px] leading-relaxed text-amber-900">
+                  {warning}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+        <RoomTypeMapPanel />
 
         <Card className="divide-y divide-ink-100">
           {rows.map((r) => (
@@ -76,6 +106,32 @@ export default function DataSettingsPage() {
                     <span className="font-medium text-ink-800">{p.name}:</span> {p.remediation}
                   </li>
                 ))}
+            </ul>
+          </Card>
+        )}
+
+        {/* Adapter findings from the last sync. English on purpose (D30): like
+            provider remediation above, this is aimed at whoever fixes it. The
+            orphan-rooms warning says occupancy is overstated and recommendations
+            biased upward, which is not something to leave in a response body
+            nobody reads. */}
+        {((status?.last_sync_findings?.warnings?.length ?? 0) > 0 ||
+          (status?.last_sync_findings?.discrepancies?.length ?? 0) > 0) && (
+          <Card className="p-4">
+            <h2 className="text-[12.5px] font-semibold text-ink-800">
+              {tds("findingsTitle")}
+            </h2>
+            <ul className="mt-2 list-disc space-y-1.5 pl-4">
+              {[
+                ...(status?.last_sync_findings?.warnings ?? []),
+                ...(status?.last_sync_findings?.discrepancies ?? []),
+              ].map((finding, i) => (
+                // Warnings and discrepancies are concatenated, so one string can
+                // legitimately appear in both lists.
+                <li key={`finding-${i}`} className="text-[11.5px] leading-relaxed text-ink-600">
+                  {finding}
+                </li>
+              ))}
             </ul>
           </Card>
         )}

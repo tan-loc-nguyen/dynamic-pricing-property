@@ -182,12 +182,19 @@ export default function DynamicRulesPage() {
   );
 
   const load = useCallback(async () => {
-    const c = await api.config();
-    setConfig(c);
-    setDraft(structuredClone(c.payload));
-    setBaseline(await api.preview(c.payload));
-    setLoading(false);
-  }, []);
+    try {
+      const c = await api.config();
+      setConfig(c);
+      setDraft(structuredClone(c.payload));
+      setBaseline(await api.preview(c.payload));
+    } catch {
+      // setLoading(false) has to happen either way, or an unreachable API
+      // leaves the page on its spinner for ever with nothing said.
+      setMessage(tc("apiUnreachable"));
+    } finally {
+      setLoading(false);
+    }
+  }, [tc]);
 
   useEffect(() => {
     load();

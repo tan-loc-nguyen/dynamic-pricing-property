@@ -66,8 +66,12 @@ export function EventsPanel() {
   };
 
   const remove = async (id: number) => {
-    await api.deleteEvent(id);
-    await load();
+    try {
+      await api.deleteEvent(id);
+      await load();
+    } catch {
+      setMessage(tc("apiUnreachable"));
+    }
   };
 
   const impactTone = (level: string) =>

@@ -21,15 +21,22 @@ export default function HistoryPage() {
   const [decision, setDecision] = useState("all");
   const [roomTypeId, setRoomTypeId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       setEntries(await api.history({ decision, room_type_id: roomTypeId }));
+    } catch {
+      // An empty history and an unreachable API rendered identically, and one
+      // of them means "you have made no decisions yet".
+      setError(tc("apiUnreachable"));
+      setEntries([]);
     } finally {
       setLoading(false);
     }
-  }, [decision, roomTypeId]);
+  }, [decision, roomTypeId, tc]);
 
   useEffect(() => {
     api.properties().then(setProperties).catch(() => setProperties([]));
@@ -44,6 +51,14 @@ export default function HistoryPage() {
         title={t("title")}
         subtitle={t("subtitle")}
       />
+
+      {/* An empty history and an unreachable API rendered identically, and one
+          of them means "you have made no decisions yet". */}
+      {error && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-900">
+          {error}
+        </div>
+      )}
 
       <Card className="p-4">
         <div className="flex flex-wrap items-end gap-2.5">

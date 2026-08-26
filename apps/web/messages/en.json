@@ -682,5 +682,47 @@
     "allRoomCategories": "All room categories",
     "decision": "Decision",
     "allDecisions": "All decisions"
+  },
+  "dataSource": {
+    "title": "Data source",
+    "subtitle": "Which property data the recommendations are built from.",
+    "active": "Active source",
+    "switching": "Switching…",
+    "mock": {
+      "label": "Demo data",
+      "hint": "Synthetic data generated on this machine. No network, nothing real."
+    },
+    "snapshot": {
+      "label": "Snapshot",
+      "hint": "Real Blue Jay data captured earlier, with guest details removed. Works offline and outside Blue Jay's testing hours."
+    },
+    "bluejay": {
+      "label": "Blue Jay (live test)",
+      "hint": "The real Blue Jay test API. Only reachable during Blue Jay's testing windows."
+    },
+    "windowTitle": "Blue Jay testing window",
+    "windowOpen": "Open now",
+    "windowClosed": "Closed",
+    "windowNext": "Next opens {time} (Vietnam time)",
+    "windowUnconfirmed": "Unconfirmed — never called automatically",
+    "readOnly": "This app only ever reads from Blue Jay. It never writes back.",
+    "mapTitle": "Room type mapping",
+    "mapIntro": "Each Blue Jay room type has to point at one of your pricing categories. Anything left unmapped is not priced.",
+    "mapEmpty": "Nothing mapped yet. Run the Blue Jay probe during a testing window to discover the room types.",
+    "mapSave": "Save mapping",
+    "mapSaved": "Mapping saved.",
+    "warningsTitle": "Check this data before showing it to anyone",
+    "findingsTitle": "What the last data sync could not verify",
+    "provenanceTitle": "Where this rate came from",
+    "provenance": {
+      "derived_adr": "Worked out from bookings already taken for this night — an average actually achieved, not a published price.",
+      "last_known_adr": "Worked out from recent bookings for this room type, not from this night.",
+      "unavailable": "Not known. No current rate could be found for this night.",
+      "seasonal_base": "The seasonal base rate for this night. Your property management system does not publish a current rate for it."
+    },
+    "mapChoose": "Choose a category",
+    "mapNeedsAttention": "Not mapped yet — this room type is not priced",
+    "saveFailed": "Could not save. The app could not reach the API.",
+    "appliesNextSync": "Changing this applies to the next data sync. Recommendations already on screen were built by the previous source."
   }
 }

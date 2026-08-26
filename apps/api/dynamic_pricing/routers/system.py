@@ -39,6 +39,12 @@ from ..models import (
 from ..pricing import DEFAULT_ENGINE, RATE_BOOK_SOURCE, ROOM_CATEGORIES, SEASONS, get_engine, list_engines
 from ..providers.market import get_market_provider
 from ..providers.pms import get_pms_provider
+from ..services.integration import (
+    get_category_map,
+    get_last_sync_findings,
+    get_pms_source,
+    set_last_sync_findings,
+)
 from ..providers.pms.base import ProviderStatus
 from ..providers.pms.mock import HISTORY_DAYS, HORIZON_DAYS
 from ..schemas import PropertyOut, SystemStatusOut
@@ -128,7 +134,18 @@ def status(session: Session = Depends(get_session)):
             )
 
     settings_ = get_settings()
-    pms_status = _provider_status(get_pms_provider, "DATA_PROVIDER", settings_.data_provider)
+    # The PERSISTED source, not the environment one: the operator can switch
+    # it from Settings, and a panel that disagrees with what actually syncs
+    # would be worse than no panel.
+    active_source = get_pms_source(session)
+    pms_status = _provider_status(
+        # A lambda, because the provider now needs BOTH the persisted source and
+        # the operator's room-type map. Calling `getter()` bare was why the panel
+        # and the actual sync could disagree.
+        lambda: get_pms_provider(active_source, category_map=get_category_map(session)),
+        "DATA_PROVIDER",
+        active_source,
+    )
     market_status = _provider_status(
         get_market_provider, "MARKET_PROVIDER", settings_.market_provider
     )
@@ -215,8 +232,14 @@ def status(session: Session = Depends(get_session)):
             "event_types": EVENT_TYPES,
         },
         outcome_readiness=outcome_summary(session),
-        demo_mode=settings.data_provider == "mock",
+        # The ACTIVE source, never the environment. DATA_PROVIDER=bluejay with
+        # the operator switched to MOCK in Settings would otherwise hide the
+        # "Demo data" chip while every number on screen is synthetic — and
+        # that is the direction that actually costs something, because a
+        # missing chip is what stops an operator double-checking.
+        demo_mode=active_source == "mock",
         last_run_id=latest_run_id(session),
+        last_sync_findings=get_last_sync_findings(session),
     )
 
 
@@ -227,11 +250,16 @@ def sync(session: Session = Depends(get_session), regenerate: bool = True):
     start, end = default_window(today, HISTORY_DAYS, HORIZON_DAYS)
 
     try:
-        pms = get_pms_provider(today=today)
+        pms = get_pms_provider(
+            get_pms_source(session), today=today, category_map=get_category_map(session)
+        )
     except UnknownRegistryKey as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     pms_report = sync_pms(session, pms, start=start, end=end)
+    # Persist what the adapter could not vouch for. The response body is not a
+    # surface anyone reads; Settings -> Data is.
+    set_last_sync_findings(session, pms_report.normalisation)
     fallback_used = False
     if not pms_report.ok:
         # Graceful degradation: never leave the operator with an empty product.

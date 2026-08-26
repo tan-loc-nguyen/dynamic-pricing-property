@@ -148,6 +148,8 @@ class RecommendationOut(BaseModel):
     base_net_rate: float
     current_net_rate: float
     current_ota_price: float | None = None
+    #: "published" | "derived_adr" | "last_known_adr" | "unavailable".
+    rate_provenance: str = "published"
     net_rate_before_clamp: float
     recommended_net_rate: float
     change_pct: float
@@ -456,6 +458,10 @@ class ProviderStatusOut(BaseModel):
     detail: str = ""
     remediation: str = ""
     unresolved_mappings: list[str] = []
+    #: Warnings about the DATA, kept separate from mapping gaps: "this snapshot
+    #: may still contain guest information" must not render under a heading
+    #: about room-type configuration.
+    warnings: list[str] = []
 
 
 class SystemStatusOut(BaseModel):
@@ -477,3 +483,6 @@ class SystemStatusOut(BaseModel):
     outcome_readiness: dict[str, Any]
     demo_mode: bool
     last_run_id: str | None = None
+    #: What the last sync could not fully vouch for. Persisted and exposed here
+    #: because a finding returned only in a POST response body reaches nobody.
+    last_sync_findings: dict[str, Any] = {}

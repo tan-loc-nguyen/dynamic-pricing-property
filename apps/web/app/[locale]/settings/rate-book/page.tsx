@@ -68,6 +68,10 @@ export default function RateBookPage() {
       await api.resetRateBook();
       await load();
       setMessage(t("resetDone"));
+    } catch {
+      // Without this the reset silently did nothing: the await rejected, the
+      // confirmation line never ran, and the operator saw a dead button.
+      setMessage(tc("apiUnreachable"));
     } finally {
       setSaving(false);
     }

@@ -36,6 +36,12 @@ class ProviderStatus:
     detail: str = ""
     remediation: str = ""
     unresolved_mappings: list[str] = field(default_factory=list)
+    #: Warnings about the DATA ITSELF — that a snapshot may still hold guest
+    #: information, or that its pseudonyms are recoverable. Deliberately NOT
+    #: `unresolved_mappings`: that field is named for room-type mapping gaps,
+    #: and a guest-data warning shown under a heading about mappings reads as a
+    #: configuration nit instead of as the warning it is.
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -72,6 +78,21 @@ class PhysicalRoomDTO:
     is_active: bool = True
 
 
+#: Every value ``rate_provenance`` can take, in one place.
+#:
+#: ONE definition, because the frontend must render each of them and was
+#: previously matching against a guess: `seasonal_base` was emitted, never
+#: translated, and drew a styled empty box. Guarded in both directions by
+#: tests/test_localisation.py.
+RATE_PROVENANCE_VALUES: tuple[str, ...] = (
+    "published",       # the PMS states a forward rate. Blue Jay does not.
+    "derived_adr",     # reconstructed from bookings on THIS night
+    "last_known_adr",  # reconstructed from recent bookings for the category
+    "seasonal_base",   # the validated band's BASE for that date's season
+    "unavailable",     # no source produced a rate at all
+)
+
+
 @dataclass(frozen=True)
 class InventoryDTO:
     room_type_external_id: str
@@ -82,6 +103,12 @@ class InventoryDTO:
     current_ota_price: float | None = None
     historical_occupancy: float | None = None
     historical_avg_net_rate: float | None = None
+    #: WHERE current_net_rate came from: "published" when the PMS states a
+    #: forward rate, "derived_adr" / "last_known_adr" when it was reconstructed
+    #: from bookings, "seasonal_base" when nothing was available. Blue Jay
+    #: exposes no forward rate at all, so a realized average often stands in
+    #: for a list price -- and an operator must never read one as the other.
+    rate_provenance: str = "published"
 
 
 @dataclass(frozen=True)

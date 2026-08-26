@@ -764,3 +764,177 @@ def test_editing_a_rate_band_reprices_the_dates_it_covers(client):
 
     # Leave the demo data as it was found.
     client.post("/api/rate-book/reset")
+
+
+# ------------------------------------------------------- PMS data source
+# The developer/data panel: which PMS source is live, and the Blue Jay testing
+# window. Persisted rather than env-only, because SNAPSHOT is meant to be the
+# standing demo mode and a demo machine should not need a .env edit and a
+# restart to get there.
+
+
+def test_the_data_source_endpoint_names_the_active_source_and_the_alternatives(client):
+    body = client.get("/api/pms/source").json()
+    assert body["active"] in {"mock", "snapshot", "bluejay"}
+    assert {"mock", "snapshot", "bluejay"} <= set(body["available"])
+
+
+def test_each_offered_source_explains_what_it_is(client):
+    """A switcher offering three opaque words is a trap for a non-technical
+    operator: one of them silently stops using real data."""
+    body = client.get("/api/pms/source").json()
+    for entry in body["sources"]:
+        assert entry["label_key"], entry
+
+
+def test_switching_the_data_source_persists_it(client):
+    assert client.put("/api/pms/source", json={"source": "snapshot"}).status_code == 200
+    assert client.get("/api/pms/source").json()["active"] == "snapshot"
+    client.put("/api/pms/source", json={"source": "mock"})
+    assert client.get("/api/pms/source").json()["active"] == "mock"
+
+
+def test_an_unknown_data_source_is_refused_and_names_the_valid_ones(client):
+    response = client.put("/api/pms/source", json={"source": "postgres"})
+    assert response.status_code == 422
+    assert "mock" in response.text
+
+
+def test_the_data_source_endpoint_reports_the_blue_jay_testing_window(client):
+    window = client.get("/api/pms/source").json()["bluejay_window"]
+    assert window["timezone"] == "Asia/Ho_Chi_Minh"
+    assert isinstance(window["is_open"], bool)
+    assert window["windows"], "the operator has to be told when calls are possible"
+
+
+def test_the_unconfirmed_midnight_window_is_flagged_in_the_api(client):
+    window = client.get("/api/pms/source").json()["bluejay_window"]
+    assert any(w["confirmed"] is False for w in window["windows"])
+
+
+def test_the_room_type_category_map_round_trips(client):
+    payload = {"map": {"6153": "3br", "6154": "2br_premium"}}
+    assert client.put("/api/pms/category-map", json=payload).status_code == 200
+    assert client.get("/api/pms/category-map").json()["map"] == payload["map"]
+
+
+def test_a_category_map_pointing_at_an_unknown_category_is_refused(client):
+    """A typo here silently unmaps a whole room type."""
+    response = client.put("/api/pms/category-map", json={"map": {"6153": "penthouse"}})
+    assert response.status_code == 422
+    assert "3br" in response.text
+
+
+def test_the_category_map_survives_being_emptied(client):
+    assert client.put("/api/pms/category-map", json={"map": {}}).status_code == 200
+    assert client.get("/api/pms/category-map").json()["map"] == {}
+
+
+def test_the_persisted_source_is_what_the_system_status_reports(client):
+    """Otherwise the switcher is cosmetic: the panel would say SNAPSHOT while
+    every sync kept pulling from whatever DATA_PROVIDER said at boot."""
+    client.put("/api/pms/source", json={"source": "snapshot"})
+    try:
+        assert client.get("/api/status").json()["pms"]["mode"] == "snapshot"
+    finally:
+        client.put("/api/pms/source", json={"source": "mock"})
+    assert client.get("/api/status").json()["pms"]["mode"] == "mock"
+
+
+def test_switching_source_does_not_require_restarting_the_api(client):
+    """A demo machine must be able to reach SNAPSHOT without a .env edit."""
+    before = client.get("/api/status").json()["pms"]["mode"]
+    client.put("/api/pms/source", json={"source": "snapshot"})
+    after = client.get("/api/status").json()["pms"]["mode"]
+    client.put("/api/pms/source", json={"source": before})
+    assert (before, after) == ("mock", "snapshot")
+
+
+def test_demo_mode_follows_the_active_source_not_the_environment(client):
+    """A wrong "Demo data" chip is the label that stops an operator
+    double-checking, so it must never be computed from a different input than
+    the provider actually in use.
+
+    The dangerous direction is DATA_PROVIDER=bluejay in .env with the operator
+    switched to MOCK in the UI: demo_mode would read False and the chip would
+    disappear while every number on screen is synthetic.
+    """
+    assert client.get("/api/status").json()["demo_mode"] is True
+    client.put("/api/pms/source", json={"source": "snapshot"})
+    try:
+        body = client.get("/api/status").json()
+        assert body["pms"]["mode"] == "snapshot"
+        assert body["demo_mode"] is False, "demo_mode disagreed with the active provider"
+    finally:
+        client.put("/api/pms/source", json={"source": "mock"})
+    assert client.get("/api/status").json()["demo_mode"] is True
+
+
+def test_a_provider_can_raise_a_data_warning_separate_from_mapping_gaps(client):
+    """Security warnings must not travel through `unresolved_mappings`.
+
+    That field is named for room-type mapping gaps, so "this snapshot may
+    contain guest data" rendered under a mapping heading reads as a
+    configuration nit rather than as the warning it is.
+    """
+    body = client.get("/api/status").json()
+    assert "warnings" in body["pms"], "ProviderStatus needs its own warning channel"
+    assert isinstance(body["pms"]["warnings"], list)
+
+
+def test_a_recommendation_says_where_its_current_rate_came_from(client):
+    """Blue Jay publishes no forward rate, so in LIVE and SNAPSHOT most current
+    rates are RECONSTRUCTED from bookings. An operator reading a realized
+    average as a published list price is the one confusion this must prevent —
+    and a value that is stored but never shown prevents nothing."""
+    rows = client.get("/api/recommendations").json()
+    assert rows, "no recommendations to check"
+    assert "rate_provenance" in rows[0]
+    assert rows[0]["rate_provenance"] == "published"
+
+
+def test_the_last_syncs_data_findings_are_kept_where_a_human_can_read_them(client):
+    """`POST /api/sync` returned them in a response body nothing consumed, so a
+    warning that occupancy is overstated travelled one hop further than before
+    and still stopped short of a person."""
+    client.post("/api/sync?regenerate=false")
+    status = client.get("/api/status").json()
+    assert "last_sync_findings" in status
+    assert isinstance(status["last_sync_findings"], dict)
+
+
+def test_the_category_map_endpoint_offers_the_room_types_that_need_mapping(client):
+    """The panel could only EDIT mappings that already existed.
+
+    The ids needing attention come from `unmapped_room_type_ids`, which fed
+    `unresolved_mappings` — a field rendered nowhere. So a new Blue Jay room
+    type went unpriced, the provider correctly said so, and the panel that
+    exists to fix it showed neither the id nor any warning.
+    """
+    body = client.get("/api/pms/category-map").json()
+    assert "unmapped" in body
+    assert isinstance(body["unmapped"], list)
+
+
+def test_a_discovered_room_type_is_offered_with_its_name_not_just_its_id(client):
+    """Choosing a pricing category for an opaque number is how the wrong id
+    gets mapped, and a wrong mapping misprices an entire category silently."""
+    for entry in client.get("/api/pms/category-map").json()["unmapped"]:
+        assert "id" in entry and "name" in entry
+
+
+def test_omitting_a_room_type_from_the_map_is_how_it_becomes_unmapped(client):
+    """The panel offered a "Not mapped" option that sent "" — which the API
+    rejects with a 422. There was no path that REMOVED a key, so the concept
+    the option offered did not exist in the write path at all."""
+    client.put("/api/pms/category-map", json={"map": {"6153": "3br", "6154": "2br_premium"}})
+    assert client.put("/api/pms/category-map", json={"map": {"6153": "3br"}}).status_code == 200
+    stored = client.get("/api/pms/category-map").json()["map"]
+    assert stored == {"6153": "3br"}
+    client.put("/api/pms/category-map", json={"map": {}})
+
+
+def test_an_empty_category_is_refused_rather_than_stored_as_a_mapping(client):
+    """`{"6153": ""}` was what the panel's own "Not mapped" option sent."""
+    response = client.put("/api/pms/category-map", json={"map": {"6153": ""}})
+    assert response.status_code == 422

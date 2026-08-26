@@ -329,3 +329,126 @@ def test_no_test_name_is_defined_twice_in_a_module():
         "these test names are defined twice in one module, so only the LAST "
         f"definition runs: {offenders}"
     )
+
+
+# --------------------------------------------------------------------------
+# Fields that exist to inform a human must actually reach one
+# --------------------------------------------------------------------------
+WEB_ROOT = API_ROOT.parent / "web"
+
+#: (symbol, defining module, what its silence would cost)
+#:
+#: Three fields in three review rounds were produced correctly, carried
+#: correctly, tested at the point of production — and read by nobody. Each time
+#: the tell was identical: every hop INSIDE the module had a test and the last
+#: hop did not. "Is this value produced correctly" and "does anyone ever see it"
+#: are different questions, and only the first was being asked.
+#:
+#: THE ASSERTION IS DELIBERATELY NARROW. An earlier version of this guard
+#: grepped the whole backend plus the frontend for the symbol, and passed for
+#: two fields that reached no human at all — because a bare grep cannot tell a
+#: READ from a WRITE, and cannot tell `ProviderStatus.warnings` from
+#: `NormalisationReport.warnings`, a different field that happens to share the
+#: name. It counted producers, storage and a same-named stranger as evidence.
+#:
+#: So: a reader must be under app/** or components/**. NOT lib/types.ts — a type
+#: declaration is exactly what `unresolved_mappings` had while rendering
+#: nowhere, so counting one would reproduce the original bug precisely.
+#: (backend symbol, defining module, NAME THE FRONTEND RENDERS, cost of silence)
+#:
+#: The rendered name is separate because a field is routinely renamed crossing
+#: the API boundary — `SyncReport.normalisation` is served as
+#: `last_sync_findings`. Grepping components for the BACKEND name would then
+#: fail even when a human can plainly see the value, and "make the names match"
+#: is the wrong lesson to teach a guard.
+OPERATOR_VISIBLE_FIELDS = [
+    (
+        "rate_provenance",
+        "providers/pms/base.py",
+        "rate_provenance",
+        "an operator would read a realized ADR as a published rate, which is the "
+        "single thing this field exists to prevent",
+    ),
+    (
+        "warnings",
+        "providers/pms/base.py",
+        "warnings",
+        "nobody would be told a snapshot's pseudonyms are recoverable, or that it "
+        "may still hold guest data",
+    ),
+    (
+        "normalisation",
+        "services/sync.py",
+        "last_sync_findings",
+        "the orphan-rooms warning says occupancy is OVERSTATED and recommendations "
+        "biased upward, and it would reach no one",
+    ),
+]
+
+
+@pytest.mark.parametrize("symbol,definer,rendered_as,cost", OPERATOR_VISIBLE_FIELDS)
+def test_a_field_meant_to_inform_an_operator_is_rendered_somewhere(
+    symbol, definer, rendered_as, cost
+):
+    """Rendered, not merely referenced. See the note above for why."""
+    rendered_in: list[str] = []
+    for pattern in ("app/**/*.tsx", "components/**/*.tsx"):
+        for path in WEB_ROOT.glob(pattern):
+            if rendered_as in path.read_text(encoding="utf-8"):
+                rendered_in.append(path.relative_to(WEB_ROOT).as_posix())
+
+    assert rendered_in, (
+        f"{symbol!r} (defined in {definer}, served as {rendered_as!r}) is never read by "
+        f"a component. Storing it, "
+        f"threading it through a service, or declaring it in lib/types.ts is not the "
+        f"same as a human seeing it — if nothing renders it then {cost}. Either render "
+        f"it, or move it to DIAGNOSTIC_FIELDS and say plainly that it is for whoever "
+        f"debugs this rather than for the operator."
+    )
+
+
+# --------------------------------------------------------------------------
+# An async handler that calls the API must handle its own failure
+# --------------------------------------------------------------------------
+def test_every_async_handler_that_calls_the_api_handles_its_own_failure():
+    """A silent no-op button, five times over, is a pattern rather than a slip.
+
+    `await api.x()` inside a handler with no catch means a failed request
+    rejects unhandled, the success line after it never runs, and the operator
+    sees NOTHING — no error, no confirmation, indistinguishable from a button
+    that was never wired up. Every instance found so far behaved exactly that
+    way, including a save that the server was rejecting with a 422 the whole
+    time.
+
+    Mechanically detectable, which is why this is a test and not a review note.
+    """
+    web = API_ROOT.parent / "web"
+    offenders: list[str] = []
+
+    for pattern in ("app/**/*.tsx", "components/**/*.tsx"):
+        for path in web.glob(pattern):
+            src = path.read_text(encoding="utf-8")
+            lines = src.splitlines()
+            for index, line in enumerate(lines):
+                if "async" not in line or "=>" not in line:
+                    continue
+                # The handler body: from here to the next line indented no
+                # further than the declaration. Crude, but these are all short
+                # arrow functions and it does not need to parse TypeScript.
+                indent = len(line) - len(line.lstrip())
+                body: list[str] = []
+                for following in lines[index + 1 :]:
+                    if following.strip() and (len(following) - len(following.lstrip())) <= indent:
+                        break
+                    body.append(following)
+                text = "\n".join(body)
+                if "await api." not in text:
+                    continue
+                if "catch" in text or "catch" in line:
+                    continue
+                offenders.append(f"{path.relative_to(web).as_posix()}:{index + 1}")
+
+    assert not offenders, (
+        "these handlers await an API call with no catch, so a failure is silent and "
+        "the operator cannot tell it from a dead button: " + ", ".join(offenders)
+    )

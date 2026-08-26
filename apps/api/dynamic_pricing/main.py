@@ -17,6 +17,7 @@ from .routers import (
     history,
     market,
     outcomes,
+    pms,
     rate_book,
     recommendations,
     settings as settings_router,
@@ -68,6 +69,7 @@ app.add_middleware(
 
 app.include_router(system.router)
 app.include_router(bookings.router)
+app.include_router(pms.router)
 app.include_router(recommendations.router)
 app.include_router(settings_router.router)
 app.include_router(history.router)

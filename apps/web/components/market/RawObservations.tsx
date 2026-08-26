@@ -155,6 +155,8 @@ export function RawObservations() {
       });
       setCompForm({ name: "", location: "", comparable_category: "" });
       await load();
+    } catch {
+      setMessage({ ok: false, text: tc("apiUnreachable") });
     } finally {
       setBusy(false);
     }

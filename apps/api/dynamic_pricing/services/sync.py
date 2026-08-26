@@ -7,7 +7,7 @@ continuously proves the integration boundary works.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from sqlalchemy import delete, select
@@ -38,6 +38,12 @@ class SyncReport:
     ok: bool = True
     message: str = ""
     remediation: str = ""
+    #: What the adapter could not fully vouch for: night-count discrepancies,
+    #: unreadable numbers, skipped rows, and the orphan-physical-rooms warning
+    #: that says in as many words that occupancy is OVERSTATED and
+    #: recommendations biased upward. Carried here because a finding recorded
+    #: into an object nobody reads is a passing test and a silent product.
+    normalisation: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {
@@ -51,6 +57,7 @@ class SyncReport:
             "ok": self.ok,
             "message": self.message,
             "remediation": self.remediation,
+            "normalisation": self.normalisation,
         }
 
 
@@ -166,6 +173,7 @@ def sync_pms(
                 units_total=dto.units_total,
                 units_sold=dto.units_sold,
                 current_net_rate=dto.current_net_rate,
+                rate_provenance=dto.rate_provenance,
                 current_ota_price=dto.current_ota_price,
                 historical_occupancy=dto.historical_occupancy,
                 historical_avg_net_rate=dto.historical_avg_net_rate,
@@ -196,6 +204,11 @@ def sync_pms(
 
     session.commit()
     report.message = "Portfolio synchronised."
+    # Providers that normalise vendor payloads expose what they could not
+    # vouch for. Reading it here is what makes it reach anyone at all.
+    provider_report = getattr(provider, "report", None)
+    if provider_report is not None and hasattr(provider_report, "as_dict"):
+        report.normalisation = provider_report.as_dict()
     return report
 
 

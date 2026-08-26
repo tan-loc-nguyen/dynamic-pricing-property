@@ -1,46 +1,59 @@
 # Blue Jay PMS Integration
 
-## Status: boundary implemented, **not wired to a live API**
+## Status: adapter WIRED against the documented schema, not yet verified live
 
-The Blue Jay API documentation is **not yet available**. The client document
-states plainly that API access has been requested and Luminous is *awaiting
-confirmation from Blue Jay*. Nothing was found on the build machine either.
+> **The API document arrived.** The adapter is implemented against it and is
+> treated as PROVISIONAL until a live response confirms it. See
+> **[BLUEJAY_CONTRACT.md](BLUEJAY_CONTRACT.md)** for the field mapping, the
+> document's own inconsistencies, and the verification checklist to work
+> through during the next testing window.
+>
+> Three data modes are interchangeable: **LIVE**, **SNAPSHOT** (sanitized real
+> data, the preferred demo source) and **MOCK**. Switch in Settings → Data.
 
-Per the brief's explicit instruction — *"do not invent endpoints, do not invent
-request schemas, do not invent field mappings"* — **nothing has been assumed**.
+The API document is now in hand. Endpoints and request parameters come from it;
+**response field names for the filter endpoints are still inferred**, because
+the document gives no sample response for them. Nothing beyond the document has
+been invented, and every inference is listed in BLUEJAY_CONTRACT.md.
 
-What exists instead:
+What exists:
 
-- `BlueJayPMSProvider` fully conforms to the `PMSProvider` contract, so
-  switching to it is a `.env` change and nothing else.
-- Credentials are read from environment variables only; none are committed.
-- An authenticated `httpx` client is constructed as soon as a base URL and key
-  are present, with the auth *style* configurable because the real scheme is
-  unconfirmed.
-- Every fetch raises `ProviderUnavailable` carrying an actionable remediation
-  message, which the API surfaces as a status banner before falling back to
-  demo data.
+- `BlueJayPMSProvider` conforms to the `PMSProvider` contract and normalises
+  Blue Jay JSON into vendor-neutral DTOs. Nothing downstream knows the vendor.
+- **Read-only by construction.** `BlueJayClient` exposes no verb but `GET`, so
+  there is no write path to reach for — Blue Jay documents POST for creating
+  bookings, and whether they operate a zero-data-retention policy is unknown.
+- **Window-gated.** A request outside a confirmed Vietnam-time testing window is
+  refused before it leaves the process.
+- Credentials come from the environment only, and the key is never logged,
+  captured or rendered.
+- Every fetch raises `ProviderUnavailable` with actionable remediation, which
+  the API surfaces before falling back to demo data.
+- An unreadable response **raises rather than returning nothing**: zero bookings
+  would mean 0% occupancy across the horizon, which is the strongest discount
+  signal the engine has.
 
 **Demo mode is completely unaffected.** The product is fully usable today.
 
 ---
 
-## How to enable it once the docs arrive
+## How to enable it
 
 ```bash
 # .env
-DATA_PROVIDER=bluejay
-BLUEJAY_BASE_URL=https://<tenant>.bluejay.example/api
+BLUEJAY_BASE_URL=https://api-test.bluejaypms.com/api/v2
 BLUEJAY_API_KEY=<secret — never commit this>
-BLUEJAY_AUTH_STYLE=bearer          # or "header"
-BLUEJAY_AUTH_HEADER=Authorization  # e.g. X-API-Key when style=header
-BLUEJAY_PROPERTY_IDS=<comma-separated ids>
+BLUEJAY_HOTEL_ID=<Luminous' hotelId — 1003 in the doc is a DIFFERENT property>
+BLUEJAY_PSEUDONYM_SALT=<set before capturing anything real>
+BLUEJAY_SNAPSHOT_DIR=<path to a captured snapshot>
 ```
 
-Then implement the four `TODO(bluejay)` markers in
-`apps/api/dynamic_pricing/providers/pms/bluejay.py`. Nothing else in the codebase
-needs to change: the sync layer, feature engine, pricing engine, database, API
-and UI all consume vendor-neutral DTOs.
+The data source itself is switched in **Settings → Data**, not in `.env` — the
+environment only seeds the initial value. Then map each Blue Jay room type to a
+pricing category on the same screen; anything unmapped is not priced.
+
+Nothing else in the codebase changes: the sync layer, feature engine, pricing
+engine, database, API and UI all consume vendor-neutral DTOs.
 
 If Blue Jay is misconfigured or unreachable, `POST /api/sync` automatically
 falls back to the mock provider and reports `pms_fallback_to_mock: true`, so a

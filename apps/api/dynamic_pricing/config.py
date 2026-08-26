@@ -14,7 +14,7 @@ from functools import lru_cache
 
 from dotenv import load_dotenv
 
-from .packaging import REPO_ROOT, user_data_dir
+from .packaging import REPO_ROOT, is_frozen, user_data_dir
 
 load_dotenv(REPO_ROOT / ".env", override=False)
 
@@ -52,6 +52,24 @@ class Settings:
             p.strip() for p in os.getenv("BLUEJAY_PROPERTY_IDS", "").split(",") if p.strip()
         ]
         self.bluejay_timeout_seconds: float = float(os.getenv("BLUEJAY_TIMEOUT_SECONDS", "15"))
+        self.bluejay_hotel_id: str = os.getenv("BLUEJAY_HOTEL_ID", "").strip()
+        # user_data_dir(), NOT REPO_ROOT — for exactly the reason the database
+        # above uses it. In a --onefile build REPO_ROOT resolves inside
+        # PyInstaller's extraction directory, which is deleted on exit, so a
+        # snapshot placed there could never be found by the shipped app. And
+        # SNAPSHOT is meant to be the standing client-demo source, i.e. the mode
+        # that matters most in a packaged build.
+        #
+        # A source checkout keeps using apps/api/snapshots/, which is gitignored:
+        # the test tenant is a third party's hotel and this repo is public.
+        default_snapshots = (
+            data_dir / "snapshots" / "current"
+            if is_frozen()
+            else REPO_ROOT / "apps" / "api" / "snapshots" / "current"
+        )
+        self.bluejay_snapshot_dir: str = os.getenv(
+            "BLUEJAY_SNAPSHOT_DIR", str(default_snapshots)
+        )
 
         # --- Market data -------------------------------------------------
         self.market_user_agent: str = os.getenv(

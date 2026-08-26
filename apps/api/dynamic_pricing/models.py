@@ -164,6 +164,12 @@ class StayDateInventory(Base):
 
     # What Luminous currently receives for this date, where known.
     current_net_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    # WHERE current_net_rate came from. "published" when the PMS states a
+    # forward rate; Blue Jay does not, so a rate reconstructed from bookings
+    # arrives as "derived_adr"/"last_known_adr", and "unavailable" means no
+    # source produced one at all. Persisted rather than computed because an
+    # achieved average must never render indistinguishably from a list price.
+    rate_provenance: Mapped[str] = mapped_column(String(32), default="published")
     # Guest-facing price, only when genuinely available. Never derived.
     current_ota_price: Mapped[float | None] = mapped_column(Float, nullable=True)
 
@@ -479,3 +485,26 @@ class RecommendationOutcome(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     recommendation: Mapped[PricingRecommendation] = relationship(back_populates="outcomes")
+
+
+class IntegrationSetting(Base):
+    """Small key/value store for INTEGRATION choices an operator may change.
+
+    Deliberately separate from ``PricingConfiguration`` (business rules) and
+    from ``config.py`` (environment). ``config.py`` states that environment
+    settings must not be operator-changeable at runtime, and which PMS source
+    is live genuinely is one of those — except that SNAPSHOT is meant to be the
+    standing client-demo mode, and requiring a .env edit plus a restart to get
+    there would mean a demo machine boots into the wrong source.
+
+    So the environment SEEDS the value and this table owns it thereafter.
+    """
+
+    __tablename__ = "integration_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    #: JSON so one table serves both a scalar (the active source) and a mapping
+    #: (room type -> category) without a migration for each new setting.
+    value_json: Mapped[str] = mapped_column(Text, default="null")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

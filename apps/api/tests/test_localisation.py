@@ -760,3 +760,105 @@ def test_every_confidence_code_has_a_translation(locale):
     missing += [f"confidenceGap.{c}" for c in CONFIDENCE_GAP_CODES
                 if f"confidenceGap.{c}" not in flat]
     assert not missing, f"{locale}.json is missing: {missing}"
+
+
+# --------------------------------------------------------------------------
+# Runtime enums that cross to the frontend
+# --------------------------------------------------------------------------
+def test_every_rate_provenance_the_backend_can_emit_has_a_rendering(locale=None):
+    """Three green guards missed a blank amber box, because each answered a
+    question ADJACENT to the property.
+
+    `seasonal_base` passed the "is it published?" gate, matched no rendering
+    branch, and drew a styled div with nothing in it — and it is the provenance
+    every UNBOOKED night gets, so it is the most common non-published value and
+    the one an operator most needs explained.
+
+    * "every translated string is rendered" passed — it was never translated.
+    * "every key the frontend asks for exists" passed — nobody asked.
+    * the human-field guard passed — `rate_provenance` has a component reader.
+
+    The property none of them state is "every value the backend can EMIT has a
+    rendering". This is `EMITTABLE_MESSAGE_KEYS` in the other direction, for a
+    runtime enum instead of a message key.
+    """
+    from dynamic_pricing.providers.pms.base import RATE_PROVENANCE_VALUES
+
+    for loc in LOCALES:
+        flat = _flatten(_messages(loc))
+        missing = [
+            value
+            for value in RATE_PROVENANCE_VALUES
+            # "published" is deliberately silent: annotating every ordinary row
+            # would be noise. Every OTHER value means the rate was reconstructed
+            # and must say so.
+            if value != "published" and f"dataSource.provenance.{value}" not in flat
+        ]
+        assert not missing, (
+            f"{loc}: the backend can emit rate_provenance={missing}, and there is no "
+            f"string for it. The drawer gates on `!== 'published'`, so an unhandled "
+            f"value renders as a styled, EMPTY box."
+        )
+
+
+def test_no_rate_provenance_string_exists_for_a_value_the_backend_cannot_emit():
+    """The other direction, same as the numeric-leaf guard: a message for a
+    value nothing produces is a claim about behaviour that is not true."""
+    from dynamic_pricing.providers.pms.base import RATE_PROVENANCE_VALUES
+
+    flat = _flatten(_messages("en"))
+    prefix = "dataSource.provenance."
+    declared = {k[len(prefix):] for k in flat if k.startswith(prefix)}
+    stale = sorted(declared - set(RATE_PROVENANCE_VALUES))
+    assert not stale, f"strings for provenance values the backend never emits: {stale}"
+
+
+def test_the_clamp_union_lists_exactly_what_the_engine_emits():
+    """`clamp_applied` was typed `string | null` while the engine emits only
+    "min"/"max", and viz.tsx renders it with a ternary — so a third value would
+    have rendered confidently as MAX. A union WIDER than reality is the same
+    class as one narrower than it: both stop the compiler helping."""
+    import re
+
+    engine = (
+        Path(__file__).resolve().parents[1] / "dynamic_pricing" / "pricing" / "engine.py"
+    ).read_text(encoding="utf-8")
+    emitted = set(re.findall(r'clamp_applied = "([a-z]+)"', engine))
+    assert emitted, "the engine no longer assigns clamp_applied as a literal"
+
+    source = (WEB / "lib" / "types.ts").read_text(encoding="utf-8")
+    match = re.search(r"clamp_applied: ([^;]+);", source)
+    assert match, "clamp_applied is no longer declared in lib/types.ts"
+    declared = set(re.findall(r'"([a-z]+)"', match.group(1)))
+    assert declared == emitted, (
+        f"lib/types.ts declares clamp_applied as {sorted(declared)} but the engine "
+        f"emits {sorted(emitted)}"
+    )
+
+
+def test_the_typescript_union_lists_exactly_the_provenance_values_python_emits():
+    """The fifth copy of this value set, and the one that bites hardest.
+
+    `tsc` reported the `seasonal_base` branch as an impossible comparison
+    because the union omitted the value — which is precisely the bug that
+    deleted the drawer's unpriced branch when `Status` omitted `"error"`. A
+    union narrower than reality does not fail loudly; it convinces the compiler
+    that correct handling is dead code.
+    """
+    import re
+
+    from dynamic_pricing.providers.pms.base import RATE_PROVENANCE_VALUES
+
+    source = (WEB / "lib" / "types.ts").read_text(encoding="utf-8")
+    match = re.search(r"rate_provenance:\s*([^;]+);", source)
+    assert match, "rate_provenance is no longer declared in lib/types.ts"
+    # Strip // comments first: the explanation beside this union quotes another
+    # union's values, and a regex over the raw text reads those as declarations.
+    body = "\n".join(
+        line.split("//")[0] for line in match.group(1).splitlines()
+    )
+    declared = set(re.findall(r'"([a-z_]+)"', body))
+    assert declared == set(RATE_PROVENANCE_VALUES), (
+        f"lib/types.ts declares {sorted(declared)} but the backend emits "
+        f"{sorted(RATE_PROVENANCE_VALUES)}"
+    )

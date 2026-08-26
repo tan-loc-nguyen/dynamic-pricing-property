@@ -182,4 +182,24 @@ export const api = {
 
   sync: () => request<Record<string, any>>("/api/sync", { method: "POST" }),
   resetDemo: () => request<Record<string, any>>("/api/demo/reset", { method: "POST" }),
+
+  pmsSource: () => request<import("./types").PmsSourceInfo>("/api/pms/source"),
+  setPmsSource: (source: string) =>
+    request<{ active: string }>("/api/pms/source", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source }),
+    }),
+  categoryMap: () =>
+    request<{
+      map: Record<string, string>;
+      categories: string[];
+      unmapped: import("./types").UnmappedRoomType[];
+    }>("/api/pms/category-map"),
+  setCategoryMap: (map: Record<string, string>) =>
+    request<{ map: Record<string, string> }>("/api/pms/category-map", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ map }),
+    }),
 };

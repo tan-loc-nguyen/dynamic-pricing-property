@@ -42,3 +42,11 @@ release/
 # Client source documents — NEVER commit (repo is public)
 private/
 *.pdf
+
+# Blue Jay captures — NEVER commit (repo is public, and the test tenant is a
+# THIRD PARTY's hotel). captures/ holds raw responses including guest names and
+# identity-document references; snapshots/ holds sanitized replays, which are
+# still another company's commercial booking data. Both ship to a demo machine
+# out of band. Parser tests run on the small synthetic fixture in tests/.
+apps/api/captures/
+apps/api/snapshots/

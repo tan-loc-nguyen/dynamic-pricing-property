@@ -295,6 +295,7 @@ class FeatureEngine:
             rate_band_source=band.source if band else NO_BAND_SOURCE,
             current_net_rate=inventory.current_net_rate,
             current_ota_price=inventory.current_ota_price,
+            rate_provenance=getattr(inventory, "rate_provenance", "published") or "published",
             units_total=inventory.units_total,
             units_sold=inventory.units_sold,
             units_available=inventory.units_available,
