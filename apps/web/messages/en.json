@@ -363,7 +363,8 @@
     "marketYou": "You",
     "marketSummary": "{count, number} comparable prices seen · confidence {confidence}",
     "marketReferenceOnly": "Market data here is for reference only and did not affect the recommended price.",
-    "marketNone": "No comparable market prices for this night yet."
+    "marketNone": "No comparable market prices for this night yet.",
+    "paceCrossSection": "Each point is a different night at that lead time, with the dot marking this one."
   },
   "rateBook": {
     "title": "Seasonal rate book",
@@ -588,7 +589,6 @@
       "tapToFilter": "show only these",
       "showingOnly": "showing only these"
     },
-    "nightCount": "{count, number} nights",
     "rangeLabel": "Date range",
     "ranges": {
       "twoWeeks": "2 weeks",
@@ -608,7 +608,9 @@
       "noPricing": "No prices yet"
     },
     "from": "From",
-    "to": "To"
+    "to": "To",
+    "occupancyOfWeek": "{pct, number}% full across {nights, number} nights",
+    "roomNights": "{count, number} room-nights sold"
   },
   "marketPage": {
     "title": "Market & events",

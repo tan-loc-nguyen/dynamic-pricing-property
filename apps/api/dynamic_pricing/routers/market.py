@@ -132,9 +132,14 @@ def list_observations(
     session: Session = Depends(get_session),
     room_type_id: int | None = None,
     stay_date: date | None = None,
+    #: A WINDOW, where `stay_date` is a single night. Without this a caller
+    #: wanting a period had to fetch everything and hope the limit covered it,
+    #: which silently truncated to the 200 most recent rows.
+    start_date: date | None = None,
+    end_date: date | None = None,
     source: str | None = None,
     confidence: str | None = None,
-    limit: int = Query(200, ge=1, le=2000),
+    limit: int = Query(200, ge=1, le=5000),
 ):
     query = select(MarketObservation).order_by(
         MarketObservation.observed_at.desc(), MarketObservation.id.desc()
@@ -143,6 +148,10 @@ def list_observations(
         query = query.where(MarketObservation.room_type_id == room_type_id)
     if stay_date:
         query = query.where(MarketObservation.stay_date == stay_date)
+    if start_date:
+        query = query.where(MarketObservation.stay_date >= start_date)
+    if end_date:
+        query = query.where(MarketObservation.stay_date <= end_date)
     if source and source != "all":
         query = query.where(MarketObservation.source == source)
     if confidence and confidence != "all":

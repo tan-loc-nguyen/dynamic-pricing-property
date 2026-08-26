@@ -39,7 +39,7 @@ export default function HistoryPage() {
   }, [load]);
 
   return (
-    <div className="px-7 py-6 space-y-5 max-w-[1500px]">
+    <div className="h-full overflow-y-auto px-7 py-6 space-y-5 max-w-[1500px]">
       <PageHeader
         title={t("title")}
         subtitle={t("subtitle")}

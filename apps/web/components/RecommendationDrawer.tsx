@@ -44,6 +44,16 @@ export function RecommendationDrawer({
   const [overrideRate, setOverrideRate] = useState("");
   const [reasonCode, setReasonCode] = useState("my_judgment");
   const [error, setError] = useState<string | null>(null);
+  const [reasonCodes, setReasonCodes] = useState<string[]>(["my_judgment"]);
+
+  useEffect(() => {
+    api
+      .status()
+      .then((s) => setReasonCodes(s.override_reasons.map((r) => r.code)))
+      .catch(() => {
+        /* keep the safe default rather than blocking the override form */
+      });
+  }, []);
 
   const id = recommendation?.id ?? null;
 
@@ -112,6 +122,9 @@ export function RecommendationDrawer({
   );
 
   const rec = detail ?? recommendation;
+  // The engine publishes this directly; inferring it from `status` was how
+  // the branch got lost, because the Status union omitted "error".
+  const unpriced = rec?.unpriced === true;
   const open = recommendation !== null;
 
   return (
@@ -340,16 +353,13 @@ export function RecommendationDrawer({
                         className="mt-1 w-full rounded-lg border border-ink-200 px-3 py-2 text-[12.5px]
                           focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
                       >
-                        {[
-                          "pace_strategy",
-                          "competitor_pricing",
-                          "property_knowledge",
-                          "promotion",
-                          "special_event",
-                          "owner_constraint",
-                          "my_judgment",
-                          "other",
-                        ].map((code) => (
+                        {/* From the SERVER's whitelist, not a copy of it. The
+                            inline array had silently lost `channel_mix`, which
+                            the backend still accepts and the vocabulary still
+                            translates — so it was simply unselectable, and the
+                            two lists could drift again without anything
+                            noticing. */}
+                        {reasonCodes.map((code) => (
                           <option key={code} value={code}>
                             {tv(`overrideReasons.${code}`)}
                           </option>
@@ -370,6 +380,14 @@ export function RecommendationDrawer({
                         {tc("cancel")}
                       </Button>
                     </div>
+                  </div>
+                ) : unpriced ? (
+                  /* The engine could not price this night. Its `recommended`
+                     equals `current`, so without this branch the drawer shows a
+                     confident rate that was never calculated and Accept fails
+                     with a 409 from the server. */
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">
+                    {t("unpriced")}
                   </div>
                 ) : (
                   <div className="flex gap-2">

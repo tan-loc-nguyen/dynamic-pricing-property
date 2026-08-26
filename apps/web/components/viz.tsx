@@ -116,7 +116,13 @@ export function PaceChart({
   const here = data.find((d) => d.dta === current.days_to_arrival);
 
   return (
-    <div className="h-32 -ml-2">
+    <>
+      {/* Each point is a DIFFERENT night at its own lead time, not this night
+          filling up over time. That is the right comparison against a booking
+          curve, and it is also exactly what an operator would misread in a
+          drawer about one specific date — so the caption says which. */}
+      <p className="mb-1 text-[10.5px] text-ink-400">{t("paceCrossSection")}</p>
+      <div className="h-32 -ml-2">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="2 4" stroke="#e8e9ee" vertical={false} />
@@ -165,8 +171,9 @@ export function PaceChart({
             />
           )}
         </LineChart>
-      </ResponsiveContainer>
-    </div>
+        </ResponsiveContainer>
+      </div>
+    </>
   );
 }
 

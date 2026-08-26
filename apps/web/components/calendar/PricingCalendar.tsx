@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { monthLabel, nightsBetween } from "@/lib/dates";
+import { addDaysISO, monthLabel } from "@/lib/dates";
 import type { CalendarRow, Cell, Column } from "@/lib/calendarModel";
 import { useFormat } from "@/lib/useFormat";
 import type { FormatLocale } from "@/lib/format";
@@ -91,7 +91,8 @@ function PricingDateCell({
     );
   }
 
-  const soldOut = column.nights === 1 ? cell.soldOutNights > 0 : cell.soldOutNights === column.nights;
+  const isWeek = column.nights > 1;
+  const soldOut = isWeek ? cell.soldOutNights === column.nights : cell.soldOutNights > 0;
   const fill = cell.total > 0 ? Math.min(1, cell.sold / cell.total) : 0;
 
   // Direction, not magnitude: the exact percentage lives in the drawer.
@@ -103,11 +104,14 @@ function PricingDateCell({
         ? "text-amber-600"
         : "text-ink-300";
 
-  const isWeek = column.nights > 1;
   const title = [
     isWeek ? t("weekAverage", { rate: formatVND(cell.rate) }) : formatVND(cell.rate),
-    t("occupancyOf", { sold: cell.sold, total: cell.total }),
-    cell.isEvent ? "★" : "",
+    isWeek
+      ? t("occupancyOfWeek", { pct: Math.round(fill * 100), nights: column.nights })
+      : t("occupancyOf", { sold: cell.sold, total: cell.total }),
+    // The word, not the glyph: this string is now the accessible name, and a
+    // screen reader announces "★" as "star" or skips it entirely.
+    cell.isEvent ? t("legend.event") : "",
     cell.attention ? t("needsReview") : "",
     isWeek ? t("clickToOpenWeek") : "",
   ]
@@ -126,7 +130,13 @@ function PricingDateCell({
       type="button"
       onClick={activate}
       title={title}
-      aria-label={`${column.startISO} · ${formatVND(cell.rate)}`}
+      // The same sentence as the tooltip. `title` becomes the accessible
+      // DESCRIPTION when aria-label is present, and descriptions are commonly
+      // not announced — so a screen-reader user heard only date and rate, and a
+      // keyboard user could not hover for the rest. The attention dot in
+      // particular was colour-only for sighted users and absent for everyone
+      // else.
+      aria-label={title}
       className={`group relative min-w-0 border-r border-b border-ink-100 px-1 py-1.5 text-left transition-colors
         focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset
         ${dimmed ? "opacity-30" : ""}
@@ -164,117 +174,132 @@ function PricingDateCell({
           />
         </div>
         <span className="tnum shrink-0 text-[9.5px] leading-none text-ink-400">
-          {soldOut ? t("full") : cell.total - cell.sold}
+          {/* A day column counts APARTMENTS left. A week's totals are sums over
+              seven nights, so the same slot would print room-nights in the same
+              styling — a 4-apartment category showing "23". Weeks show how full
+              they are instead; the number and the bar then mean one thing. */}
+          {soldOut ? t("full") : isWeek ? `${Math.round(fill * 100)}%` : cell.total - cell.sold}
         </span>
       </div>
     </button>
   );
 }
 
+/** Distinct, stable colours per channel. Order matters only for consistency. */
+const CHANNEL_TONE: Record<string, string> = {
+  "Booking.com": "bg-sky-400",
+  Airbnb: "bg-rose-400",
+  Agoda: "bg-violet-400",
+  "Trip.com": "bg-amber-400",
+  Expedia: "bg-emerald-400",
+  Direct: "bg-ink-400",
+};
+
 /**
- * Booking lanes for an expanded room type.
+ * Occupied unit-nights per column, split by channel.
  *
- * Bars are NOT labelled with an apartment number: no booking in this system is
- * assigned to one (`physical_room_id` is null on every row — ASSUMPTIONS U11).
- * Lanes are a packing of overlapping stays, not a unit list, and the row head
- * says so.
+ * This was a stay timeline with bars spanning several days. It was fiction: a
+ * booking row is ONE OCCUPIED UNIT-NIGHT, not a stay — the provider emits
+ * exactly `units_sold` rows per night and `nights` is random decoration nothing
+ * had ever read. Spanning them drew ~3.5x the occupancy that exists, and the
+ * eight-lane cap hid the overdraw, so it looked plausible while contradicting
+ * the occupancy bar in the cell directly above.
+ *
+ * What the rows genuinely support is this: how many rooms sold on each night,
+ * and through which channel. Real stay ranges need Blue Jay (U16), like unit
+ * assignment.
  */
-function BookingLanes({
+function OccupancyByChannel({
   bookings,
-  dates,
-  onSelectBooking,
+  columns,
 }: {
   bookings: Booking[];
-  dates: string[];
-  onSelectBooking: (b: Booking) => void;
+  columns: Column[];
 }) {
   const t = useTranslations("calendar");
-  const { formatVND } = useFormat();
-  const first = dates[0];
 
-  // Greedy interval packing: each bar takes the first lane it does not clash in.
-  const lanes = useMemo(() => {
-    const packed: Booking[][] = [];
-    for (const b of [...bookings].sort((a, b) => a.stay_date.localeCompare(b.stay_date))) {
-      const lane = packed.find(
-        (row) => !row.some((x) => x.stay_date <= b.last_night && b.stay_date <= x.last_night),
-      );
-      if (lane) lane.push(b);
-      else packed.push([b]);
+  const byColumn = useMemo(() => {
+    const index = new Map<string, string>();
+    for (const c of columns) {
+      // Every date the column covers maps back to that column's key.
+      for (let i = 0; i < c.nights; i += 1) {
+        index.set(addDaysISO(c.startISO, i), c.key);
+      }
     }
-    return packed.slice(0, 8); // deep stacks add height, not understanding
-  }, [bookings]);
+    const out = new Map<string, Map<string, number>>();
+    for (const b of bookings) {
+      const key = index.get(b.stay_date);
+      if (!key) continue;
+      const channels = out.get(key) ?? new Map<string, number>();
+      channels.set(b.channel, (channels.get(b.channel) ?? 0) + 1);
+      out.set(key, channels);
+    }
+    return out;
+  }, [bookings, columns]);
 
-  if (lanes.length === 0) {
-    return (
-      <div className="border-b border-ink-100 px-3 py-2 text-[11.5px] text-ink-400">
-        {t("noBookingsInRange")}
-      </div>
-    );
-  }
+  const busiest = useMemo(
+    () =>
+      Math.max(
+        1,
+        ...[...byColumn.values()].map((m) => [...m.values()].reduce((s, v) => s + v, 0)),
+      ),
+    [byColumn],
+  );
 
   return (
-    <div className="border-b border-ink-100 py-0.5">
-      {lanes.map((lane, i) => (
-        <div
-          key={i}
-          className="grid h-6 items-center"
-          style={{ gridTemplateColumns: templateFor(dates.length, false) }}
-        >
-          {lane.map((b) => {
-            const offset = nightsBetween(first, b.stay_date);
-            const nights = nightsBetween(b.stay_date, b.last_night) + 1;
-            // Clip a stay that began before the window instead of dropping it.
-            const startCol = Math.max(0, offset) + 1;
-            const span = Math.min(
-              offset < 0 ? nights + offset : nights,
-              dates.length - startCol + 1,
-            );
-            if (span <= 0) return null;
-            return (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => onSelectBooking(b)}
-                title={`${b.channel} · ${t("nightCount", { count: b.nights })} · ${formatVND(b.net_rate)}`}
-                style={{ gridColumn: `${startCol} / span ${span}` }}
-                className="mx-0.5 h-5 truncate rounded-md border border-sky-300 bg-sky-100/90 px-1.5
-                  text-left text-[10px] leading-5 text-sky-900
-                  hover:bg-sky-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-              >
-                {b.channel}
-              </button>
-            );
-          })}
-        </div>
-      ))}
-    </div>
+    <>
+      {columns.map((c) => {
+        const channels = byColumn.get(c.key);
+        const total = channels ? [...channels.values()].reduce((s, v) => s + v, 0) : 0;
+        const label = channels
+          ? [...channels.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .map(([name, n]) => `${name} ${n}`)
+              .join(" · ")
+          : t("noBookingsInRange");
+        return (
+          <div
+            key={c.key}
+            title={`${t("roomNights", { count: total })}${channels ? ` — ${label}` : ""}`}
+            aria-label={`${c.startISO}: ${t("roomNights", { count: total })}`}
+            className="flex h-12 items-end gap-px border-r border-b border-ink-100 px-1 pb-1"
+          >
+            {channels
+              ? [...channels.entries()]
+                  .sort((a, b) => a[0].localeCompare(b[0]))
+                  .map(([name, n]) => (
+                    <div
+                      key={name}
+                      className={`min-w-0 flex-1 rounded-sm ${CHANNEL_TONE[name] ?? "bg-ink-300"}`}
+                      style={{ height: `${Math.max(8, (n / busiest) * 100)}%` }}
+                    />
+                  ))
+              : null}
+          </div>
+        );
+      })}
+    </>
   );
 }
 
 export function PricingCalendar({
   rows,
   columns,
-  dates,
   bookingsByRoomType,
   expanded,
   onToggleExpand,
   selectedId,
   onSelect,
-  onSelectBooking,
   onDrillDown,
   attentionOnly,
 }: {
   rows: CalendarRow[];
   columns: Column[];
-  /** Every DAY in range. Booking bars keep daily resolution at every zoom. */
-  dates: string[];
   bookingsByRoomType: Map<number, Booking[]>;
   expanded: Set<number>;
   onToggleExpand: (roomTypeId: number) => void;
   selectedId: number | null;
   onSelect: (rec: Recommendation) => void;
-  onSelectBooking: (b: Booking) => void;
   onDrillDown: (column: Column) => void;
   attentionOnly: boolean;
 }) {
@@ -396,15 +421,11 @@ export function PricingCalendar({
                     <div className="text-[11px] font-medium text-ink-600">{t("bookings")}</div>
                     <div className="text-[10px] text-ink-400">{t("unitUnassigned")}</div>
                   </RowHead>
-                  {/* Spans every date column, then lays its own grid on the same
-                      track sizes so bars line up with the dates above. */}
-                  <div className="min-w-0 bg-ink-50/30" style={{ gridColumn: "2 / -1" }}>
-                    <BookingLanes
-                      bookings={bookings}
-                      dates={dates}
-                      onSelectBooking={onSelectBooking}
-                    />
-                  </div>
+                  {/* Cells of the SAME grid, so they align with the columns
+                      above by construction. The previous version nested its own
+                      grid sized from the daily date list, which overflowed and
+                      misaligned in every week view. */}
+                  <OccupancyByChannel bookings={bookings} columns={columns} />
                 </>
               )}
             </Fragment>

@@ -283,10 +283,21 @@ class PreviewOut(BaseModel):
 
 # ------------------------------------------------------------------ bookings
 class BookingOut(BaseModel):
-    """One booking, with the range it occupies made explicit.
+    """ONE OCCUPIED UNIT-NIGHT, not a stay.
 
-    `last_night` is derived rather than stored so the frontend never has to
-    repeat the arithmetic (and never gets it off by one).
+    This is the whole contract and it is easy to get wrong, so it is stated
+    here rather than left to the field names. The mock provider emits exactly
+    `units_sold` rows for every (room type, date) -- verified 260/260 groups --
+    and FeatureEngine counts one row as one booking ON that date. A row is a
+    room that was occupied on one night.
+
+    `nights` is therefore NOT a stay length. The provider assigns it at random
+    per row and nothing consumed it until a calendar tried to draw stay bars
+    from it, which smeared each unit-night across up to five days and drew ~3.5x
+    more occupancy than exists. There is deliberately no `last_night` field: a
+    derived end date would re-create that falsehood one layer up.
+
+    Real stay ranges need Blue Jay (ASSUMPTIONS U16), like unit assignment.
     """
 
     id: int
@@ -296,8 +307,8 @@ class BookingOut(BaseModel):
     #: NULL for every seeded booking -- unit assignment needs Blue Jay (U11).
     physical_room_id: int | None = None
     stay_date: date
+    #: Random decoration in the mock. Do NOT treat as a stay length.
     nights: int
-    last_night: date
     guests: int
     net_rate: float
     channel: str

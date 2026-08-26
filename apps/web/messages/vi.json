@@ -363,7 +363,8 @@
     "marketYou": "Bạn",
     "marketSummary": "Ghi nhận {count, number} mức giá tương đương · độ tin cậy {confidence}",
     "marketReferenceOnly": "Dữ liệu thị trường ở đây chỉ để tham khảo và không ảnh hưởng giá đề xuất.",
-    "marketNone": "Chưa có giá thị trường tương đương cho đêm này."
+    "marketNone": "Chưa có giá thị trường tương đương cho đêm này.",
+    "paceCrossSection": "Mỗi điểm là một đêm khác nhau ở mốc thời gian đó; chấm tròn là đêm này."
   },
   "rateBook": {
     "title": "Bảng giá theo mùa",
@@ -588,7 +589,6 @@
       "tapToFilter": "chỉ xem các đêm này",
       "showingOnly": "đang chỉ xem các đêm này"
     },
-    "nightCount": "{count, number} đêm",
     "rangeLabel": "Khoảng thời gian",
     "ranges": {
       "twoWeeks": "2 tuần",
@@ -608,7 +608,9 @@
       "noPricing": "Chưa có giá"
     },
     "from": "Từ ngày",
-    "to": "Đến ngày"
+    "to": "Đến ngày",
+    "occupancyOfWeek": "Đã đầy {pct, number}% trong {nights, number} đêm",
+    "roomNights": "Đã bán {count, number} đêm-phòng"
   },
   "marketPage": {
     "title": "Thị trường & Sự kiện",

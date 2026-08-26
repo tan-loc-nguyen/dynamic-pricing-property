@@ -146,7 +146,7 @@ export const api = {
     request<HistoryEntry[]>(`/api/history${toQuery(params)}`),
 
   // --- market ------------------------------------------------------------
-  observations: (params: { room_type_id?: number | null; stay_date?: string | null; source?: string | null; confidence?: string | null } = {}) =>
+  observations: (params: { room_type_id?: number | null; stay_date?: string | null; start_date?: string | null; end_date?: string | null; source?: string | null; confidence?: string | null; limit?: number | null } = {}) =>
     request<MarketObservation[]>(`/api/market/observations${toQuery(params)}`),
   addObservation: (body: Record<string, unknown>) =>
     request<MarketObservation>("/api/market/observations", { method: "POST", body: JSON.stringify(body) }),

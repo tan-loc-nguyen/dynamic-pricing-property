@@ -79,7 +79,7 @@ export default function RateBookPage() {
   const edited = bands.filter((b) => b.source !== "CLIENT_VALIDATED").length;
 
   return (
-    <div className="px-7 py-6 space-y-5 max-w-[1400px]">
+    <div className="h-full overflow-y-auto px-7 py-6 space-y-5 max-w-[1400px]">
       <PageHeader
         title={t("title")}
         subtitle={t("subtitleLong")}

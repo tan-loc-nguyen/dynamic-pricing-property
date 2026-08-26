@@ -12,7 +12,7 @@ import type { Recommendation } from "./types";
  * flagged, nothing is.
  */
 
-export type AttentionReason = "bigChange" | "wellBehind" | "surging" | "clamped";
+export type AttentionReason = "bigChange" | "wellBehind" | "surging";
 
 /**
  * Percentage move in the recommended rate that is worth a second look.
@@ -33,14 +33,18 @@ export function attentionReasons(rec: Recommendation): AttentionReason[] {
   if ((rec.pace_gap ?? 0) <= BADLY_BEHIND_GAP) reasons.push("wellBehind");
   // The engine names the band; this does not re-derive it from thresholds (D28).
   if (rec.pickup_label_key?.endsWith("surging")) reasons.push("surging");
-  if (rec.clamp_applied) reasons.push("clamped");
-
   // Deliberately NOT reasons to flag a night:
-  //   - an event, which already carries its own marker on the cell (§14) and
-  //     has usually been priced in rather than left for the operator to fix;
-  //   - market evidence that was found and ignored for low confidence, which
-  //     is explained in the drawer and needs no action.
-  // Both are frequent, and a signal that fires constantly stops being one.
+  //   - an event, which already carries its own marker on the cell and has
+  //     usually been priced in rather than left for the operator to fix;
+  //   - market evidence found and ignored for low confidence, explained in the
+  //     drawer and needing no action;
+  //   - a CLAMP. The dynamic layer tried to leave the validated band and the
+  //     band stopped it: that is the design working, it is already explained by
+  //     its own row in the breakdown, and there is nothing to do about it. It
+  //     was also the largest single reason (40 of 81), and the density that
+  //     matters is per COLUMN, not per row — a column flags if any of three
+  //     room types does. Including clamps put an amber dot on 53% of the
+  //     calendar; without them it is 37%.
 
   return reasons;
 }
@@ -49,14 +53,10 @@ export function needsAttention(rec: Recommendation): boolean {
   return attentionReasons(rec).length > 0;
 }
 
-/**
- * Ranked, so "7 dates need attention" opens the most useful one first.
- * A clamp or a big move outranks a merely-noted event.
- */
+/** Ranked, so "7 nights need attention" opens the most urgent one first. */
 const WEIGHT: Record<AttentionReason, number> = {
   wellBehind: 4,
   bigChange: 3,
-  clamped: 2,
   surging: 2,
 };
 

@@ -54,7 +54,7 @@ function NumberInput({
   suffix?: string;
 }) {
   return (
-    <div className="relative">
+    <div className="h-full overflow-y-auto relative">
       <input
         type="number"
         step={step}

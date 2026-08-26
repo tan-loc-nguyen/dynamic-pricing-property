@@ -621,51 +621,99 @@ def test_code_search_is_applied_before_paging(client):
 
 
 # ---------------------------------------------------------------------------
-# Bookings feed the calendar's occupancy timeline. They existed in the database
-# from the first seed and nothing could read them.
+# A booking row is ONE OCCUPIED UNIT-NIGHT, not a stay. This is the contract
+# the calendar got wrong: it read `nights` as a stay length and drew bars
+# spanning up to five days, smearing every unit-night across the calendar and
+# rendering ~3.5x the occupancy that exists.
 # ---------------------------------------------------------------------------
-def test_bookings_are_exposed_with_the_range_they_occupy(client):
-    rows = client.get("/api/bookings?limit=50").json()
-    assert rows, "the demo seed writes bookings; the endpoint returns none"
-    b = rows[0]
-    assert b["nights"] >= 1
-    assert b["last_night"] >= b["stay_date"], "last_night must not precede check-in"
+def test_a_booking_row_is_one_occupied_unit_night(client):
+    """The row count for a night must equal that night's units_sold.
 
-
-def test_a_booking_spanning_into_the_window_is_not_dropped(client):
-    """A stay that started earlier still occupies nights inside the window.
-
-    Filtering on stay_date alone would hide it and make the month look emptier
-    than it is — the failure would read as missing bookings, not a date bug.
+    This is the semantic the whole feature rests on, so it is asserted against
+    the data rather than trusted. If a provider ever emits one row per STAY
+    instead, this fails and the UI must be reconsidered before it silently
+    starts under-counting.
     """
-    every = client.get("/api/bookings?limit=5000").json()
-    multi = [b for b in every if b["nights"] > 1]
-    assert multi, "demo data has no multi-night bookings to test with"
+    recs = client.get("/api/recommendations?limit=5000").json()
+    if not recs:
+        pytest.skip("no recommendations to compare against")
 
-    sample = multi[0]
-    # A window that begins on the booking's LAST night: it started before the
-    # window and must still be returned.
+    window = sorted({r["stay_date"] for r in recs})[:10]
     rows = client.get(
-        f"/api/bookings?start_date={sample['last_night']}&end_date={sample['last_night']}"
+        f"/api/bookings?start_date={window[0]}&end_date={window[-1]}&limit=20000"
     ).json()
-    assert any(r["id"] == sample["id"] for r in rows), (
-        "a booking overlapping the window was dropped because it started before it"
+
+    counted: dict[tuple[int, str], int] = {}
+    for b in rows:
+        counted[(b["room_type_id"], b["stay_date"])] = (
+            counted.get((b["room_type_id"], b["stay_date"]), 0) + 1
+        )
+
+    compared = 0
+    for r in recs:
+        if r["stay_date"] not in window or r["units_sold"] is None:
+            continue
+        got = counted.get((r["room_type_id"], r["stay_date"]), 0)
+        assert got == r["units_sold"], (
+            f"{r['stay_date']} room type {r['room_type_id']}: {got} booking rows "
+            f"but units_sold={r['units_sold']} — a row is no longer one unit-night"
+        )
+        compared += 1
+    assert compared, "the comparison never ran"
+
+
+def test_the_api_never_publishes_a_stay_end_date(client):
+    """`nights` is random decoration in the mock and must not become a range.
+
+    A derived `last_night` was exactly how the fiction got drawn: correct
+    arithmetic over a field that does not mean what its name suggests.
+    """
+    rows = client.get("/api/bookings?limit=50").json()
+    assert rows
+    assert "last_night" not in rows[0], (
+        "the API is publishing a stay end date again; `nights` cannot support one"
     )
 
 
+def test_every_returned_row_falls_inside_the_window(client):
+    every = client.get("/api/bookings?limit=20000").json()
+    dates = sorted({b["stay_date"] for b in every})
+    lo, hi = dates[2], dates[5]
+    rows = client.get(f"/api/bookings?start_date={lo}&end_date={hi}&limit=20000").json()
+    assert rows
+    assert all(lo <= b["stay_date"] <= hi for b in rows)
+
+
 def test_cancelled_bookings_never_reach_the_calendar(client):
-    rows = client.get("/api/bookings?limit=5000").json()
+    rows = client.get("/api/bookings?limit=20000").json()
     assert all(r["status"] != "cancelled" for r in rows)
 
 
 def test_unit_assignment_is_reported_as_absent_rather_than_invented(client):
-    """physical_room_id is NULL on every seeded booking (ASSUMPTIONS U11).
-
-    The calendar degrades to unlabelled lanes because of this. If unit data
-    ever arrives, this test fails and the UI can start labelling them — which
-    is the point: the absence is a fact to notice, not one to paper over.
-    """
+    """physical_room_id is NULL on every seeded booking (ASSUMPTIONS U11)."""
     rows = client.get("/api/bookings?limit=200").json()
     assert all(r["physical_room_id"] is None for r in rows), (
         "bookings now carry unit assignments — the calendar can label real units"
     )
+
+
+def test_observations_can_be_fetched_for_a_window(client):
+    """A caller wanting a period had to fetch everything and hope.
+
+    The default limit is 200; the demo already holds ~1,200 observations, so a
+    market view that asked for "all of them" silently received the 200 most
+    recent and drew its conclusions from a sixth of the data.
+    """
+    every = client.get("/api/market/observations?limit=5000").json()
+    assert len(every) > 200, "this test is pointless unless the data exceeds one page"
+
+    dates = sorted({o["stay_date"] for o in every})
+    lo, hi = dates[1], dates[3]
+    windowed = client.get(
+        f"/api/market/observations?start_date={lo}&end_date={hi}&limit=5000"
+    ).json()
+
+    assert windowed, "a window inside the data returned nothing"
+    assert all(lo <= o["stay_date"] <= hi for o in windowed)
+    expected = sum(1 for o in every if lo <= o["stay_date"] <= hi)
+    assert len(windowed) == expected, "the window dropped or duplicated rows"

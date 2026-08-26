@@ -26,7 +26,14 @@ export function CompetitorList() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.competitors(), api.observations({})])
+    Promise.all([
+      api.competitors(),
+      // Explicit limit: the endpoint defaults to the 200 most recent rows and
+      // the demo holds ~1,200, so every price range, confidence and "last
+      // seen" here was computed from a sixth of the data, ordered by
+      // observed_at — the same truncation the overview had.
+      api.observations({ limit: 5000 }),
+    ])
       .then(([c, o]) => {
         if (!alive) return;
         setCompetitors(c);

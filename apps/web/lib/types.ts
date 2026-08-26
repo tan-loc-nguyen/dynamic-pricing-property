@@ -1,4 +1,14 @@
-export type Status = "pending" | "accepted" | "overridden";
+/**
+ * Includes "error": a night the engine could not price.
+ *
+ * Omitting it was not a harmless gap. TypeScript then reported
+ * `status === "error"` as a comparison that "can never be true", so the
+ * drawer's unpriced branch read as dead code and was deleted — after which an
+ * unpriced night showed a confident rate and Accept failed with a 409. The
+ * vocabulary has always carried `status.error` ("Unpriced"); only this union
+ * disagreed.
+ */
+export type Status = "pending" | "accepted" | "overridden" | "error";
 export type Confidence = "HIGH" | "MEDIUM" | "LOW" | "UNUSABLE";
 
 export interface PhysicalRoom {

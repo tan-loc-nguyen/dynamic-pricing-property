@@ -58,7 +58,10 @@ export function MarketOverview() {
     let alive = true;
     Promise.all([
       api.recommendations({ start_date: start, end_date: end, limit: 5000 }),
-      api.observations({}),
+      // A window and an explicit limit. Without them this received the
+      // endpoint's default 200 most-recent rows — 16% of the data — and drew
+      // the band and the coverage figure from that sixth.
+      api.observations({ start_date: start, end_date: end, limit: 5000 }),
     ])
       .then(([r, o]) => {
         if (!alive) return;
@@ -72,14 +75,16 @@ export function MarketOverview() {
   }, [start, end]);
 
   const { series, quality } = useMemo(() => {
-    const key = (stayDate: string) => bucketKeyFor(stayDate, granularity);
+    const cols = buildColumns(start, end, granularity, locale);
+    const first = cols[0]?.key;
+    const key = (stayDate: string) => bucketKeyFor(stayDate, granularity, first);
 
     // Seed EVERY bucket in the requested window, not only the ones that have
     // recommendations. Building the list from the data made a six-month view
     // report "13/13 weeks covered" — reading as full coverage when the chart
     // actually stopped at the pricing horizon less than halfway through.
     const byDate = new Map<string, { prices: number[]; rec: number[] }>();
-    for (const c of buildColumns(start, end, granularity, locale)) {
+    for (const c of cols) {
       byDate.set(c.key, { prices: [], rec: [] });
     }
     for (const r of recs) {
@@ -87,6 +92,12 @@ export function MarketOverview() {
       if (e) e.rec.push(r.recommended_net_rate);
     }
     for (const o of obs) {
+      // LOW-confidence evidence is excluded. The product's central claim about
+      // market data is that a price you cannot interpret is not evidence and
+      // may never characterise a rate (D20); drawing the band from it would
+      // have this panel tell the operator where they sit using exactly the
+      // observations the engine refused.
+      if (o.confidence === "LOW") continue;
       // Observations outside the window have no bucket and must not create one.
       const e = byDate.get(key(o.stay_date));
       if (e && o.observed_price > 0) e.prices.push(o.observed_price);
@@ -113,15 +124,38 @@ export function MarketOverview() {
       });
 
     const withBand = rows.filter((r) => r.band).length;
-    const above = rows.filter((r) => r.median && r.mine && r.mine > r.median).length;
-    const below = rows.filter((r) => r.median && r.mine && r.mine < r.median).length;
+
+    // Position = our rate against the QUALIFIED comp reference.
+    //
+    // Not `market_price_index`: that divides the comp median for a date by the
+    // comp median across the window, so it compares the market to ITSELF and
+    // its window mean is pinned near 1.0 by construction. Reading it as a
+    // position would have this card say "in line" essentially always.
+    // `market_reference_net_rate` is already gated by confidence and minimum
+    // observation count, so this also uses only evidence the engine accepted.
+    const ratios = recs
+      .filter((r) => r.market_reference_net_rate && r.recommended_net_rate)
+      .map((r) => r.recommended_net_rate / (r.market_reference_net_rate as number));
+    const meanRatio = ratios.length
+      ? ratios.reduce((s, v) => s + v, 0) / ratios.length
+      : null;
+    const position =
+      meanRatio === null
+        ? null
+        : meanRatio > 1.02
+          ? "above"
+          : meanRatio < 0.98
+            ? "below"
+            : "inLine";
+
     return {
       series: rows,
       quality: {
         buckets: rows.length,
         covered: withBand,
         observations: obs.length,
-        position: withBand === 0 ? null : above > below ? "above" : below > above ? "below" : "inLine",
+        qualified: ratios.length,
+        position,
       },
     };
   }, [recs, obs, granularity, start, end, locale]);

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
-import { addDaysISO, dateRange, nightsBetween, todayISO } from "@/lib/dates";
+import { addDaysISO, nightsBetween, todayISO } from "@/lib/dates";
 import { attentionScore, needsAttention } from "@/lib/attention";
 import { PricingCalendar } from "@/components/calendar/PricingCalendar";
 import { CalendarLegend } from "@/components/calendar/CalendarLegend";
@@ -133,9 +133,6 @@ export default function CalendarPage() {
     setStart(addDaysISO(start, by));
     setEnd(addDaysISO(end, by));
   };
-  // Every day in range: booking bars keep daily resolution at every zoom, which
-  // is the one place a spanning tile is genuinely right.
-  const dates = useMemo(() => dateRange(start, end), [start, end]);
   const columns = useMemo(
     () => buildColumns(start, end, granularity, locale),
     [start, end, granularity, locale],
@@ -334,7 +331,6 @@ export default function CalendarPage() {
             <PricingCalendar
               rows={rows}
               columns={columns}
-              dates={dates}
               bookingsByRoomType={bookingsByRoomType}
               expanded={expanded}
               onToggleExpand={(id) =>
@@ -347,9 +343,6 @@ export default function CalendarPage() {
               }
               selectedId={selected?.id ?? null}
               onSelect={setSelected}
-              onSelectBooking={() => {
-                /* booking detail is a later step; the bar carries a tooltip */
-              }}
               onDrillDown={drillDown}
               attentionOnly={attentionOnly}
             />
