@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Area,
   CartesianGrid,
@@ -14,11 +14,13 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { addDaysISO, todayISO } from "@/lib/dates";
+import { RANGES, daysFor, granularityFor } from "@/lib/ranges";
+import { buildColumns, bucketKeyFor } from "@/lib/calendarModel";
 import { useFormat } from "@/lib/useFormat";
 import { Card, Spinner } from "@/components/ui";
+import type { FormatLocale } from "@/lib/format";
 import type { MarketObservation, Recommendation } from "@/lib/types";
 
-const WINDOW_DAYS = 30;
 /** Below this, a low/high pair is two prices, not a range worth drawing. */
 const MIN_FOR_A_RANGE = 3;
 
@@ -33,14 +35,24 @@ const MIN_FOR_A_RANGE = 3;
  */
 export function MarketOverview() {
   const t = useTranslations("marketOverview");
+  const tc = useTranslations("calendar");
   const { formatVND, formatDateTime } = useFormat();
+  const locale = useLocale() as FormatLocale;
 
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [obs, setObs] = useState<MarketObservation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rangeKey, setRangeKey] = useState<string>("oneMonth");
 
+  const days = daysFor(rangeKey);
+  // Weekly buckets past a month are not only about label density: bucketing
+  // seven nights of observations together clears the three-price threshold far
+  // more often than any single night does, so the band actually has coverage
+  // to draw. "The range of comparable prices seen this week" is a real
+  // statistic, not a smoothing trick.
+  const granularity = granularityFor(days);
   const start = todayISO();
-  const end = addDaysISO(start, WINDOW_DAYS - 1);
+  const end = addDaysISO(start, days - 1);
 
   useEffect(() => {
     let alive = true;
@@ -60,14 +72,23 @@ export function MarketOverview() {
   }, [start, end]);
 
   const { series, quality } = useMemo(() => {
+    const key = (stayDate: string) => bucketKeyFor(stayDate, granularity);
+
+    // Seed EVERY bucket in the requested window, not only the ones that have
+    // recommendations. Building the list from the data made a six-month view
+    // report "13/13 weeks covered" — reading as full coverage when the chart
+    // actually stopped at the pricing horizon less than halfway through.
     const byDate = new Map<string, { prices: number[]; rec: number[] }>();
+    for (const c of buildColumns(start, end, granularity, locale)) {
+      byDate.set(c.key, { prices: [], rec: [] });
+    }
     for (const r of recs) {
-      const e = byDate.get(r.stay_date) ?? { prices: [], rec: [] };
-      e.rec.push(r.recommended_net_rate);
-      byDate.set(r.stay_date, e);
+      const e = byDate.get(key(r.stay_date));
+      if (e) e.rec.push(r.recommended_net_rate);
     }
     for (const o of obs) {
-      const e = byDate.get(o.stay_date);
+      // Observations outside the window have no bucket and must not create one.
+      const e = byDate.get(key(o.stay_date));
       if (e && o.observed_price > 0) e.prices.push(o.observed_price);
     }
 
@@ -76,10 +97,14 @@ export function MarketOverview() {
       .map(([date, e]) => {
         const sorted = [...e.prices].sort((x, y) => x - y);
         const enough = sorted.length >= MIN_FOR_A_RANGE;
-        const mine = e.rec.reduce((s, v) => s + v, 0) / Math.max(e.rec.length, 1);
+        // `undefined`, not 0: past the pricing horizon there is no rate, and a
+        // zero would draw the line to the floor.
+        const mine = e.rec.length
+          ? Math.round(e.rec.reduce((s, v) => s + v, 0) / e.rec.length)
+          : undefined;
         return {
           date: date.slice(5),
-          mine: Math.round(mine),
+          mine,
           // Recharts stacks an Area from a [low, high] tuple; `undefined`
           // leaves a genuine gap rather than drawing a made-up one.
           band: enough ? [sorted[0], sorted[sorted.length - 1]] : undefined,
@@ -88,18 +113,18 @@ export function MarketOverview() {
       });
 
     const withBand = rows.filter((r) => r.band).length;
-    const above = rows.filter((r) => r.median && r.mine > r.median).length;
-    const below = rows.filter((r) => r.median && r.mine < r.median).length;
+    const above = rows.filter((r) => r.median && r.mine && r.mine > r.median).length;
+    const below = rows.filter((r) => r.median && r.mine && r.mine < r.median).length;
     return {
       series: rows,
       quality: {
-        nights: rows.length,
+        buckets: rows.length,
         covered: withBand,
         observations: obs.length,
         position: withBand === 0 ? null : above > below ? "above" : below > above ? "below" : "inLine",
       },
     };
-  }, [recs, obs]);
+  }, [recs, obs, granularity, start, end, locale]);
 
   const lastUpdated = useMemo(() => {
     const stamps = obs.map((o) => o.observed_at).filter(Boolean) as string[];
@@ -139,7 +164,7 @@ export function MarketOverview() {
             {t("coverage")}
           </div>
           <div className="mt-0.5 tnum text-[17px] font-semibold text-ink-900">
-            {quality.covered}/{quality.nights}
+            {quality.covered}/{quality.buckets}
           </div>
           <div className="text-[10.5px] text-ink-400">{t("coverageHint")}</div>
         </Card>
@@ -154,8 +179,29 @@ export function MarketOverview() {
       </div>
 
       <Card className="p-4">
-        <h3 className="text-[12.5px] font-semibold text-ink-800">{t("chartTitle")}</h3>
-        <p className="mb-3 text-[11.5px] text-ink-500">{t("chartHint")}</p>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[12.5px] font-semibold text-ink-800">
+              {t("chartTitle", { count: days })}
+            </h3>
+            <p className="text-[11.5px] text-ink-500">{t("chartHint")}</p>
+          </div>
+          <label className="flex shrink-0 items-center gap-1.5">
+            <span className="sr-only">{t("rangeLabel")}</span>
+            <select
+              value={rangeKey}
+              onChange={(e) => setRangeKey(e.target.value)}
+              className="rounded-lg border border-ink-200 bg-white px-2 py-1 text-[12.5px] text-ink-700
+                focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+            >
+              {RANGES.map((r) => (
+                <option key={r.key} value={r.key}>
+                  {tc(`ranges.${r.key}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={series} margin={{ top: 6, right: 10, bottom: 0, left: 6 }}>
@@ -213,6 +259,7 @@ export function MarketOverview() {
                 stroke="#4f46e5"
                 strokeWidth={2}
                 dot={false}
+                connectNulls={false}
                 isAnimationActive={false}
               />
             </ComposedChart>
@@ -231,9 +278,9 @@ export function MarketOverview() {
           </span>
         </div>
 
-        {quality.covered < quality.nights && (
+        {quality.covered < quality.buckets && (
           <p className="mt-3 rounded-md bg-ink-50 px-2.5 py-1.5 text-[11.5px] text-ink-600">
-            {t("gapsExplained", { covered: quality.covered, total: quality.nights })}
+            {t(granularity === "week" ? "gapsExplainedWeeks" : "gapsExplained", { covered: quality.covered, total: quality.buckets })}
           </p>
         )}
       </Card>

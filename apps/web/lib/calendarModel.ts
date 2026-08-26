@@ -109,18 +109,21 @@ export function buildColumns(
   });
 }
 
-/** Which column a stay date belongs to, without scanning the column list. */
-function columnKeyFor(stayISO: string, granularity: Granularity, locale: FormatLocale): string {
+/**
+ * Which bucket a stay date belongs to, without scanning the column list.
+ *
+ * Exported because the market overview buckets the same way: two views of the
+ * same period that disagreed about where a week starts would be worse than
+ * either being wrong on its own.
+ */
+export function bucketKeyFor(stayISO: string, granularity: Granularity): string {
   if (granularity === "day") return stayISO;
-  return toISODate(
-    startOfWeek(parseStayDate(stayISO), { weekStartsOn: 1, locale: dfnsLocale(locale) }),
-  );
+  return toISODate(startOfWeek(parseStayDate(stayISO), { weekStartsOn: 1 }));
 }
 
 export function buildRows(
   recs: Recommendation[],
   granularity: Granularity,
-  locale: FormatLocale,
   columns: Column[],
 ): CalendarRow[] {
   const firstColumn = columns[0]?.startISO;
@@ -140,7 +143,7 @@ export function buildRows(
       };
       byType.set(r.room_type_id, entry);
     }
-    let key = columnKeyFor(r.stay_date, granularity, locale);
+    let key = bucketKeyFor(r.stay_date, granularity);
     // A week clipped by the range start is keyed by the range start, not by the
     // Monday before it — otherwise the first partial week has no column.
     if (firstColumn && key < firstColumn) key = firstColumn;

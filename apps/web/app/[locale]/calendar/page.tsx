@@ -7,7 +7,8 @@ import { addDaysISO, dateRange, nightsBetween, todayISO } from "@/lib/dates";
 import { attentionScore, needsAttention } from "@/lib/attention";
 import { PricingCalendar } from "@/components/calendar/PricingCalendar";
 import { CalendarLegend } from "@/components/calendar/CalendarLegend";
-import { buildColumns, buildRows, type Column, type Granularity } from "@/lib/calendarModel";
+import { buildColumns, buildRows, type Column } from "@/lib/calendarModel";
+import { RANGES, granularityFor } from "@/lib/ranges";
 import { RecommendationDrawer } from "@/components/RecommendationDrawer";
 import { Button, Card, Spinner } from "@/components/ui";
 import type { FormatLocale } from "@/lib/format";
@@ -20,15 +21,6 @@ import type { Booking, Recommendation } from "@/lib/types";
  * columns are illegible and nobody prices a specific Tuesday six months out.
  * Weeks answer the question being asked at that horizon instead.
  */
-const RANGES = [
-  { key: "twoWeeks", days: 14 },
-  { key: "oneMonth", days: 30 },
-  { key: "threeMonths", days: 91 },
-  { key: "sixMonths", days: 182 },
-] as const;
-
-/** Longest span that still reads as day columns. Beyond it, weeks. */
-const DAY_COLUMN_LIMIT = 35;
 
 /**
  * A compact answer to "how is the next month going?".
@@ -128,7 +120,7 @@ export default function CalendarPage() {
   // Span drives resolution, whatever produced it. A custom eight-week range
   // gets weeks for the same reason the three-month preset does.
   const days = Math.max(1, nightsBetween(start, end) + 1);
-  const granularity: Granularity = days > DAY_COLUMN_LIMIT ? "week" : "day";
+  const granularity = granularityFor(days);
 
   const applyPreset = (key: string) => {
     const preset = RANGES.find((r) => r.key === key);
@@ -171,8 +163,8 @@ export default function CalendarPage() {
   }, [load]);
 
   const rows = useMemo(
-    () => buildRows(recs, granularity, locale, columns),
-    [recs, granularity, locale, columns],
+    () => buildRows(recs, granularity, columns),
+    [recs, granularity, columns],
   );
 
   /** Clicking a week zooms into it, since a week has no single price to explain. */

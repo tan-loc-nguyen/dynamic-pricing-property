@@ -623,8 +623,8 @@
   "marketOverview": {
     "loading": "Đang tải dữ liệu thị trường…",
     "position": "Vị thế của bạn",
-    "coverage": "Số đêm có dữ liệu so sánh",
-    "coverageHint": "trên 30 đêm tới",
+    "coverage": "Kỳ có dữ liệu so sánh",
+    "coverageHint": "trong kỳ đang xem",
     "lastUpdated": "Cập nhật lần cuối",
     "positions": {
       "above": "Cao hơn thị trường",
@@ -632,12 +632,14 @@
       "inLine": "Ngang mặt bằng",
       "unknown": "Chưa đủ dữ liệu"
     },
-    "chartTitle": "Giá của bạn so với thị trường, 30 đêm tới",
+    "chartTitle": "Giá của bạn so với thị trường, {count, number} ngày tới",
     "chartHint": "Vùng tô là khoảng giá tương đương ghi nhận được. Vùng này dừng lại ở những đêm có quá ít dữ liệu để gọi là một khoảng.",
     "legendMine": "Giá bạn được đề xuất",
     "legendMedian": "Mức giữa thị trường",
     "legendBand": "Khoảng giá thị trường",
-    "gapsExplained": "Đã ghi nhận giá tương đương cho {covered, number}/{total, number} đêm. Vùng giá chỉ được vẽ ở nơi có đủ dữ liệu để có ý nghĩa."
+    "gapsExplained": "Đã ghi nhận giá tương đương cho {covered, number}/{total, number} đêm. Vùng giá chỉ được vẽ ở nơi có đủ dữ liệu để có ý nghĩa.",
+    "rangeLabel": "Khoảng thời gian biểu đồ",
+    "gapsExplainedWeeks": "Đã ghi nhận giá tương đương cho {covered, number}/{total, number} tuần. Vùng giá chỉ được vẽ ở nơi có đủ dữ liệu để có ý nghĩa."
   },
   "compSet": {
     "loading": "Đang tải nhóm đối thủ…",
