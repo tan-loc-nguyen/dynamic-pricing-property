@@ -263,54 +263,6 @@
     "shadowExplain": "Prices are recommendations only. Nothing is sent to Blue Jay or any OTA — you apply what you accept.",
     "unvalidated": "Seasonal NET rates are client-validated. Pace, pickup, event and market settings are not."
   },
-  "table": {
-    "stayDate": "Stay date",
-    "roomCategory": "Room category",
-    "avail": "Avail",
-    "onTheBooks": "On the books",
-    "daysToArrival": "D–",
-    "pace": "Pace",
-    "pickup": "Pickup",
-    "currentNet": "Current NET",
-    "recommendedNet": "Recommended NET",
-    "dynamic": "Dynamic",
-    "inBand": "In band",
-    "market": "Market",
-    "event": "Event",
-    "status": "Status",
-    "review": "Review →",
-    "noData": "No data",
-    "expected": "exp",
-    "paceGapTitle": "Pace gap {gap}",
-    "marketTitle": "{count, number} qualified observation(s) at {confidence} confidence",
-    "noMarket": "No market observations for this date",
-    "marketIgnored": "{count, number} ignored",
-    "marketBucket": {
-      "none": "No data",
-      "soft": "Soft",
-      "below": "Below market",
-      "inLine": "In line",
-      "above": "Above market",
-      "strong": "Strong"
-    },
-    "bandMin": "MIN",
-    "bandMax": "MAX"
-  },
-  "summary": {
-    "upcomingNights": "Upcoming nights",
-    "apartments": "Apartments",
-    "avgOccupancy": "Avg occupancy",
-    "onTheBooks": "On the books",
-    "avgPace": "Avg pace position",
-    "avgRateChange": "Avg rate change",
-    "vsCurrent": "Recommended vs current NET",
-    "pendingReview": "Pending review",
-    "categoriesPriced": "{count, number} room categories priced",
-    "vsCurveExpectation": "vs booking curve expectation",
-    "decisionSplit": "{accepted, number} accepted · {overridden, number} overridden",
-    "count": "{count, number}",
-    "unpricedSuffix": " · {count, number} could not be priced"
-  },
   "filters": {
     "from": "From",
     "to": "To",
@@ -323,22 +275,6 @@
     "allDecisions": "All decisions",
     "decision": "Decision",
     "categoryOption": "{category} ({units, number} units)"
-  },
-  "banner": {
-    "demoData": "Demo data",
-    "demoCurve": "Demo booking curve — not Luminous data.",
-    "shadowTitle": "Recommendations only — nothing is written to Blue Jay or any OTA.",
-    "shadowMode": "Shadow Mode",
-    "rateBookValidated": "Rate book: client-validated",
-    "rateBookTitle": "{count, number} seasonal NET bands supplied by Luminous.",
-    "bookingCurveDemo": "Booking curve: demo",
-    "pms": "PMS: {mode}",
-    "blueJayUnavailable": "Blue Jay unavailable",
-    "market": "Market: {mode}",
-    "engine": "Engine {version}",
-    "rules": "Rules v{version}",
-    "outcomes": "Outcomes: {real, number} real",
-    "outcomesSynthetic": " · {count, number} synthetic"
   },
   "drawer": {
     "loading": "Loading recommendation…",
@@ -633,7 +569,6 @@
     "today": "Today",
     "previousPeriod": "Previous period",
     "nextPeriod": "Next period",
-    "dayCount": "{count, number} days",
     "unitCount": "{count, number} units",
     "bookings": "Bookings",
     "unitUnassigned": "Not assigned to units",
@@ -653,7 +588,27 @@
       "tapToFilter": "show only these",
       "showingOnly": "showing only these"
     },
-    "nightCount": "{count, number} nights"
+    "nightCount": "{count, number} nights",
+    "rangeLabel": "Date range",
+    "ranges": {
+      "twoWeeks": "2 weeks",
+      "oneMonth": "1 month",
+      "threeMonths": "3 months",
+      "sixMonths": "6 months",
+      "custom": "Custom range"
+    },
+    "weeklyNote": "Shown by week — click a week to open it day by day.",
+    "weekAverage": "Average {rate}",
+    "clickToOpenWeek": "click to open this week",
+    "noPricingYet": "No prices calculated for this period yet.",
+    "legend": {
+      "event": "Event",
+      "attention": "Worth a look",
+      "direction": "Price up / down",
+      "noPricing": "No prices yet"
+    },
+    "from": "From",
+    "to": "To"
   },
   "marketPage": {
     "title": "Market & events",

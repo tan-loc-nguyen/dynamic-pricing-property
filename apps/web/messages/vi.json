@@ -263,54 +263,6 @@
     "shadowExplain": "Giá chỉ là đề xuất. Không có gì được gửi sang Blue Jay hay OTA — bạn tự áp dụng mức đã chấp nhận.",
     "unvalidated": "Giá NET theo mùa đã được khách hàng xác thực. Các thiết lập tiến độ, lượng đặt, sự kiện và thị trường thì chưa."
   },
-  "table": {
-    "stayDate": "Ngày lưu trú",
-    "roomCategory": "Hạng căn hộ",
-    "avail": "Trống",
-    "onTheBooks": "Đã đặt",
-    "daysToArrival": "Còn (ngày)",
-    "pace": "Tiến độ",
-    "pickup": "Lượng đặt",
-    "currentNet": "NET hiện tại",
-    "recommendedNet": "NET đề xuất",
-    "dynamic": "Điều chỉnh",
-    "inBand": "Vị trí trong khung",
-    "market": "Thị trường",
-    "event": "Sự kiện",
-    "status": "Trạng thái",
-    "review": "Xem →",
-    "noData": "Chưa có",
-    "expected": "kỳ vọng",
-    "paceGapTitle": "Chênh lệch tiến độ {gap}",
-    "marketTitle": "{count, number} quan sát đạt chuẩn, độ tin cậy {confidence}",
-    "noMarket": "Không có quan sát thị trường cho ngày này",
-    "marketIgnored": "Bỏ qua {count, number}",
-    "marketBucket": {
-      "none": "Chưa có",
-      "soft": "Yếu",
-      "below": "Dưới mặt bằng",
-      "inLine": "Ngang mặt bằng",
-      "above": "Trên mặt bằng",
-      "strong": "Mạnh"
-    },
-    "bandMin": "SÀN",
-    "bandMax": "TRẦN"
-  },
-  "summary": {
-    "upcomingNights": "Số đêm sắp tới",
-    "apartments": "Số căn hộ",
-    "avgOccupancy": "Công suất trung bình",
-    "onTheBooks": "Đã đặt",
-    "avgPace": "Tiến độ trung bình",
-    "avgRateChange": "Thay đổi giá trung bình",
-    "vsCurrent": "NET đề xuất so với hiện tại",
-    "pendingReview": "Chờ duyệt",
-    "categoriesPriced": "Đã định giá {count, number} hạng căn hộ",
-    "vsCurveExpectation": "so với kỳ vọng của đường cong đặt phòng",
-    "decisionSplit": "{accepted, number} đã chấp nhận · {overridden, number} đã điều chỉnh",
-    "count": "{count, number}",
-    "unpricedSuffix": " · {count, number} không định giá được"
-  },
   "filters": {
     "from": "Từ ngày",
     "to": "Đến ngày",
@@ -323,22 +275,6 @@
     "allDecisions": "Tất cả quyết định",
     "decision": "Quyết định",
     "categoryOption": "{category} ({units, number} căn)"
-  },
-  "banner": {
-    "demoData": "Dữ liệu mẫu",
-    "demoCurve": "Đường cong đặt phòng mẫu — không phải dữ liệu thật của Luminous.",
-    "shadowTitle": "Chỉ đề xuất — không ghi gì sang Blue Jay hay OTA.",
-    "shadowMode": "Chế độ theo dõi",
-    "rateBookValidated": "Bảng giá: khách hàng đã xác thực",
-    "rateBookTitle": "{count, number} khung giá NET theo mùa do Luminous cung cấp.",
-    "bookingCurveDemo": "Đường cong đặt phòng: dữ liệu mẫu",
-    "pms": "PMS: {mode}",
-    "blueJayUnavailable": "Không kết nối được Blue Jay",
-    "market": "Thị trường: {mode}",
-    "engine": "Bộ tính giá {version}",
-    "rules": "Quy tắc v{version}",
-    "outcomes": "Kết quả thực: {real, number} thật",
-    "outcomesSynthetic": " · {count, number} mẫu"
   },
   "drawer": {
     "loading": "Đang tải đề xuất…",
@@ -633,7 +569,6 @@
     "today": "Hôm nay",
     "previousPeriod": "Kỳ trước",
     "nextPeriod": "Kỳ sau",
-    "dayCount": "{count, number} ngày",
     "unitCount": "{count, number} căn",
     "bookings": "Đặt phòng",
     "unitUnassigned": "Chưa gán theo căn",
@@ -653,7 +588,27 @@
       "tapToFilter": "chỉ xem các đêm này",
       "showingOnly": "đang chỉ xem các đêm này"
     },
-    "nightCount": "{count, number} đêm"
+    "nightCount": "{count, number} đêm",
+    "rangeLabel": "Khoảng thời gian",
+    "ranges": {
+      "twoWeeks": "2 tuần",
+      "oneMonth": "1 tháng",
+      "threeMonths": "3 tháng",
+      "sixMonths": "6 tháng",
+      "custom": "Tùy chọn"
+    },
+    "weeklyNote": "Đang xem theo tuần — bấm vào một tuần để mở từng ngày.",
+    "weekAverage": "Trung bình {rate}",
+    "clickToOpenWeek": "bấm để mở tuần này",
+    "noPricingYet": "Chưa tính giá cho khoảng thời gian này.",
+    "legend": {
+      "event": "Sự kiện",
+      "attention": "Nên xem lại",
+      "direction": "Giá tăng / giảm",
+      "noPricing": "Chưa có giá"
+    },
+    "from": "Từ ngày",
+    "to": "Đến ngày"
   },
   "marketPage": {
     "title": "Thị trường & Sự kiện",

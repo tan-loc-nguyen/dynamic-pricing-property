@@ -1,16 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
-import { addDaysISO, dateRange, todayISO } from "@/lib/dates";
+import { addDaysISO, dateRange, nightsBetween, todayISO } from "@/lib/dates";
 import { attentionScore, needsAttention } from "@/lib/attention";
-import { PricingCalendar, type CalendarRow } from "@/components/calendar/PricingCalendar";
+import { PricingCalendar } from "@/components/calendar/PricingCalendar";
+import { CalendarLegend } from "@/components/calendar/CalendarLegend";
+import { buildColumns, buildRows, type Column, type Granularity } from "@/lib/calendarModel";
 import { RecommendationDrawer } from "@/components/RecommendationDrawer";
 import { Button, Card, Spinner } from "@/components/ui";
+import type { FormatLocale } from "@/lib/format";
 import type { Booking, Recommendation } from "@/lib/types";
 
-const RANGES = [14, 30, 60] as const;
+/**
+ * Ranges an owner actually thinks in, and the resolution each deserves.
+ *
+ * Past a month, per-night columns are a wall rather than information — 180
+ * columns are illegible and nobody prices a specific Tuesday six months out.
+ * Weeks answer the question being asked at that horizon instead.
+ */
+const RANGES = [
+  { key: "twoWeeks", days: 14 },
+  { key: "oneMonth", days: 30 },
+  { key: "threeMonths", days: 91 },
+  { key: "sixMonths", days: 182 },
+] as const;
+
+/** Longest span that still reads as day columns. Beyond it, weeks. */
+const DAY_COLUMN_LIMIT = 35;
 
 /**
  * A compact answer to "how is the next month going?".
@@ -91,8 +109,12 @@ export default function CalendarPage() {
   const t = useTranslations("calendar");
   const tc = useTranslations("common");
 
+  // START and END are both state. A preset sets them together; the date inputs
+  // set either one directly and flip the picker to "custom" — deriving `end`
+  // from a preset would make an arbitrary range unrepresentable.
   const [start, setStart] = useState(todayISO);
-  const [days, setDays] = useState<number>(30);
+  const [end, setEnd] = useState(() => addDaysISO(todayISO(), 29));
+  const [rangeKey, setRangeKey] = useState<string>("oneMonth");
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -101,8 +123,31 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const end = useMemo(() => addDaysISO(start, days - 1), [start, days]);
+  const locale = useLocale() as FormatLocale;
+
+  // Span drives resolution, whatever produced it. A custom eight-week range
+  // gets weeks for the same reason the three-month preset does.
+  const days = Math.max(1, nightsBetween(start, end) + 1);
+  const granularity: Granularity = days > DAY_COLUMN_LIMIT ? "week" : "day";
+
+  const applyPreset = (key: string) => {
+    const preset = RANGES.find((r) => r.key === key);
+    setRangeKey(key);
+    if (preset) setEnd(addDaysISO(start, preset.days - 1));
+  };
+
+  /** Shift the whole window, keeping its length. */
+  const shift = (by: number) => {
+    setStart(addDaysISO(start, by));
+    setEnd(addDaysISO(end, by));
+  };
+  // Every day in range: booking bars keep daily resolution at every zoom, which
+  // is the one place a spanning tile is genuinely right.
   const dates = useMemo(() => dateRange(start, end), [start, end]);
+  const columns = useMemo(
+    () => buildColumns(start, end, granularity, locale),
+    [start, end, granularity, locale],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,23 +170,17 @@ export default function CalendarPage() {
     load();
   }, [load]);
 
-  const rows: CalendarRow[] = useMemo(() => {
-    const byType = new Map<number, CalendarRow>();
-    for (const r of recs) {
-      let row = byType.get(r.room_type_id);
-      if (!row) {
-        row = {
-          roomTypeId: r.room_type_id,
-          category: r.room_category,
-          unitsTotal: r.units_total ?? 0,
-          byDate: new Map(),
-        };
-        byType.set(r.room_type_id, row);
-      }
-      row.byDate.set(r.stay_date, r);
-    }
-    return [...byType.values()].sort((a, b) => a.category.localeCompare(b.category));
-  }, [recs]);
+  const rows = useMemo(
+    () => buildRows(recs, granularity, locale, columns),
+    [recs, granularity, locale, columns],
+  );
+
+  /** Clicking a week zooms into it, since a week has no single price to explain. */
+  const drillDown = (column: Column) => {
+    setStart(column.startISO);
+    setEnd(addDaysISO(column.startISO, 13));
+    setRangeKey("twoWeeks");
+  };
 
   const bookingsByRoomType = useMemo(() => {
     const m = new Map<number, Booking[]>();
@@ -174,39 +213,6 @@ export default function CalendarPage() {
           <h1 className="text-[19px] font-semibold text-ink-900">{t("title")}</h1>
           <p className="text-[12px] text-ink-500">{t("subtitle")}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => setStart(todayISO())}>{t("today")}</Button>
-          <div className="flex items-center rounded-lg border border-ink-200">
-            <button
-              onClick={() => setStart(addDaysISO(start, -days))}
-              aria-label={t("previousPeriod")}
-              className="px-2.5 py-1.5 text-[13px] text-ink-600 hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            >
-              ←
-            </button>
-            <button
-              onClick={() => setStart(addDaysISO(start, days))}
-              aria-label={t("nextPeriod")}
-              className="border-l border-ink-200 px-2.5 py-1.5 text-[13px] text-ink-600 hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            >
-              →
-            </button>
-          </div>
-          <div className="flex rounded-lg border border-ink-200 overflow-hidden">
-            {RANGES.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDays(d)}
-                aria-pressed={days === d}
-                className={`px-2.5 py-1.5 text-[12px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                  days === d ? "bg-brand-600 text-white" : "text-ink-600 hover:bg-ink-50"
-                }`}
-              >
-                {t("dayCount", { count: d })}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       <DecisionSummary
@@ -231,37 +237,132 @@ export default function CalendarPage() {
         </div>
       )}
 
-      <Card className="min-h-0 max-h-full overflow-hidden p-0">
-        {loading ? (
-          <div className="flex h-full items-center justify-center gap-2 text-[12.5px] text-ink-400">
-            <Spinner /> {tc("loading")}
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-[12.5px] text-ink-400">
-            {t("empty")}
-          </div>
-        ) : (
-          <PricingCalendar
-            rows={rows}
-            dates={dates}
-            bookingsByRoomType={bookingsByRoomType}
-            expanded={expanded}
-            onToggleExpand={(id) =>
-              setExpanded((prev) => {
-                const next = new Set(prev);
-                if (next.has(id)) next.delete(id);
-                else next.add(id);
-                return next;
-              })
-            }
-            selectedId={selected?.id ?? null}
-            onSelect={setSelected}
-            onSelectBooking={() => {
-              /* booking detail is a later step; the bar already carries a tooltip */
+      <Card className="flex min-h-0 max-h-full flex-col overflow-hidden p-0">
+        {/* The calendar's own toolbar, on the calendar — not in the page
+            corner. These controls move the grid below them and nothing else. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-ink-100 px-3 py-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setStart(todayISO());
+              setEnd(addDaysISO(todayISO(), days - 1));
             }}
-            attentionOnly={attentionOnly}
-          />
-        )}
+          >
+            {t("today")}
+          </Button>
+          <div className="flex items-center rounded-lg border border-ink-200">
+            <button
+              onClick={() => shift(-days)}
+              aria-label={t("previousPeriod")}
+              className="px-2 py-1 text-[13px] text-ink-600 hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              ←
+            </button>
+            <button
+              onClick={() => shift(days)}
+              aria-label={t("nextPeriod")}
+              className="border-l border-ink-200 px-2 py-1 text-[13px] text-ink-600 hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              →
+            </button>
+          </div>
+
+          <label className="flex items-center gap-1.5">
+            <span className="sr-only">{t("rangeLabel")}</span>
+            <select
+              value={rangeKey}
+              onChange={(e) => applyPreset(e.target.value)}
+              className="rounded-lg border border-ink-200 bg-white px-2 py-1 text-[12.5px] text-ink-700
+                focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+            >
+              {RANGES.map((r) => (
+                <option key={r.key} value={r.key}>
+                  {t(`ranges.${r.key}`)}
+                </option>
+              ))}
+              <option value="custom">{t("ranges.custom")}</option>
+            </select>
+          </label>
+
+          {/* Native date inputs: they localise their own calendar and keyboard
+              behaviour for free, which a hand-rolled picker would have to earn. */}
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              aria-label={t("from")}
+              value={start}
+              max={end}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setStart(e.target.value);
+                setRangeKey("custom");
+              }}
+              className="rounded-lg border border-ink-200 px-2 py-1 text-[12px] text-ink-700
+                focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+            />
+            <span className="text-[11px] text-ink-400" aria-hidden>
+              →
+            </span>
+            <input
+              type="date"
+              aria-label={t("to")}
+              value={end}
+              min={start}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setEnd(e.target.value);
+                setRangeKey("custom");
+              }}
+              className="rounded-lg border border-ink-200 px-2 py-1 text-[12px] text-ink-700
+                focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+            />
+          </div>
+
+          {granularity === "week" && (
+            <span className="text-[11px] text-ink-400">{t("weeklyNote")}</span>
+          )}
+
+          {/* Pushed right so it reads as a key to the grid rather than as
+              another control competing with the ones on the left. */}
+          <div className="ml-auto">
+            <CalendarLegend />
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1">
+          {loading ? (
+            <div className="flex h-full items-center justify-center gap-2 text-[12.5px] text-ink-400">
+              <Spinner /> {tc("loading")}
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-[12.5px] text-ink-400">
+              {t("empty")}
+            </div>
+          ) : (
+            <PricingCalendar
+              rows={rows}
+              columns={columns}
+              dates={dates}
+              bookingsByRoomType={bookingsByRoomType}
+              expanded={expanded}
+              onToggleExpand={(id) =>
+                setExpanded((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                })
+              }
+              selectedId={selected?.id ?? null}
+              onSelect={setSelected}
+              onSelectBooking={() => {
+                /* booking detail is a later step; the bar carries a tooltip */
+              }}
+              onDrillDown={drillDown}
+              attentionOnly={attentionOnly}
+            />
+          )}
+        </div>
       </Card>
 
       <RecommendationDrawer

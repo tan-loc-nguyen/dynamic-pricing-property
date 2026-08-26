@@ -49,11 +49,6 @@ export function formatPct(
   return `${sign}${decimal(value, locale, digits)}%`;
 }
 
-export function formatOccupancy(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—";
-  return `${Math.round(value * 100)}%`;
-}
-
 function parseISODate(iso: string): Date {
   // Parse as LOCAL time. `new Date("2026-08-22")` is parsed as UTC and can
   // render as the previous day in negative-offset timezones.
@@ -103,30 +98,6 @@ export function addDaysISO(iso: string, days: number): string {
   const d = parseISODate(iso);
   d.setDate(d.getDate() + days);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/** Pace gap rendered in percentage points, e.g. "+14pp". */
-export function formatPaceGap(gap: number | null | undefined): string {
-  if (gap === null || gap === undefined) return "—";
-  const pts = Math.round(gap * 100);
-  return `${pts > 0 ? "+" : pts < 0 ? "−" : ""}${Math.abs(pts)}pp`;
-}
-
-/** Market price index -> display bucket.
- *
- * Unlike pace and pickup, this has no counterpart band in the engine — the
- * market factor is a continuous sensitivity calculation, so this bucket is
- * presentation only and cannot contradict a backend band.
- */
-export function marketBucket(
-  index: number | null | undefined,
-): "none" | "soft" | "below" | "inLine" | "above" | "strong" {
-  if (index === null || index === undefined) return "none";
-  if (index < 0.92) return "soft";
-  if (index < 0.98) return "below";
-  if (index <= 1.02) return "inLine";
-  if (index <= 1.1) return "above";
-  return "strong";
 }
 
 export function confidenceTone(c: string | null | undefined): "up" | "info" | "warn" | "neutral" {

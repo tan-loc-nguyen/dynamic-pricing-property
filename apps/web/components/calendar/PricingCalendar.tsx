@@ -2,8 +2,8 @@
 
 import { Fragment, useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { columnHeader, isToday, isWeekend, monthLabel, nightsBetween } from "@/lib/dates";
-import { attentionReasons } from "@/lib/attention";
+import { monthLabel, nightsBetween } from "@/lib/dates";
+import type { CalendarRow, Cell, Column } from "@/lib/calendarModel";
 import { useFormat } from "@/lib/useFormat";
 import type { FormatLocale } from "@/lib/format";
 import type { Booking, Recommendation } from "@/lib/types";
@@ -29,13 +29,6 @@ const GRID_MIN_COL = "4rem";
 const ROW_HEAD = "11.5rem";
 /** Height of the month band, so the day header can stick directly beneath it. */
 const MONTH_BAND = "1.6rem";
-
-export type CalendarRow = {
-  roomTypeId: number;
-  category: string;
-  unitsTotal: number;
-  byDate: Map<string, Recommendation>;
-};
 
 function templateFor(columns: number, includeRowHead = true) {
   const dates = `repeat(${columns}, minmax(${GRID_MIN_COL}, 1fr))`;
@@ -67,53 +60,73 @@ function RowHead({ children, tone = "bg-white" }: { children: React.ReactNode; t
  * everything else is a hint that there is more behind a click.
  */
 function PricingDateCell({
-  rec,
-  dateISO,
+  cell,
+  column,
   selected,
   dimmed,
   onSelect,
+  onDrillDown,
 }: {
-  rec: Recommendation | undefined;
-  dateISO: string;
+  cell: Cell | undefined;
+  column: Column;
   selected: boolean;
   dimmed: boolean;
   onSelect: (rec: Recommendation) => void;
+  onDrillDown: (column: Column) => void;
 }) {
   const locale = useLocale() as FormatLocale;
   const t = useTranslations("calendar");
   const { formatVND } = useFormat();
 
-  if (!rec) {
-    return <div className="border-r border-b border-ink-100 bg-ink-50/40" aria-hidden />;
+  // No recommendation for this column at all. Past the engine's horizon this
+  // is the normal case, and saying so is better than an empty box that looks
+  // like a rendering bug.
+  if (!cell) {
+    return (
+      <div
+        className="border-r border-b border-ink-100 bg-[repeating-linear-gradient(135deg,transparent,transparent_5px,rgba(0,0,0,0.025)_5px,rgba(0,0,0,0.025)_10px)]"
+        title={t("noPricingYet")}
+        aria-label={t("noPricingYet")}
+      />
+    );
   }
 
-  const reasons = attentionReasons(rec);
-  const change = rec.change_pct ?? 0;
-  const sold = rec.units_sold ?? 0;
-  const total = rec.units_total ?? 0;
-  const soldOut = total > 0 && sold >= total;
-  const fill = total > 0 ? Math.min(1, sold / total) : 0;
+  const soldOut = column.nights === 1 ? cell.soldOutNights > 0 : cell.soldOutNights === column.nights;
+  const fill = cell.total > 0 ? Math.min(1, cell.sold / cell.total) : 0;
 
   // Direction, not magnitude: the exact percentage lives in the drawer.
-  const arrow = change > 0.5 ? "↑" : change < -0.5 ? "↓" : "≈";
+  const arrow = cell.changePct > 0.5 ? "↑" : cell.changePct < -0.5 ? "↓" : "≈";
   const arrowTone =
-    change > 0.5 ? "text-emerald-600" : change < -0.5 ? "text-amber-600" : "text-ink-300";
+    cell.changePct > 0.5
+      ? "text-emerald-600"
+      : cell.changePct < -0.5
+        ? "text-amber-600"
+        : "text-ink-300";
 
+  const isWeek = column.nights > 1;
   const title = [
-    formatVND(rec.recommended_net_rate),
-    t("occupancyOf", { sold, total }),
-    rec.is_event && rec.event_name ? `★ ${rec.event_name}` : "",
-    reasons.length ? t("needsReview") : "",
+    isWeek ? t("weekAverage", { rate: formatVND(cell.rate) }) : formatVND(cell.rate),
+    t("occupancyOf", { sold: cell.sold, total: cell.total }),
+    cell.isEvent ? "★" : "",
+    cell.attention ? t("needsReview") : "",
+    isWeek ? t("clickToOpenWeek") : "",
   ]
     .filter(Boolean)
     .join(" · ");
 
+  // A week has no single recommendation to explain, so it drills in rather
+  // than opening one of its seven arbitrarily.
+  const activate = () => {
+    if (cell.single) onSelect(cell.single);
+    else onDrillDown(column);
+  };
+
   return (
     <button
       type="button"
-      onClick={() => onSelect(rec)}
+      onClick={activate}
       title={title}
-      aria-label={`${dateISO} · ${formatVND(rec.recommended_net_rate)}`}
+      aria-label={`${column.startISO} · ${formatVND(cell.rate)}`}
       className={`group relative min-w-0 border-r border-b border-ink-100 px-1 py-1.5 text-left transition-colors
         focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset
         ${dimmed ? "opacity-30" : ""}
@@ -121,14 +134,12 @@ function PricingDateCell({
     >
       {/* At most two marks, both in the corner. The price stays loudest. */}
       <span className="absolute top-0.5 right-0.5 flex items-center gap-0.5">
-        {rec.is_event && (
+        {cell.isEvent && (
           <span className="text-[8px] leading-none text-violet-500" aria-hidden>
             ★
           </span>
         )}
-        {reasons.length > 0 && (
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
-        )}
+        {cell.attention && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />}
       </span>
 
       <div className="flex items-baseline gap-0.5">
@@ -137,7 +148,7 @@ function PricingDateCell({
             soldOut ? "text-ink-400" : "text-ink-900"
           }`}
         >
-          {compactRate(rec.recommended_net_rate, locale)}
+          {compactRate(cell.rate, locale)}
         </span>
         <span className={`text-[10px] leading-none ${arrowTone}`} aria-hidden>
           {arrow}
@@ -153,7 +164,7 @@ function PricingDateCell({
           />
         </div>
         <span className="tnum shrink-0 text-[9.5px] leading-none text-ink-400">
-          {soldOut ? t("full") : total - sold}
+          {soldOut ? t("full") : cell.total - cell.sold}
         </span>
       </div>
     </button>
@@ -243,6 +254,7 @@ function BookingLanes({
 
 export function PricingCalendar({
   rows,
+  columns,
   dates,
   bookingsByRoomType,
   expanded,
@@ -250,9 +262,12 @@ export function PricingCalendar({
   selectedId,
   onSelect,
   onSelectBooking,
+  onDrillDown,
   attentionOnly,
 }: {
   rows: CalendarRow[];
+  columns: Column[];
+  /** Every DAY in range. Booking bars keep daily resolution at every zoom. */
   dates: string[];
   bookingsByRoomType: Map<number, Booking[]>;
   expanded: Set<number>;
@@ -260,27 +275,28 @@ export function PricingCalendar({
   selectedId: number | null;
   onSelect: (rec: Recommendation) => void;
   onSelectBooking: (b: Booking) => void;
+  onDrillDown: (column: Column) => void;
   attentionOnly: boolean;
 }) {
   const locale = useLocale() as FormatLocale;
   const t = useTranslations("calendar");
   const tv = useTranslations("vocab");
 
-  // Month bands above the day columns, so a 60-day range still reads.
+  // Month bands above the columns, so a long range still reads.
   const months = useMemo(() => {
     const out: { label: string; span: number }[] = [];
-    for (const iso of dates) {
-      const label = monthLabel(iso, locale);
+    for (const c of columns) {
+      const label = monthLabel(c.startISO, locale);
       const last = out[out.length - 1];
       if (last && last.label === label) last.span += 1;
       else out.push({ label, span: 1 });
     }
     return out;
-  }, [dates, locale]);
+  }, [columns, locale]);
 
   return (
     <div className="h-full overflow-auto">
-      <div className="grid" style={{ gridTemplateColumns: templateFor(dates.length) }}>
+      <div className="grid" style={{ gridTemplateColumns: templateFor(columns.length) }}>
         {/* ------------------------------------------------ month band */}
         <div className="sticky left-0 top-0 z-30 border-r border-b border-ink-100 bg-white" />
         {months.map((m) => (
@@ -303,35 +319,30 @@ export function PricingCalendar({
             {t("roomType")}
           </span>
         </div>
-        {dates.map((iso) => {
-          const { weekday, day } = columnHeader(iso, locale);
-          const today = isToday(iso);
-          const weekend = isWeekend(iso);
-          return (
+        {columns.map((c) => (
+          <div
+            key={c.key}
+            style={{ top: MONTH_BAND }}
+            className={`sticky z-20 border-r border-b border-ink-200 px-1 py-1 text-center ${
+              c.isToday ? "bg-brand-50" : c.isWeekend ? "bg-ink-50" : "bg-white"
+            }`}
+          >
             <div
-              key={iso}
-              style={{ top: MONTH_BAND }}
-              className={`sticky z-20 border-r border-b border-ink-200 px-1 py-1 text-center ${
-                today ? "bg-brand-50" : weekend ? "bg-ink-50" : "bg-white"
+              className={`truncate text-[9.5px] font-medium uppercase leading-tight ${
+                c.isToday ? "text-brand-700" : "text-ink-400"
               }`}
             >
-              <div
-                className={`text-[9.5px] font-medium uppercase leading-tight ${
-                  today ? "text-brand-700" : "text-ink-400"
-                }`}
-              >
-                {weekday}
-              </div>
-              <div
-                className={`tnum truncate text-[11.5px] leading-tight ${
-                  today ? "font-bold text-brand-700" : "font-medium text-ink-700"
-                }`}
-              >
-                {day}
-              </div>
+              {c.top}
             </div>
-          );
-        })}
+            <div
+              className={`tnum truncate text-[11.5px] leading-tight ${
+                c.isToday ? "font-bold text-brand-700" : "font-medium text-ink-700"
+              }`}
+            >
+              {c.bottom}
+            </div>
+          </div>
+        ))}
 
         {/* -------------------------------------------------------- rows */}
         {rows.map((row) => {
@@ -364,16 +375,17 @@ export function PricingCalendar({
                 </div>
               </RowHead>
 
-              {dates.map((iso) => {
-                const rec = row.byDate.get(iso);
+              {columns.map((c) => {
+                const cell = row.byColumn.get(c.key);
                 return (
                   <PricingDateCell
-                    key={iso}
-                    rec={rec}
-                    dateISO={iso}
-                    selected={!!rec && rec.id === selectedId}
-                    dimmed={attentionOnly && !!rec && attentionReasons(rec).length === 0}
+                    key={c.key}
+                    cell={cell}
+                    column={c}
+                    selected={!!cell?.single && cell.single.id === selectedId}
+                    dimmed={attentionOnly && !!cell && !cell.attention}
                     onSelect={onSelect}
+                    onDrillDown={onDrillDown}
                   />
                 );
               })}
