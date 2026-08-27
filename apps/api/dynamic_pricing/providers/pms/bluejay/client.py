@@ -37,6 +37,10 @@ class BlueJayClient:
         hotel_id: str,
         timeout: float = 15.0,
         auth_header: str = "X-API-KEY",
+        # BOTH are guesses. The document says the key goes in "the Header" and
+        # never names it, nor states the scheme. Configurable so a wrong guess
+        # costs one .env line rather than a code edit inside a 30-minute window.
+        auth_style: str = "raw",
         transport: httpx.BaseTransport | None = None,
         now: Callable[[], datetime] | None = None,
         ignore_window: bool = False,
@@ -45,6 +49,7 @@ class BlueJayClient:
         self.hotel_id = str(hotel_id)
         self.timeout = timeout
         self.auth_header = auth_header
+        self.auth_style = (auth_style or "raw").strip().lower()
         # Single leading underscore and never rendered: see __repr__.
         self._api_key = api_key
         self._transport = transport
@@ -86,7 +91,8 @@ class BlueJayClient:
             if value is not None:
                 query[key] = value
 
-        headers = {self.auth_header: self._api_key, "Accept": "application/json"}
+        value = f"Bearer {self._api_key}" if self.auth_style == "bearer" else self._api_key
+        headers = {self.auth_header: value, "Accept": "application/json"}
         # `with` closes the transport on exit, including one that was handed in.
         # Harmless today because production passes None, but a caller reusing an
         # injected transport across calls would find it closed after the first.

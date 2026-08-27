@@ -44,6 +44,9 @@ from .client import BlueJayClient
 DATE_TYPE_STAY_NIGHT = 3
 
 UNRESOLVED_MAPPINGS = [
+    "WHICH HEADER carries the API key, and whether it is raw or 'Bearer <key>'. The "
+    "document says only that it goes in 'the Header'. We default to X-API-KEY raw; "
+    "BLUEJAY_AUTH_HEADER and BLUEJAY_AUTH_STYLE change it without a code edit.",
     "Confirm the '24:00-24:59' testing window — it is not clock notation.",
     "Response schema for roomtype-list and roomdetail-list (the document gives no sample).",
     "Whether `roomPrice` is a STAY TOTAL or a NIGHTLY rate — both samples are night=1, "
@@ -119,6 +122,8 @@ class BlueJayPMSProvider(PMSProvider):
             api_key=settings.bluejay_api_key,
             hotel_id=settings.bluejay_hotel_id,
             timeout=settings.bluejay_timeout_seconds,
+            auth_header=settings.bluejay_auth_header,
+            auth_style=settings.bluejay_auth_style,
         )
         return self._client
 

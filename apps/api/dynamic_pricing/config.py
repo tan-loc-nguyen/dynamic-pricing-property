@@ -48,9 +48,11 @@ class Settings:
         # Never hard-code credentials. All values come from the environment.
         self.bluejay_base_url: str | None = os.getenv("BLUEJAY_BASE_URL") or None
         self.bluejay_api_key: str | None = os.getenv("BLUEJAY_API_KEY") or None
-        self.bluejay_property_ids: list[str] = [
-            p.strip() for p in os.getenv("BLUEJAY_PROPERTY_IDS", "").split(",") if p.strip()
-        ]
+        # How the key is presented. UNVERIFIED: the API document states only
+        # that it goes in "the Header". BLUEJAY_HOTEL_ID replaced the old
+        # BLUEJAY_PROPERTY_IDS, which nothing reads any more.
+        self.bluejay_auth_header: str = os.getenv("BLUEJAY_AUTH_HEADER", "X-API-KEY").strip()
+        self.bluejay_auth_style: str = os.getenv("BLUEJAY_AUTH_STYLE", "raw").strip().lower()
         self.bluejay_timeout_seconds: float = float(os.getenv("BLUEJAY_TIMEOUT_SECONDS", "15"))
         self.bluejay_hotel_id: str = os.getenv("BLUEJAY_HOTEL_ID", "").strip()
         # user_data_dir(), NOT REPO_ROOT — for exactly the reason the database

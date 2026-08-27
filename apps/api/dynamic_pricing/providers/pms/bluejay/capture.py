@@ -161,8 +161,34 @@ def run_capture(
             # paths in the document are internally inconsistent.
             result.errors.append(f"{step.name}: {type(exc).__name__}: {exc}")
             continue
-        raw_payloads[step.name] = payload
+        # RAW always, even for an error: it is evidence, and an error body is
+        # often the most informative thing a first window produces — it is what
+        # tells us the auth header guess was wrong.
         _write(result.raw_dir / f"{step.name}.json", payload)
+
+        # Validate BEFORE treating it as data. An error carrying HTTP 200 was
+        # being written to the snapshot like any success, producing a capture
+        # that looked complete and asserted an empty hotel on every replay.
+        try:
+            normalize._check_envelope(payload)  # noqa: SLF001 - same package
+        except normalize.VendorPayloadError as exc:
+            result.errors.append(f"{step.name}: {exc}")
+            continue
+
+        # A filter endpoint with no rows is not "a property with no rooms", it
+        # is a shape we misread — and it sets units_total to 0 for every
+        # category, which makes occupancy undefined across the horizon.
+        if step.allowlist is not None and step.name != "source-list":
+            rows_seen = payload.get("data") if isinstance(payload, dict) else payload
+            if not isinstance(rows_seen, list) or not rows_seen:
+                result.errors.append(
+                    f"{step.name}: returned no rows in a shape we recognise "
+                    f"({type(rows_seen).__name__}). Check the raw file — the response "
+                    f"schema for this endpoint is undocumented and inferred."
+                )
+                continue
+
+        raw_payloads[step.name] = payload
 
         if step.name == "reservation":
             clean: Any = sanitize.sanitize_reservations(payload)

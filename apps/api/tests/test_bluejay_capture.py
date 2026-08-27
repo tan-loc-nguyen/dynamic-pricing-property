@@ -115,13 +115,27 @@ def test_the_snapshot_carries_no_guest_identity_whatsoever(tmp_path):
         assert leaked not in clean
 
 
-def test_the_snapshot_records_whether_its_pseudonyms_are_actually_protected(tmp_path):
+def test_the_snapshot_records_whether_its_pseudonyms_are_actually_protected(
+    tmp_path, monkeypatch
+):
     """A snapshot pseudonymised with the public fixture salt is reversible in
-    under a second. Whoever loads it must be told."""
-    result = cap.run_capture(_client(), tmp_path, date(2026, 5, 1), date(2026, 6, 1))
+    under a second. Whoever loads it must be told.
+
+    Both directions, and the environment is CONTROLLED. An earlier version
+    asserted only `False` and passed purely because no salt happened to be set
+    on the machine — so the moment a real one was configured, a correct system
+    failed a test that was measuring its own surroundings.
+    """
+    monkeypatch.delenv("BLUEJAY_PSEUDONYM_SALT", raising=False)
+    result = cap.run_capture(_client(), tmp_path / "public", date(2026, 5, 1), date(2026, 6, 1))
     meta = json.loads((result.snapshot_dir / "meta.json").read_text(encoding="utf-8"))
     assert meta["salt_is_private"] is False
     assert meta["sanitised"] is True
+
+    monkeypatch.setenv("BLUEJAY_PSEUDONYM_SALT", "a-private-salt")
+    result = cap.run_capture(_client(), tmp_path / "private", date(2026, 5, 1), date(2026, 6, 1))
+    meta = json.loads((result.snapshot_dir / "meta.json").read_text(encoding="utf-8"))
+    assert meta["salt_is_private"] is True
 
 
 def test_the_snapshot_records_when_it_was_captured(tmp_path):
@@ -159,3 +173,58 @@ def test_the_capture_reports_both_room_type_name_vocabularies(tmp_path):
     result = cap.run_capture(_client(), tmp_path, date(2026, 5, 1), date(2026, 6, 1))
     assert "Căn hộ 3 phòng ngủ" in result.reservation_room_type_names
     assert "X" in result.filter_room_type_names
+
+
+def test_an_error_envelope_does_not_produce_a_clean_looking_snapshot(tmp_path):
+    """D33 in the capture tool.
+
+    An error carrying HTTP 200 was written to the snapshot like any success:
+    six files, `sanitised: true`, no errors recorded — and the snapshot
+    provider then reported it healthy while it asserted an empty hotel on every
+    replay. A capture taken during a soft failure has to be recognisable AS one.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "error", "message": "No access", "data": []})
+
+    client = BlueJayClient(
+        base_url="https://api-test.example/api/v2", api_key="k", hotel_id="1003",
+        transport=httpx.MockTransport(handler), now=lambda: INSIDE,
+    )
+    result = cap.run_capture(client, tmp_path, date(2026, 5, 1), date(2026, 6, 1))
+    assert result.errors, "an error envelope must be recorded as an error"
+    assert any("No access" in e for e in result.errors), "the vendor's reason must survive"
+
+    meta = json.loads((result.snapshot_dir / "meta.json").read_text(encoding="utf-8"))
+    assert meta["sanitised"] is False
+
+
+def test_the_raw_response_is_kept_even_when_it_is_an_error(tmp_path):
+    """Raw is EVIDENCE. An error body is often the most informative thing a
+    first window produces, and it is what tells us the auth guess was wrong."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "error", "message": "No access", "data": []})
+
+    client = BlueJayClient(
+        base_url="https://api-test.example/api/v2", api_key="k", hotel_id="1003",
+        transport=httpx.MockTransport(handler), now=lambda: INSIDE,
+    )
+    result = cap.run_capture(client, tmp_path, date(2026, 5, 1), date(2026, 6, 1))
+    assert (result.raw_dir / "reservation.json").is_file()
+    assert "No access" in (result.raw_dir / "reservation.json").read_text(encoding="utf-8")
+
+
+def test_a_filter_endpoint_returning_no_rows_is_recorded_as_a_problem(tmp_path):
+    """`{"data": {"items": []}}` sanitised to `{"data": []}` in silence. Zero
+    room types is not a property with no rooms — it is a shape we misread, and
+    it sets units_total to 0 for every category."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("reservation"):
+            return httpx.Response(200, json={"data": {"type": "reservation", "attributes": {"reservations": []}}})
+        return httpx.Response(200, json={"data": {"items": []}})
+
+    client = BlueJayClient(
+        base_url="https://api-test.example/api/v2", api_key="k", hotel_id="1003",
+        transport=httpx.MockTransport(handler), now=lambda: INSIDE,
+    )
+    result = cap.run_capture(client, tmp_path, date(2026, 5, 1), date(2026, 6, 1))
+    assert any("roomtype-list" in e for e in result.errors)

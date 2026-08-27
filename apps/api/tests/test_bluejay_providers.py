@@ -574,3 +574,59 @@ def test_a_horizon_crossing_a_season_boundary_does_not_reuse_one_seasons_band():
     assert len(set(rates.values())) > 1, (
         "every date got the same seasonal base across a horizon spanning three seasons"
     )
+
+
+# =========================================================================
+# 8. The auth header name is a GUESS and must be changeable without a deploy
+# =========================================================================
+
+
+def test_the_api_key_goes_in_a_configurable_header():
+    """The document says the key goes in "the Header" and never names it.
+
+    `X-API-KEY` is our guess. If it is wrong every call 401s, and discovering
+    that inside a thirty-minute shared window is not the moment to be editing
+    source. One .env line has to be enough to try another.
+    """
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(dict(request.headers))
+        return httpx.Response(200, json={"data": []})
+
+    client = bj_client.BlueJayClient(
+        base_url="https://api-test.example/api/v2",
+        api_key="k",
+        hotel_id="1003",
+        auth_header="Authorization",
+        auth_style="bearer",
+        transport=httpx.MockTransport(handler),
+        now=lambda: INSIDE_WINDOW,
+    )
+    client.get("reservation", {})
+    assert seen[0]["authorization"] == "Bearer k"
+
+
+def test_the_default_header_is_the_one_we_guessed_from_the_document():
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(dict(request.headers))
+        return httpx.Response(200, json={"data": []})
+
+    client = bj_client.BlueJayClient(
+        base_url="https://api-test.example/api/v2",
+        api_key="k",
+        hotel_id="1003",
+        transport=httpx.MockTransport(handler),
+        now=lambda: INSIDE_WINDOW,
+    )
+    client.get("reservation", {})
+    assert seen[0]["x-api-key"] == "k"
+
+
+def test_the_unnamed_auth_header_is_listed_as_unresolved():
+    """A guess we are relying on has to be visible as a guess."""
+    from dynamic_pricing.providers.pms.bluejay.provider import UNRESOLVED_MAPPINGS
+
+    assert any("header" in m.lower() for m in UNRESOLVED_MAPPINGS)
