@@ -394,13 +394,10 @@ def test_units_total_is_the_count_of_physical_rooms_in_that_room_type():
     """ASSUMPTIONS U11, the hard blocker: occupancy is per room type, so the
     unit split has to be real rather than the seeded 10/8/4 guess."""
     room_types = [{"roomtypeId": 6153, "roomtypeName": "Căn hộ 3 phòng ngủ"}]
-    rooms = [
-        {"roomdetailId": 1, "roomtypeId": 6153, "roomName": "B - 1"},
-        {"roomdetailId": 2, "roomtypeId": 6153, "roomName": "B - 2"},
-        {"roomdetailId": 3, "roomtypeId": 6153, "roomName": "B - 3"},
-    ]
+    # Keyed by roomtypeId: one `roomdetail-list?roomtypeId=` call per type.
+    rooms_by_type = {"6153": [{"roomName": "B - 1"}, {"roomName": "B - 2"}, {"roomName": "B - 3"}]}
     out = normalize.room_types_to_dtos(
-        room_types, rooms, category_map=CATEGORY_MAP, property_external_id="1003"
+        room_types, rooms_by_type, category_map=CATEGORY_MAP, property_external_id="1003"
     )
     assert out[0].units_total == 3
 
@@ -409,7 +406,7 @@ def test_a_room_type_with_no_units_is_reported_rather_than_priced():
     room_types = [{"roomtypeId": 6153, "roomtypeName": "Căn hộ 3 phòng ngủ"}]
     report = normalize.NormalisationReport()
     normalize.room_types_to_dtos(
-        room_types, [], category_map=CATEGORY_MAP, property_external_id="1003", report=report
+        room_types, {}, category_map=CATEGORY_MAP, property_external_id="1003", report=report
     )
     assert report.warnings, "zero units breaks occupancy and must not pass silently"
 
@@ -595,22 +592,39 @@ def test_a_category_with_no_rate_from_any_source_is_marked_unavailable():
     assert inv[0].rate_provenance == "unavailable"
 
 
-def test_a_tentative_hold_does_not_occupy_a_room():
-    """`đã đặt` (booked) and `giữ chỗ` (holding a place) both map to vendor code
-    1, but only one is real occupancy. Counting a hold inflates occupancy,
-    which inflates pace, which pushes prices UP on dates that are not filling."""
-    report = normalize.NormalisationReport()
+def test_a_held_room_counts_as_occupied():
+    """VERIFIED: code 1 returns exactly one string, `Đang giữ phòng`
+    ("currently holding the room").
+
+    An earlier version split this into `đã đặt` (firm) and `giữ chỗ` (tentative)
+    and counted only the first. Both strings were invented — the API returns
+    neither — so the distinction they encoded does not exist.
+
+    A held room cannot be sold to anyone else, so it is not available
+    inventory. Counting it as occupied is the reading that matches what the
+    operator can actually sell.
+    """
     out = normalize.reservations_to_bookings(
-        _payload(_reservation(status="Giữ chỗ")), category_map=CATEGORY_MAP, report=report
+        _payload(_reservation(status="Đang giữ phòng")), category_map=CATEGORY_MAP
+    )
+    assert len(out) == 3
+
+
+def test_a_no_show_does_not_occupy_a_room():
+    """VERIFIED string for code 2."""
+    out = normalize.reservations_to_bookings(
+        _payload(_reservation(status="Không đến")), category_map=CATEGORY_MAP
     )
     assert out == []
 
 
-def test_a_firm_booking_does_occupy_a_room():
-    out = normalize.reservations_to_bookings(
-        _payload(_reservation(status="Đã đặt")), category_map=CATEGORY_MAP
-    )
-    assert len(out) == 3
+def test_a_completed_stay_still_counted_as_having_occupied():
+    """Codes 3 and 4 — the guest was, or is, in the room."""
+    for text in ("Đã nhận phòng", "Đã trả phòng"):
+        out = normalize.reservations_to_bookings(
+            _payload(_reservation(status=text)), category_map=CATEGORY_MAP
+        )
+        assert len(out) == 3, text
 
 
 def test_reservations_missing_a_booking_code_stay_distinguishable():
@@ -689,16 +703,22 @@ def test_a_success_envelope_with_no_rows_is_empty_not_an_error():
     assert normalize.reservations_to_bookings(payload, category_map=CATEGORY_MAP) == []
 
 
-def test_a_multi_night_stay_flags_that_the_room_price_basis_is_unverified():
-    """Both documented samples are `night: 1`, where a stay total and a nightly
-    rate are the SAME NUMBER — so the document provides no evidence for which
-    `roomPrice` is. It drives change_pct, i.e. the calendar's change column and
-    the bigChange attention threshold."""
+def test_a_multi_night_stay_needs_no_caveat_now_that_the_basis_is_verified():
+    """VERIFIED 2026-08-27, so the caveat is gone.
+
+    Real multi-night bookings settled it: 1 night = 500,000, 3 nights =
+    1,500,000, 4 nights = 2,000,000 — one nightly rate throughout. `roomPrice`
+    is the STAY TOTAL and dividing by nights is correct.
+
+    Kept as a test rather than deleted: a warning on every multi-night booking
+    would be nine discrepancies out of twenty-two on real data, which trains an
+    operator to ignore the report entirely.
+    """
     report = normalize.NormalisationReport()
     normalize.reservations_to_bookings(
         _payload(_reservation()), category_map=CATEGORY_MAP, report=report
     )
-    assert any("roomPrice" in d for d in report.discrepancies)
+    assert not any("roomPrice" in d for d in report.discrepancies)
 
 
 def test_a_single_night_stay_needs_no_room_price_caveat():
@@ -760,18 +780,17 @@ def test_two_rooms_on_one_booking_code_get_distinct_row_ids():
     assert len({b.external_id for b in out}) == 2
 
 
-def test_a_physical_room_pointing_at_an_unknown_room_type_is_reported():
-    """It vanishes from units_total, so occupancy = sold/total is OVERSTATED and
-    the engine recommends higher prices than warranted. Direction matters."""
-    report = normalize.NormalisationReport()
-    normalize.room_types_to_dtos(
-        [{"roomtypeId": 6153, "roomtypeName": "Căn hộ 3 phòng ngủ"}],
-        [{"roomdetailId": 1, "roomtypeId": 9999, "roomName": "X - 1"}],
+def test_rooms_returned_for_a_type_we_never_asked_about_are_ignored():
+    """Superseded shape: rooms now arrive keyed by the roomtypeId we requested,
+    so an "orphan room" cannot occur. What CAN occur is a key for a type absent
+    from roomtype-list — it must not be silently folded into a category."""
+    out = normalize.room_types_to_dtos(
+        [{"id": 6153, "name": "Căn hộ 3 phòng ngủ"}],
+        {"6153": [{"roomName": "B - 1"}], "9999": [{"roomName": "X - 1"}]},
         category_map=CATEGORY_MAP,
         property_external_id="1003",
-        report=report,
     )
-    assert any("9999" in w for w in report.warnings)
+    assert [(d.external_id, d.units_total) for d in out] == [("3br", 1)]
 
 
 def test_an_all_zero_occupancy_row_of_junk_is_not_certified_as_sound():
@@ -792,7 +811,7 @@ def test_the_sanitiser_keeps_whatever_spelling_the_parser_accepts():
     assert cleaned and cleaned[0], "case-different keys must survive sanitisation"
     assert normalize.room_types_to_dtos(
         [{"roomtypeId": 6153, "roomtypeName": "Căn hộ 3 phòng ngủ"}],
-        cleaned,
+        {"6153": cleaned},
         category_map=CATEGORY_MAP,
         property_external_id="1003",
     )[0].units_total == 1
@@ -1018,15 +1037,18 @@ def test_room_details_carry_no_room_type_so_units_cannot_be_counted_from_them():
     single unfiltered call silently attributes every room to nothing.
     """
     assert all("roomtypeId" not in row for row in OBSERVED_ROOMDETAIL_LIST["data"])
+    # An unfiltered list cannot be keyed by type at all, so it yields nothing
+    # and every type is reported as having no rooms.
     report = normalize.NormalisationReport()
-    normalize.room_types_to_dtos(
+    out = normalize.room_types_to_dtos(
         OBSERVED_ROOMTYPE_LIST["data"],
-        OBSERVED_ROOMDETAIL_LIST["data"],
+        {},
         category_map={"Căn hộ 02 phòng ngủ": "2br_regular", "Ninh Bình": "3br"},
         property_external_id="1003",
         report=report,
     )
-    assert report.warnings, "zero units for every type must not pass silently"
+    assert all(d.units_total == 0 for d in out)
+    assert len(report.warnings) == 2, "each type with no rooms must be reported"
 
 
 #: Verbatim. Two DISTINCT error grammars, and which one you get tells you the
@@ -1066,3 +1088,217 @@ def test_an_ignored_room_type_filter_is_detected_rather_than_trusted():
     every_room = [{"id": i, "roomName": f"R - {i}"} for i in range(1, 68)]
     assert normalize.filter_looks_ignored(rows=every_room, unfiltered_total=67) is True
     assert normalize.filter_looks_ignored(rows=every_room[:4], unfiltered_total=67) is False
+
+
+# =========================================================================
+# 14. OBSERVED in the 16:00 window — the reservation endpoint finally answered
+# =========================================================================
+
+#: Verbatim shape. A ROW IS ONE ROOM WITHIN A BOOKING: `bookingCode` repeats,
+#: and one observed booking spanned 22 rows across 6 room types.
+OBSERVED_RESERVATION_ROWS = [
+    {"bookingCode": "CT002105", "roomType": "DUMY", "roomName": "Unassigned",
+     "source": "BE", "status": "Đang giữ phòng", "bookDate": "2026-08-03 09:12:44",
+     "checkInTime": "2026-08-03", "checkOutTime": "2026-08-04", "night": 1, "roomPrice": 100000},
+    {"bookingCode": "CT002105", "roomType": "Căn hộ 02 phòng ngủ", "roomName": "Unassigned",
+     "source": "BE", "status": "Đang giữ phòng", "bookDate": "2026-08-03 09:12:44",
+     "checkInTime": "2026-08-03", "checkOutTime": "2026-08-04", "night": 1, "roomPrice": 200000},
+]
+
+
+def _wrap(rows):
+    return {"data": {"type": "reservation", "attributes": {"reservations": rows}}}
+
+
+def test_unassigned_rows_in_one_booking_do_not_collide():
+    """OBSERVED: `roomName` can be the placeholder `"Unassigned"`, and one
+    booking carried FOUR of them on the same night.
+
+    Our key was (bookingCode, roomName, stay_date) — identical for all of them,
+    so they overwrote each other. 7 colliding groups in 100 real rows, up to 5
+    rows deep. Fewer bookings means understated occupancy, understated pace,
+    and a price pushed DOWN.
+    """
+    out = normalize.reservations_to_bookings(
+        _wrap(OBSERVED_RESERVATION_ROWS),
+        category_map={"DUMY": "3br", "Căn hộ 02 phòng ngủ": "2br_regular"},
+    )
+    assert len(out) == 2
+    assert len({b.external_id for b in out}) == 2
+
+
+def test_unassigned_is_not_recorded_as_a_physical_room():
+    """It is a placeholder meaning "no room chosen yet", not a room called
+    Unassigned. Storing it would invent a unit that does not exist."""
+    out = normalize.reservations_to_bookings(
+        _wrap(OBSERVED_RESERVATION_ROWS),
+        category_map={"DUMY": "3br", "Căn hộ 02 phòng ngủ": "2br_regular"},
+    )
+    assert all(b.physical_room_external_id is None for b in out)
+
+
+def test_the_verified_status_vocabulary_is_what_the_api_returns():
+    """Derived empirically by filtering on each documented integer code and
+    reading back the string. `đã đặt` and `giữ chỗ` were both WRONG — code 1
+    returns exactly one string, `Đang giữ phòng`."""
+    expected = {
+        "đã xác nhận": 0, "đang giữ phòng": 1, "không đến": 2,
+        "đã nhận phòng": 3, "đã trả phòng": 4, "đã huỷ": 5,
+    }
+    for text, code in expected.items():
+        meaning = normalize.status_meaning(text)
+        assert meaning is not None, f"{text!r} is not in our vocabulary"
+        assert meaning.code == code, f"{text!r} -> {meaning.code}, expected {code}"
+        assert meaning.observed, f"{text!r} should be marked observed"
+
+
+def test_the_wrong_guesses_are_gone():
+    """Keeping a string the API never returns is a claim about its behaviour."""
+    for wrong in ("đã đặt", "giữ chỗ"):
+        assert normalize.status_meaning(wrong) is None, f"{wrong!r} was never returned by the API"
+
+
+def test_a_commissioned_source_reduces_the_net_rate():
+    """VERIFIED: `roomPrice` is a GROSS, guest-facing amount.
+
+    Evidence, from 122 real reservations:
+      * `balance == totalPrice - payment` on 122/122 rows, and a refunded
+        booking shows balance = -600,000. `balance` is a GUEST LEDGER, so
+        `totalPrice` is what the GUEST OWES — not the hotel's receipt.
+      * `commiission` lives on the SOURCE, not the booking. A per-channel
+        commission percentage only has something to act on if the booking
+        amount is gross.
+
+    This whole product prices in NET (V2), so a booking through a commissioned
+    channel must have the commission removed. Every observed booking came from
+    `BE` at 0%, so this changes nothing today and everything the moment an OTA
+    booking appears.
+    """
+    out = normalize.reservations_to_bookings(
+        _payload(_reservation(source="Viettravel", roomPrice=3_000_000, night=3,
+                              checkOutTime="2026-05-24")),
+        category_map=CATEGORY_MAP,
+        source_commission={"viettravel": 10.0},
+    )
+    # 3,000,000 gross over 3 nights = 1,000,000/night gross -> 900,000 NET
+    assert {b.net_rate for b in out} == {900_000.0}
+
+
+def test_a_zero_commission_source_is_unchanged():
+    out = normalize.reservations_to_bookings(
+        _payload(_reservation(source="BE", roomPrice=3_000_000, night=3,
+                              checkOutTime="2026-05-24")),
+        category_map=CATEGORY_MAP,
+        source_commission={"be": 0.0},
+    )
+    assert {b.net_rate for b in out} == {1_000_000.0}
+
+
+def test_an_unknown_commission_is_reported_rather_than_assumed_zero():
+    """Assuming 0% silently overstates NET for every commissioned channel,
+    which overstates achieved rate and biases recommendations UP."""
+    report = normalize.NormalisationReport()
+    normalize.reservations_to_bookings(
+        _payload(_reservation(source="Agoda")), category_map=CATEGORY_MAP,
+        source_commission={}, report=report,
+    )
+    assert any("commission" in w.lower() for w in report.warnings)
+
+
+# =========================================================================
+# 15. Wiring the verified contract — units come from PER-TYPE calls
+# =========================================================================
+
+
+def test_units_come_from_per_room_type_calls_not_a_flat_list():
+    """A real `roomdetail-list` row is `{id, roomName}` with NO roomtypeId, so
+    a flat list cannot be grouped and every category came out with ZERO units.
+
+    The counts must come from `roomdetail-list?roomtypeId=`, one call per type,
+    which is exactly how the 15/67 split was verified live.
+    """
+    room_types = [
+        {"id": 6153, "name": "Căn hộ 02 phòng ngủ", "code": "TPL"},
+        {"id": 6154, "name": "Ninh Bình", "code": "DB"},
+    ]
+    rooms_by_type = {
+        "6153": [{"id": 1, "roomName": "R - 401"}, {"id": 2, "roomName": "R - 402"}],
+        "6154": [{"id": 11, "roomName": "DB(1) - 401"}],
+    }
+    out = normalize.room_types_to_dtos(
+        room_types,
+        rooms_by_type,
+        category_map={"Căn hộ 02 phòng ngủ": "2br_regular", "Ninh Bình": "3br"},
+        property_external_id="1003",
+    )
+    assert {(d.external_id, d.units_total) for d in out} == {("2br_regular", 2), ("3br", 1)}
+
+
+def test_two_room_types_mapped_to_one_category_sum_their_units():
+    out = normalize.room_types_to_dtos(
+        [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}],
+        {"1": [{"roomName": "x"}], "2": [{"roomName": "y"}, {"roomName": "z"}]},
+        category_map={"A": "3br", "B": "3br"},
+        property_external_id="1003",
+    )
+    assert [(d.external_id, d.units_total) for d in out] == [("3br", 3)]
+
+
+def test_a_room_type_whose_filter_was_ignored_is_refused_not_counted():
+    """OBSERVED: a non-integer or comma-separated `roomtypeId` returns EVERY
+    room with status Success. Counting that would tell us one room type has the
+    whole hotel — inflating units_total, understating occupancy, and pushing
+    that category's price DOWN."""
+    report = normalize.NormalisationReport()
+    all_rooms = [{"roomName": f"R{i}"} for i in range(67)]
+    out = normalize.room_types_to_dtos(
+        [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}],
+        {"1": all_rooms, "2": [{"roomName": "x"}]},
+        category_map={"A": "3br", "B": "2br_regular"},
+        property_external_id="1003",
+        unfiltered_room_total=67,
+        report=report,
+    )
+    by = {d.external_id: d.units_total for d in out}
+    assert by["3br"] == 0, "a suspected-unfiltered response must not be counted"
+    assert by["2br_regular"] == 1
+    assert any("ignored" in w.lower() or "unfiltered" in w.lower() for w in report.warnings)
+
+
+def test_the_occupancy_check_accepts_the_field_name_the_api_actually_sends():
+    """VERIFIED: the real field is `EmptyRoom`. The document says `RoomEmpty`.
+
+    Reading only the documented name made every real row "unparseable", which
+    the consistency check reported as a problem and skipped — so occupancy came
+    out as ZERO for every date while the data was perfectly good.
+    """
+    real = {"Date": "21/05/2026", "RoomOccupied": 1, "Blocked": 0, "TotalRoom": 2,
+            "EmptyRoom": 1, "OccupancyRate": 50.0}
+    assert normalize.occupancy_row_problem(real) is None
+    # the documented spelling must keep working, for the doc-derived fixtures
+    doc = {"TotalRoom": 30, "RoomOccupied": 20, "Blocked": 3, "RoomEmpty": 7}
+    assert normalize.occupancy_row_problem(doc) is None
+
+
+def test_occupancy_to_units_reads_a_real_report_row():
+    payload = {"status": "Success", "message": "ok", "data": {"GrandTotal": {"RoomTypes": [
+        {"RoomTypeId": 6153, "RoomTypeName": "Căn hộ 02 phòng ngủ",
+         "DailyDetails": [{"Date": "21/05/2026", "RoomOccupied": 1, "Blocked": 0,
+                           "TotalRoom": 2, "EmptyRoom": 1, "OccupancyRate": 50.0}]}]}}}
+    sold, totals = normalize.occupancy_to_units(
+        payload, category_map={"Căn hộ 02 phòng ngủ": "2br_regular"})
+    assert sold == {("2br_regular", date(2026, 5, 21)): 1}
+    assert totals == {"2br_regular": 2}
+
+
+def test_blocked_rooms_leave_the_sellable_denominator():
+    """A room out of service is not available inventory. Counting it as
+    available understates occupancy and pushes the price DOWN on a date that is
+    fuller than it looks."""
+    payload = {"status": "Success", "message": "ok", "data": {"GrandTotal": {"RoomTypes": [
+        {"RoomTypeId": 6153, "RoomTypeName": "Căn hộ 02 phòng ngủ",
+         "DailyDetails": [{"Date": "21/05/2026", "RoomOccupied": 2, "Blocked": 1,
+                           "TotalRoom": 4, "EmptyRoom": 1, "OccupancyRate": 50.0}]}]}}}
+    _, totals = normalize.occupancy_to_units(
+        payload, category_map={"Căn hộ 02 phòng ngủ": "2br_regular"})
+    assert totals == {"2br_regular": 3}, "4 rooms minus 1 blocked = 3 sellable"

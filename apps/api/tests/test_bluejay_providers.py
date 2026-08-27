@@ -46,12 +46,11 @@ def _capture(tmp_path):
         json.dumps({"data": [{"roomtypeId": 6153, "roomtypeName": "Căn hộ 3 phòng ngủ"}]}),
         encoding="utf-8",
     )
-    (root / "roomdetail-list.json").write_text(
-        json.dumps(
-            {"data": [{"roomdetailId": i, "roomtypeId": 6153, "roomName": f"B - {i}"} for i in (1, 2)]}
-        ),
-        encoding="utf-8",
-    )
+    rooms = {"data": [{"roomdetailId": i, "roomName": f"B - {i}"} for i in (1, 2)]}
+    (root / "roomdetail-list.json").write_text(json.dumps(rooms), encoding="utf-8")
+    # Per-type file: a real roomdetail row has NO roomtypeId, so the capture
+    # stores one file per room type, mirroring roomdetail-list?roomtypeId=.
+    (root / "roomdetail-list-6153.json").write_text(json.dumps(rooms), encoding="utf-8")
     (root / "reservation.json").write_text(
         json.dumps(
             {
@@ -364,9 +363,22 @@ def _routes(request: httpx.Request) -> httpx.Response:
     if path.endswith("roomtype-list"):
         return httpx.Response(200, json={"data": [{"roomtypeId": 6153, "roomtypeName": "Căn hộ 3 phòng ngủ"}]})
     if path.endswith("roomdetail-list"):
-        return httpx.Response(
-            200, json={"data": [{"roomdetailId": i, "roomtypeId": 6153, "roomName": f"B - {i}"} for i in (1, 2)]}
-        )
+        # The real API filters by roomtypeId; returning everything regardless
+        # is what an IGNORED filter looks like, and the adapter refuses that.
+        tid = request.url.params.get("roomtypeId")
+        if tid is None:  # unfiltered: the whole property
+            rooms = [{"roomdetailId": i, "roomName": f"B - {i}"} for i in (1, 2, 3)]
+        else:
+            rooms = [{"roomdetailId": i, "roomName": f"B - {i}"} for i in (1, 2)] if tid == "6153" else []
+        return httpx.Response(200, json={"data": rooms})
+    if path.endswith("source-list"):
+        return httpx.Response(200, json={"data": [{"id": 1, "sourceName": "Direct", "commiission": 0}]})
+    if path.endswith("report-room-occupancy"):
+        return httpx.Response(200, json={"status": "Success", "message": "ok", "data": {
+            "GrandTotal": {"RoomTypes": [
+                {"RoomTypeId": 6153, "RoomTypeName": "Căn hộ 3 phòng ngủ", "DailyDetails": [
+                    {"Date": "21/05/2026", "RoomOccupied": 1, "Blocked": 0,
+                     "TotalRoom": 2, "EmptyRoom": 1, "OccupancyRate": 50.0}]}]}}})
     if path.endswith("reservation"):
         return httpx.Response(
             200,
@@ -637,3 +649,114 @@ def test_the_unnamed_auth_header_is_listed_as_unresolved():
     from dynamic_pricing.providers.pms.bluejay.provider import UNRESOLVED_MAPPINGS
 
     assert any("header" in m.lower() for m in UNRESOLVED_MAPPINGS)
+
+
+# =========================================================================
+# 9. The provider wired to the VERIFIED contract
+# =========================================================================
+
+def _api1_routes(reservation_pages=1, rows_per_page=2):
+    """Mimics the real api1: {status,message,data} for filters, {meta,data} for
+    reservations, roomdetail filtered by roomtypeId, source-list commissions."""
+    ROOMS = {"6153": [{"id": 1, "roomName": "R - 401"}, {"id": 2, "roomName": "R - 402"}],
+             "6154": [{"id": 11, "roomName": "DB(1) - 401"}]}
+    def handler(request: httpx.Request) -> httpx.Response:
+        path, q = request.url.path, request.url.params
+        if path.endswith("roomtype-list"):
+            return httpx.Response(200, json={"status": "Success", "message": "ok", "data": [
+                {"id": 6153, "name": "Căn hộ 02 phòng ngủ", "code": "TPL"},
+                {"id": 6154, "name": "Ninh Bình", "code": "DB"}]})
+        if path.endswith("roomdetail-list"):
+            tid = q.get("roomtypeId")
+            rows = ROOMS.get(str(tid), [r for v in ROOMS.values() for r in v])
+            return httpx.Response(200, json={"status": "Success", "message": "ok", "data": rows})
+        if path.endswith("source-list"):
+            return httpx.Response(200, json={"status": "Success", "message": "ok", "data": [
+                {"id": 1, "sourceName": "BE", "commiission": 0},
+                {"id": 2, "sourceName": "Viettravel", "commiission": 10}]})
+        if path.endswith("reservation"):
+            page = int(q.get("page", 1))
+            limit = int(q.get("limit", 20))
+            # Mimic a full page: the real API fills up to `limit`, and a SHORT
+            # page is the only reliable end-of-data marker.
+            n = limit if page < reservation_pages else (rows_per_page if page == reservation_pages else 0)
+            if page > reservation_pages:
+                rows = []
+            else:
+                rows = [{"bookingCode": f"C{page}-{i}", "roomType": "Căn hộ 02 phòng ngủ",
+                         "roomName": "R - 401", "source": "BE", "status": "Đã xác nhận",
+                         "bookDate": "2026-05-01 09:00:00", "checkInTime": "2026-05-21",
+                         "checkOutTime": "2026-05-22", "night": 1, "roomPrice": 500000}
+                        for i in range(n)]
+            return httpx.Response(200, json={"meta": {"limit": rows_per_page, "page": page,
+                                                      "total": len(rows)},
+                                             "data": {"type": "reservation",
+                                                      "attributes": {"reservations": rows}}})
+        if path.endswith("report-room-occupancy"):
+            return httpx.Response(200, json={"status": "Success", "message": "ok", "data": {
+                "GrandTotal": {"GrandTotalRoomOccupied": 1, "GrandTotalBlocked": 0,
+                               "GrandTotalRoom": 3, "GrandTotalRoomEmpty": 2,
+                               "GrandTotalOccupancyRate": 33.3, "RoomTypes": [
+                    {"RoomTypeId": 6153, "RoomTypeName": "Căn hộ 02 phòng ngủ",
+                     "DailyDetails": [{"Date": "21/05/2026", "RoomOccupied": 1, "Blocked": 0,
+                                       "TotalRoom": 2, "EmptyRoom": 1, "OccupancyRate": 50.0}]}]}}})
+        return httpx.Response(404, json={})
+    return handler
+
+
+def _live_api1(handler, category_map=None):
+    from dynamic_pricing.providers.pms.bluejay.provider import BlueJayPMSProvider
+    return BlueJayPMSProvider(
+        client=bj_client.BlueJayClient(base_url="https://api1.example/api/v2", api_key="k",
+                                       hotel_id="1003", transport=httpx.MockTransport(handler),
+                                       now=lambda: INSIDE_WINDOW),
+        category_map=category_map if category_map is not None
+        else {"6153": "2br_regular", "6154": "3br"})
+
+
+def test_units_are_counted_by_calling_roomdetail_once_per_room_type():
+    """The verified shape: roomdetail rows have no roomtypeId."""
+    out = _live_api1(_api1_routes()).fetch_room_types()
+    assert {(d.external_id, d.units_total) for d in out} == {("2br_regular", 2), ("3br", 1)}
+
+
+def test_the_provider_pages_through_every_reservation():
+    """`meta.total` is CAPPED AT `limit` — proven live. Stopping after page 1
+    silently truncates, understating occupancy and pushing prices down."""
+    pages: list[int] = []
+    base = _api1_routes(reservation_pages=3, rows_per_page=2)
+    def handler(request):
+        if request.url.path.endswith("reservation"):
+            pages.append(int(request.url.params.get("page", 1)))
+        return base(request)
+    out = _live_api1(handler).fetch_bookings(date(2026, 5, 1), date(2026, 5, 28))
+    assert pages == [1, 2, 3], f"must page until a SHORT page, got {pages}"
+    assert len(out) > 2, "rows from later pages must be kept"
+
+
+def test_paging_stops_when_a_page_is_short(): 
+    out = _live_api1(_api1_routes(reservation_pages=1, rows_per_page=2)).fetch_bookings(
+        date(2026, 5, 1), date(2026, 5, 28))
+    assert len(out) == 2
+
+
+def test_occupancy_comes_from_the_occupancy_report_not_from_reservations():
+    """The two disagree on ~3% of room-nights and the rule is unknown, so the
+    PMS's own answer wins and reservations supply bookDate/pickup/rate."""
+    inv = _live_api1(_api1_routes()).fetch_inventory(date(2026, 5, 21), date(2026, 5, 21))
+    row = next(r for r in inv if r.room_type_external_id == "2br_regular")
+    assert (row.units_total, row.units_sold) == (2, 1)
+
+
+def test_a_window_wider_than_one_month_is_chunked():
+    """VERIFIED constraint: report-room-occupancy rejects a range over a month."""
+    seen: list[tuple[str, str]] = []
+    base = _api1_routes()
+    def handler(request):
+        if request.url.path.endswith("report-room-occupancy"):
+            seen.append((request.url.params.get("from"), request.url.params.get("to")))
+        return base(request)
+    _live_api1(handler).fetch_inventory(date(2026, 5, 1), date(2026, 8, 15))
+    assert len(seen) >= 4, f"a 106-day window must be split, got {seen}"
+    for f, t in seen:
+        assert (date.fromisoformat(t) - date.fromisoformat(f)).days <= 27, (f, t)

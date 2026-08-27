@@ -99,6 +99,8 @@ class BlueJayPMSProvider(PMSProvider):
         # per sync, so this never outlives one logical operation.
         self._room_types_cache: list[dict] | None = None
         self._room_details_cache: list[dict] | None = None
+        self._rooms_by_type_cache: dict[str, list[dict]] | None = None
+        self._commission_cache: dict[str, float] | None = None
         self._bookings_cache: dict[tuple[date, date], list[BookingDTO]] = {}
         if client is not None:
             self._configured = True
@@ -184,9 +186,56 @@ class BlueJayPMSProvider(PMSProvider):
         return self._room_types_cache
 
     def _room_detail_rows(self) -> list[dict]:
+        """The UNFILTERED list. Only used to size the ignored-filter check."""
         if self._room_details_cache is None:
             self._room_details_cache = self._rows(self._api().get("roomdetail-list"))
         return self._room_details_cache
+
+    def _rooms_by_type(self) -> dict[str, list[dict]]:
+        """One `roomdetail-list?roomtypeId=` call per room type.
+
+        A real roomdetail row is `{id, roomName}` with NO roomtypeId, so the
+        unfiltered list cannot be grouped — this is the only way to get units
+        per type, and it is the ASSUMPTIONS U11 unblock. Costs N+1 calls, which
+        is a window-budget fact worth knowing.
+        """
+        if self._rooms_by_type_cache is None:
+            out: dict[str, list[dict]] = {}
+            for row in self._room_type_rows():
+                type_id = str(
+                    normalize._first(row, "roomtypeId", "roomTypeId", "id", default="") or ""  # noqa: SLF001
+                ).strip()
+                if not type_id:
+                    continue
+                out[type_id] = self._rows(
+                    self._api().get("roomdetail-list", {"roomtypeId": type_id})
+                )
+            self._rooms_by_type_cache = out
+        return self._rooms_by_type_cache
+
+    def _source_commission(self) -> dict[str, float]:
+        """source name -> commission PERCENT, from `/source-list`.
+
+        `roomPrice` is a GROSS guest-facing amount (verified: `balance ==
+        totalPrice - payment` on 122/122 rows), and this product prices in NET,
+        so a commissioned channel must have its commission removed.
+        """
+        if self._commission_cache is None:
+            try:
+                rows = self._rows(self._api().get("source-list"))
+            except ProviderUnavailable:
+                # Best effort: an unknown commission is REPORTED downstream
+                # rather than silently assumed to be zero.
+                self._commission_cache = {}
+                return self._commission_cache
+            self._commission_cache = {
+                normalize._fold(r.get("sourceName")): float(  # noqa: SLF001
+                    normalize._as_float(r.get("commiission"))  # noqa: SLF001
+                )
+                for r in rows
+                if r.get("sourceName")
+            }
+        return self._commission_cache
 
     def _require_mapping(self, room_types: list[dict]) -> dict[str, str]:
         names = normalize.build_name_category_map(room_types, self.category_map)
@@ -293,10 +342,13 @@ class BlueJayPMSProvider(PMSProvider):
                 fallbacks[category] = band.base_net_rate
         return normalize.room_types_to_dtos(
             room_types,
-            self._room_detail_rows(),
+            self._rooms_by_type(),
             category_map=names,
             property_external_id=str(self.hotel_id or "bluejay"),
             fallback_rates=fallbacks,
+            # A filter the API IGNORED returns the whole hotel; sizing against
+            # the unfiltered list is how we notice.
+            unfiltered_room_total=len(self._room_detail_rows()),
             report=self.report,
         )
 
@@ -309,54 +361,129 @@ class BlueJayPMSProvider(PMSProvider):
         )
 
     def fetch_bookings(self, start: date, end: date) -> list[BookingDTO]:
+        """Every reservation covering these nights, following pagination.
+
+        `meta.total` is CAPPED AT `limit` — verified live: it reported
+        `total: 100` with `limit: 100` while page 2 held 100 more rows. Reading
+        it as the row count silently truncates, and fewer bookings means
+        understated occupancy, understated pace, and a price pushed DOWN. So we
+        page until a page comes back SHORT.
+        """
         if (start, end) in self._bookings_cache:
             return self._bookings_cache[(start, end)]
         names = self._require_mapping(self._room_type_rows())
-        payload = self._api().get(
-            "reservation",
-            {
-                "dateType": DATE_TYPE_STAY_NIGHT,
-                "from": start.isoformat(),
-                "to": end.isoformat(),
-                # The documented default is 20 rows, which would silently
-                # truncate a month of a 22-unit property to a few days.
-                "limit": 5000,
-                "page": 1,
-            },
-        )
-        try:
-            rows = normalize.reservations_to_bookings(
-                payload, category_map=names, report=self.report
+        commissions = self._source_commission()
+
+        rows: list[BookingDTO] = []
+        page = 1
+        while page <= MAX_RESERVATION_PAGES:
+            payload = self._api().get(
+                "reservation",
+                {
+                    "dateType": DATE_TYPE_STAY_NIGHT,
+                    "from": start.isoformat(),
+                    "to": end.isoformat(),
+                    "limit": RESERVATION_PAGE_SIZE,
+                    "page": page,
+                },
             )
-            self._bookings_cache[(start, end)] = rows
-            return rows
-        except normalize.VendorPayloadError as exc:
-            raise ProviderUnavailable(
-                self.name,
-                f"Blue Jay's reservation response could not be read: {exc}",
-                remediation=(
-                    "This is NOT an empty period — zero bookings would price every date "
-                    "down to its floor. Capture the response with scripts/bluejay_probe.py "
-                    "and compare it against docs/BLUEJAY_CONTRACT.md."
-                ),
-            ) from None
+            try:
+                raw = normalize.reservation_rows(payload)
+                rows.extend(
+                    normalize.reservations_to_bookings(
+                        payload,
+                        category_map=names,
+                        source_commission=commissions,
+                        report=self.report,
+                    )
+                )
+            except normalize.VendorPayloadError as exc:
+                raise ProviderUnavailable(
+                    self.name,
+                    f"Blue Jay's reservation response could not be read: {exc}",
+                    remediation=(
+                        "This is NOT an empty period — zero bookings would price every "
+                        "date down to its floor. Capture the response with "
+                        "scripts/bluejay_probe.py and compare it against "
+                        "docs/BLUEJAY_CONTRACT.md."
+                    ),
+                ) from None
+            # A SHORT page is the only reliable end marker.
+            if len(raw) < RESERVATION_PAGE_SIZE:
+                break
+            page += 1
+        else:
+            self.report.warnings.append(
+                f"Stopped after {MAX_RESERVATION_PAGES} pages of reservations. There may "
+                f"be more, which would understate occupancy."
+            )
+
+        self._bookings_cache[(start, end)] = rows
+        return rows
 
     def fetch_inventory(self, start: date, end: date) -> list[InventoryDTO]:
-        bookings = self.fetch_bookings(start, end)
+        """Occupancy from the OCCUPANCY REPORT; rate derived from reservations.
+
+        The report and the reservation list disagree on roughly 3% of
+        room-nights and we could not determine the rule (see
+        docs/BLUEJAY_CONTRACT.md), so the PMS's own answer wins for occupancy.
+        Reservations still supply bookDate, pickup and the derived rate, which
+        the report does not carry.
+        """
         room_types = self.fetch_room_types()
+        by_category = {rt.external_id: rt for rt in room_types}
+        names = self._require_mapping(self._room_type_rows())
+
+        units_total: dict[str, int] = {}
+        units_sold: dict[tuple[str, date], int] = {}
+        for chunk_start, chunk_end in _month_chunks(start, end):
+            payload = self._api().get(
+                "report-room-occupancy",
+                {"dateType": 1, "from": chunk_start.isoformat(), "to": chunk_end.isoformat()},
+            )
+            sold, totals = normalize.occupancy_to_units(
+                payload, category_map=names, report=self.report
+            )
+            units_sold.update(sold)
+            units_total.update(totals)
+
+        for category, rt in by_category.items():
+            units_total.setdefault(category, rt.units_total)
+
+        bookings = self.fetch_bookings(start, end)
         book = SeasonalRateBook()
         stay_dates = [date.fromordinal(o) for o in range(start.toordinal(), end.toordinal() + 1)]
-        # Per DATE, not once at the window start: a 90-day horizon crosses
-        # season boundaries and each date belongs to its own band (D17).
-        fallback = _seasonal_bases(book, [rt.external_id for rt in room_types], stay_dates)
         return normalize.build_inventory(
             stay_dates=stay_dates,
-            categories=[rt.external_id for rt in room_types],
-            units_total={rt.external_id: rt.units_total for rt in room_types},
-            units_sold=normalize.units_sold_by_date(bookings),
+            categories=sorted(by_category),
+            units_total=units_total,
+            units_sold=units_sold,
             adr=normalize.derive_adr(bookings),
-            fallback_rate=fallback,
+            fallback_rate=_seasonal_bases(book, sorted(by_category), stay_dates),
         )
+
+
+#: Blue Jay's documented default page size is 20, which would truncate a month
+#: of a 22-unit property to about a day and a half.
+RESERVATION_PAGE_SIZE = 500
+#: A runaway guard, not a real limit. Exceeding it is REPORTED, never silent.
+MAX_RESERVATION_PAGES = 40
+
+
+def _month_chunks(start: date, end: date, size: int = 27) -> list[tuple[date, date]]:
+    """Split a range so no chunk exceeds Blue Jay's one-month limit.
+
+    VERIFIED: report-room-occupancy answers
+    "khoảng cách giữa ngày from và to không được quá 1 tháng". 27 days keeps a
+    safety margin, since "one month" is not a fixed number of days.
+    """
+    out: list[tuple[date, date]] = []
+    cursor = start
+    while cursor <= end:
+        stop = min(date.fromordinal(cursor.toordinal() + size), end)
+        out.append((cursor, stop))
+        cursor = date.fromordinal(stop.toordinal() + 1)
+    return out
 
 
 def _seasonal_bases(

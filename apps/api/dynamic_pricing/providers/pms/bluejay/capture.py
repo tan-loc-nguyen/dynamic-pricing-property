@@ -61,38 +61,61 @@ class CaptureResult:
 def plan_requests(start: date, end: date) -> list[RequestStep]:
     """Every request the adapter depends on, in the order to make them.
 
-    Filters first: they are small, they are the least likely to fail, and
-    `roomtype-list` is what the room-type map needs before anything else can be
-    interpreted.
+    VERIFIED against api1.bluejaypms.com on 2026-08-27. Filters first: they are
+    small, they are NOT window-restricted (they answered 22 minutes after the
+    window closed), and `roomtype-list` is what everything else is interpreted
+    through.
+
+    `report-room-occupancy` is chunked because the API rejects a range wider
+    than one month — a constraint the document does not mention.
 
     `extraservice-sumary` is deliberately ABSENT. Pricing does not use it, and
     the cheapest way to protect data is not to fetch it.
     """
-    return [
+    steps: list[RequestStep] = [
         RequestStep("roomtype-list", "roomtype-list", {}, sanitize.ROOM_TYPE_ALLOWLIST),
         RequestStep("roomdetail-list", "roomdetail-list", {}, sanitize.ROOM_DETAIL_ALLOWLIST),
         RequestStep("source-list", "source-list", {}, sanitize.SOURCE_ALLOWLIST),
+        RequestStep("source-category", "source-category", {}, sanitize.SOURCE_ALLOWLIST),
+    ]
+    # Occupancy: one call per <=27-day chunk.
+    for chunk_start, chunk_end in _month_chunks(start, end):
+        steps.append(
+            RequestStep(
+                f"report-room-occupancy-{chunk_start.isoformat()}",
+                "report-room-occupancy",
+                {"dateType": 1, "from": chunk_start.isoformat(), "to": chunk_end.isoformat()},
+            )
+        )
+    # Reservations LAST and paged: `meta.total` is capped at `limit`, so a
+    # short page is the only end marker.
+    steps.append(
         RequestStep(
             "reservation",
             "reservation",
             {
-                # dateType=3 is STAY NIGHT: one endpoint then yields bookings,
-                # on-the-books occupancy and a derived rate together.
+                # dateType=3 is STAY NIGHT: bookings, occupancy and a derived
+                # rate from one endpoint.
                 "dateType": 3,
                 "from": start.isoformat(),
                 "to": end.isoformat(),
-                # The documented default is 20 rows, which would truncate a
-                # month of a 22-unit property to about a day and a half.
-                "limit": 5000,
+                "limit": 500,
                 "page": 1,
             },
-        ),
-        RequestStep(
-            "report-room-occupancy",
-            "report-room-occupancy",
-            {"dateType": 1, "from": start.isoformat(), "to": end.isoformat()},
-        ),
-    ]
+        )
+    )
+    return steps
+
+
+def _month_chunks(start: date, end: date, size: int = 27) -> list[tuple[date, date]]:
+    """VERIFIED: report-room-occupancy rejects a range wider than one month."""
+    out: list[tuple[date, date]] = []
+    cursor = start
+    while cursor <= end:
+        stop = min(date.fromordinal(cursor.toordinal() + size), end)
+        out.append((cursor, stop))
+        cursor = date.fromordinal(stop.toordinal() + 1)
+    return out
 
 
 def _write(path: Path, payload: Any) -> None:
@@ -212,6 +235,26 @@ def run_capture(
     result.unmapped_room_types = normalize.unmapped_room_type_ids(
         room_type_rows, category_map or {}
     )
+
+    # ONE roomdetail call per room type. A real roomdetail row has no
+    # roomtypeId, so this is the only way a snapshot can count units per type.
+    for row in room_type_rows:
+        type_id = str(
+            normalize._first(row, "roomtypeId", "roomTypeId", "id", default="") or ""  # noqa: SLF001
+        ).strip()
+        if not type_id:
+            continue
+        try:
+            payload = client.get("roomdetail-list", {"roomtypeId": type_id})
+        except Exception as exc:  # noqa: BLE001
+            result.errors.append(f"roomdetail-list[{type_id}]: {type(exc).__name__}: {exc}")
+            continue
+        _write(result.raw_dir / f"roomdetail-list-{type_id}.json", payload)
+        rows = payload.get("data") if isinstance(payload, dict) else payload
+        _write(
+            result.snapshot_dir / f"roomdetail-list-{type_id}.json",
+            {"data": sanitize.sanitize_rows(rows, sanitize.ROOM_DETAIL_ALLOWLIST)},
+        )
     result.filter_room_type_names = [
         name
         for name in (

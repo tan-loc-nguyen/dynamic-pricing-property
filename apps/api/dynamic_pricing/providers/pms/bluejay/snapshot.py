@@ -38,6 +38,7 @@ RESERVATIONS_FILE = "reservation.json"
 ROOM_TYPES_FILE = "roomtype-list.json"
 ROOM_DETAILS_FILE = "roomdetail-list.json"
 META_FILE = "meta.json"
+OCCUPANCY_FILE = "report-room-occupancy.json"
 
 
 class SnapshotPMSProvider(PMSProvider):
@@ -191,6 +192,26 @@ class SnapshotPMSProvider(PMSProvider):
             )
         ]
 
+    def _rooms_by_type(self) -> dict[str, list[dict]]:
+        """Per-type room rows from `roomdetail-list-<roomtypeId>.json`.
+
+        A real roomdetail row carries no roomtypeId, so the capture stores one
+        file per type — the same N+1 shape the live provider uses. A snapshot
+        taken before that change has only the unfiltered file and yields
+        nothing, which is reported rather than silently counted as zero units.
+        """
+        out: dict[str, list[dict]] = {}
+        for row in self._rows(self._load(ROOM_TYPES_FILE)):
+            type_id = str(
+                normalize._first(row, "roomtypeId", "roomTypeId", "id", default="") or ""  # noqa: SLF001
+            ).strip()
+            if not type_id:
+                continue
+            path = self.root / f"roomdetail-list-{type_id}.json"
+            if path.is_file():
+                out[type_id] = self._rows(json.loads(path.read_text(encoding="utf-8")))
+        return out
+
     def fetch_room_types(self) -> list[RoomTypeDTO]:
         book = SeasonalRateBook()
         fallbacks = {
@@ -199,7 +220,7 @@ class SnapshotPMSProvider(PMSProvider):
         }
         return normalize.room_types_to_dtos(
             self._rows(self._load(ROOM_TYPES_FILE)),
-            self._rows(self._load(ROOM_DETAILS_FILE)),
+            self._rooms_by_type(),
             category_map=self._category_map(),
             property_external_id=str(self._meta().get("hotel_id") or "bluejay"),
             fallback_rates=fallbacks,
@@ -224,20 +245,40 @@ class SnapshotPMSProvider(PMSProvider):
         return [b for b in rows if start <= b.stay_date <= end]
 
     def fetch_inventory(self, start: date, end: date) -> list[InventoryDTO]:
+        """Occupancy from a captured occupancy report when the snapshot has one.
+
+        Falls back to deriving it from reservations otherwise — older captures
+        predate the report — and says which it used, because the two are known
+        to disagree on ~3% of room-nights.
+        """
         bookings = self.fetch_bookings(start, end)
         room_types = self.fetch_room_types()
-        book = SeasonalRateBook()
-        stay_dates = [
-            date.fromordinal(o) for o in range(start.toordinal(), end.toordinal() + 1)
-        ]
         categories = [rt.external_id for rt in room_types]
+        book = SeasonalRateBook()
+        stay_dates = [date.fromordinal(o) for o in range(start.toordinal(), end.toordinal() + 1)]
+
+        units_total = {rt.external_id: rt.units_total for rt in room_types}
+        occupancy_file = self.root / OCCUPANCY_FILE
+        if occupancy_file.is_file():
+            sold, totals = normalize.occupancy_to_units(
+                json.loads(occupancy_file.read_text(encoding="utf-8")),
+                category_map=self._category_map(),
+                report=self.report,
+            )
+            units_total.update(totals)
+        else:
+            self.report.warnings.append(
+                "This snapshot has no occupancy report, so occupancy was derived from "
+                "reservations. The two are known to disagree on some room-nights."
+            )
+            sold = normalize.units_sold_by_date(bookings)
+
         return normalize.build_inventory(
             stay_dates=stay_dates,
             categories=categories,
-            units_total={rt.external_id: rt.units_total for rt in room_types},
-            units_sold=normalize.units_sold_by_date(bookings),
+            units_total=units_total,
+            units_sold=sold,
             adr=normalize.derive_adr(bookings),
-            # Per DATE (D17): each stay date belongs to its own seasonal band.
             fallback_rate=_seasonal_bases(book, categories, stay_dates),
         )
 

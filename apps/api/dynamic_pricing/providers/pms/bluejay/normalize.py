@@ -80,12 +80,15 @@ class NormalisationReport:
 # filter uses integer codes (0 confirmed .. 5 canceled, -1 deleted). The
 # document never maps the two and its samples show exactly ONE value.
 #
-# `occupies` is OUR decision and is deliberately NOT derived from the vendor
-# code, because code 1 covers both "đã đặt" (a firm booking) and "giữ chỗ" (a
-# tentative hold). Those are not the same thing: counting a hold as occupancy
-# inflates occupancy, which inflates pace, which pushes prices UP on dates that
-# are not actually filling. That is the aggressive direction, so it gets the
-# conservative answer.
+# `occupies` is OUR decision, not the vendor's. VERIFIED: code 1 returns exactly
+# one string, `Đang giữ phòng` ("currently holding the room"), so the earlier
+# đã-đặt/giữ-chỗ split rested on a false premise and is gone.
+#
+# We count a hold AS occupancy: the room is being held and cannot be sold to
+# anyone else, so it is genuinely not available inventory. Note this does NOT
+# reproduce the occupancy report exactly — see docs/BLUEJAY_CONTRACT.md; the
+# two disagree on roughly 3% of room-nights for reasons we have not resolved,
+# which is why the report, not this, is the source for occupancy.
 #
 # Note the two orthographies of huỷ/hủy — Vietnamese accepts both.
 @dataclass(frozen=True)
@@ -101,14 +104,19 @@ class StatusMeaning:
 
 
 STATUS_VOCABULARY: dict[str, StatusMeaning] = {
-    "đã xác nhận": StatusMeaning(0, "confirmed", True),
-    "đã đặt": StatusMeaning(1, "reserved", True),
-    "giữ chỗ": StatusMeaning(1, "held", False),
-    "không đến": StatusMeaning(2, "no_show", False),
-    "đã nhận phòng": StatusMeaning(3, "checked_in", True),
-    "đã trả phòng": StatusMeaning(4, "checked_out", True),
+    # VERIFIED 2026-08-27 by filtering on each documented integer code and
+    # reading back the string the API returns. `đã đặt` and `giữ chỗ` were both
+    # guesses and both WRONG: code 1 returns exactly ONE string.
+    "đã xác nhận": StatusMeaning(0, "confirmed", True, observed=True),
+    "đang giữ phòng": StatusMeaning(1, "held", True, observed=True),
+    "không đến": StatusMeaning(2, "no_show", False, observed=True),
+    "đã nhận phòng": StatusMeaning(3, "checked_in", True, observed=True),
+    "đã trả phòng": StatusMeaning(4, "checked_out", True, observed=True),
     "đã huỷ": StatusMeaning(5, "cancelled", False, observed=True),
-    "đã hủy": StatusMeaning(5, "cancelled", False, observed=True),
+    "đã hủy": StatusMeaning(5, "cancelled", False, observed=True),  # spelling variant
+    # Code -1 returned NO rows over an eight-month window, so deleted
+    # reservations appear to be withheld entirely rather than labelled. Kept
+    # provisional: never observed, and absence is not proof.
     "đã xoá": StatusMeaning(-1, "deleted", False),
     "đã xóa": StatusMeaning(-1, "deleted", False),
 }
@@ -318,6 +326,78 @@ def _reservation_rows(payload: Mapping[str, Any]) -> list[dict]:
     return [r for r in rows if isinstance(r, dict)]
 
 
+def reservation_rows(payload: Mapping[str, Any]) -> list[dict]:
+    """Public accessor: the raw reservation rows, validated. Callers that need
+    to know how many rows a PAGE held (to detect the end of pagination) use
+    this rather than counting expanded unit-nights, which is a different number.
+    """
+    return _reservation_rows(payload)
+
+
+def occupancy_to_units(
+    payload: Mapping[str, Any],
+    *,
+    category_map: Mapping[str, str],
+    report: NormalisationReport | None = None,
+) -> tuple[dict[tuple[str, date], int], dict[str, int]]:
+    """`report-room-occupancy` -> (units_sold by (category, date), units_total).
+
+    This is the OCCUPANCY SOURCE. The reservation list disagrees with it on
+    roughly 3% of room-nights for reasons we could not determine, so the PMS's
+    own answer wins and reservations supply only bookDate, pickup and rate.
+
+    Field names are the VERIFIED ones, which differ from the document:
+    `EmptyRoom` not `RoomEmpty`. Dates are `dd/MM/yyyy`.
+    """
+    report = report if report is not None else NormalisationReport()
+    _check_envelope(payload)
+    data = payload.get("data")
+    if not isinstance(data, Mapping):
+        raise VendorPayloadError(f"Occupancy 'data' is a {type(data).__name__}, not an object.")
+    grand = data.get("GrandTotal")
+    if not isinstance(grand, Mapping):
+        raise VendorPayloadError("Occupancy response has no GrandTotal object.")
+
+    sold: dict[tuple[str, date], int] = defaultdict(int)
+    totals: dict[tuple[str, date], int] = defaultdict(int)
+    for room_type in grand.get("RoomTypes") or []:
+        name = str(room_type.get("RoomTypeName") or "").strip()
+        try:
+            category = resolve_category(name, category_map)
+        except UnmappedValue:
+            # Loud, but not fatal here: an unmapped type contributes no
+            # occupancy rather than being folded into someone else's.
+            report.warnings.append(
+                f"Occupancy report contains room type {name!r}, which is not mapped to a "
+                f"pricing category. Its rooms are excluded from occupancy."
+            )
+            continue
+        for row in room_type.get("DailyDetails") or []:
+            try:
+                stay = parse_report_date(row.get("Date"))
+            except (ValueError, TypeError):
+                report.warnings.append(f"Unreadable occupancy date {row.get('Date')!r}; skipped.")
+                continue
+            problem = occupancy_row_problem(row)
+            if problem:
+                report.warnings.append(
+                    f"Occupancy row for {name!r} on {stay} is {problem}: {row}. Skipped."
+                )
+                continue
+            sold[(category, stay)] += _as_int(row.get("RoomOccupied"))
+            # Blocked rooms are NOT sellable, so they leave the denominator.
+            # Counting them as available understates occupancy and pushes the
+            # price DOWN on a date that is actually fuller than it looks.
+            totals[(category, stay)] += _as_int(row.get("TotalRoom")) - _as_int(row.get("Blocked"))
+
+    # units_total is per category; take the max across dates so a single day
+    # with a blocked room does not shrink the whole horizon.
+    per_category: dict[str, int] = defaultdict(int)
+    for (category, _stay), value in totals.items():
+        per_category[category] = max(per_category[category], value)
+    return dict(sold), dict(per_category)
+
+
 # ------------------------------------------------------- reservations
 def resolve_category(name: str | None, category_map: Mapping[str, str]) -> str:
     lookup = {_fold(k): v for k, v in category_map.items()}
@@ -371,6 +451,7 @@ def reservations_to_bookings(
     payload: Mapping[str, Any],
     *,
     category_map: Mapping[str, str],
+    source_commission: Mapping[str, float] | None = None,
     report: NormalisationReport | None = None,
 ) -> list[BookingDTO]:
     """Expand each reservation into one row per occupied unit-night.
@@ -447,24 +528,44 @@ def reservations_to_bookings(
             report.skipped += 1
             continue
 
-        # UNVERIFIED: whether roomPrice is the STAY TOTAL or a NIGHTLY rate.
+        # VERIFIED 2026-08-27: roomPrice is the STAY TOTAL (1 night = 500,000,
+        # 3 nights = 1,500,000, 4 nights = 2,000,000 at one nightly rate), and
+        # it is a GROSS, guest-facing amount -- `balance == totalPrice -
+        # payment` on 122/122 real rows, so `balance` is a guest ledger and
+        # `totalPrice` is what the GUEST OWES, not the hotel's receipt.
+        #
+        # This product prices in NET (V2), so a commissioned channel must have
+        # its commission removed. `commiission` (sic) lives on the SOURCE and
+        # comes from /source-list.
         # Both documented samples are `night: 1`, where those are the same
         # number, so the document contains zero evidence either way. If it is
         # in fact nightly, every multi-night date understates current_net_rate
         # by roughly the mean stay length -- which does not misprice (the band
         # anchors that) but does drive change_pct, i.e. the calendar's change
         # column and the bigChange attention threshold.
-        if nights > 1:
-            report.discrepancies.append(
-                f"Reservation {row.get('bookingCode')!r}: roomPrice divided by {nights} "
-                f"nights on the assumption it is a stay total. UNVERIFIED — one live "
-                f"multi-night reservation settles it (ASSUMPTIONS U14)."
-            )
-        per_night = round(_as_float(row.get("roomPrice")) / nights, 2)
+        gross_per_night = _as_float(row.get("roomPrice")) / nights
+        channel = str(row.get("source") or "unknown").strip()
+        commission = None
+        if source_commission is not None:
+            commission = source_commission.get(_fold(channel))
+            if commission is None:
+                # Defaulting to 0% silently overstates NET for every
+                # commissioned channel, which overstates the achieved rate and
+                # biases recommendations UP.
+                report.warnings.append(
+                    f"No commission known for source {channel!r}; treated the gross "
+                    f"price as NET. If that channel charges commission, its achieved "
+                    f"rate is OVERSTATED."
+                )
+        per_night = round(gross_per_night * (1 - (commission or 0.0) / 100.0), 2)
         # A blank code would make two different reservations on the same night
         # share an id; the row index keeps them distinguishable.
         booking_code = str(row.get("bookingCode") or "").strip() or f"ROW{index}"
         unit_label = str(row.get("roomName") or "").strip() or None
+        # OBSERVED: "Unassigned" is a placeholder meaning no room has been
+        # chosen yet, not a room called Unassigned. 29 of 100 real rows had it.
+        if unit_label and unit_label.lower() == "unassigned":
+            unit_label = None
 
         for offset in range(nights):
             stay = date.fromordinal(check_in.toordinal() + offset)
@@ -472,9 +573,12 @@ def reservations_to_bookings(
                 BookingDTO(
                     # One row per night, so the id must vary per night or the
                     # whole stay collapses into whichever row is written last.
-                    # The UNIT belongs in the key: one reservation code can cover
-                    # several physical rooms, and without it those rows collide.
-                    external_id=f"{booking_code}:{unit_label or '-'}:{stay.isoformat()}",
+                    # bookingCode + unit + night is NOT unique: one booking can
+                    # carry several UNASSIGNED rows for the same night (observed
+                    # up to five). The row index is what keeps them distinct;
+                    # without it they overwrite each other, which understates
+                    # occupancy and pushes the price DOWN.
+                    external_id=f"{booking_code}:{index}:{unit_label or '-'}:{stay.isoformat()}",
                     room_type_external_id=category,
                     stay_date=stay,
                     booked_at=_parse_date(row.get("bookDate")) or stay,
@@ -484,7 +588,7 @@ def reservations_to_bookings(
                     nights=1,
                     guests=0,  # not present in the reservation payload
                     net_rate=per_night,
-                    channel=str(row.get("source") or "unknown").strip(),
+                    channel=channel,
                     status=meaning.label,
                     physical_room_external_id=unit_label,
                 )
@@ -601,62 +705,60 @@ def build_inventory(
 # ------------------------------------------------------ room types / units
 def room_types_to_dtos(
     room_types: Iterable[Mapping[str, Any]],
-    physical_rooms: Iterable[Mapping[str, Any]],
+    rooms_by_type: Mapping[str, Sequence[Mapping[str, Any]]],
     *,
     category_map: Mapping[str, str],
     property_external_id: str,
     fallback_rates: Mapping[str, float] | None = None,
+    unfiltered_room_total: int | None = None,
     report: NormalisationReport | None = None,
 ) -> list[RoomTypeDTO]:
     """Collapse Blue Jay room types onto OUR three categories.
 
-    ``external_id`` is the category, not Blue Jay's roomtypeId, because the
-    reservation payload references room types by localised NAME only — there is
-    no id to join on. Categories are the grain the engine prices at anyway
-    (S1), and two Blue Jay types mapping to one category correctly sum their
-    units.
+    ``rooms_by_type`` maps roomtypeId -> the rows from
+    ``roomdetail-list?roomtypeId=``, i.e. ONE CALL PER ROOM TYPE. That is not a
+    convenience: a real roomdetail row is ``{id, roomName}`` with no
+    roomtypeId, so an unfiltered list cannot be grouped at all — an earlier
+    version tried and produced zero units for every category.
 
-    Counting physical rooms per type is the ASSUMPTIONS U11 unblock: the unit
-    split stops being the seeded 10/8/4 guess.
+    ``external_id`` is the category rather than Blue Jay's roomtypeId because
+    the reservation payload references room types by localised NAME only. Two
+    Blue Jay types mapping to one category correctly sum their units.
+
+    Counting rooms per type is the ASSUMPTIONS U11 unblock, verified live: 15
+    types, 67 rooms, per-type counts summing exactly to the unfiltered list.
     """
     report = report if report is not None else NormalisationReport()
     fallback_rates = fallback_rates or {}
-
-    known_type_ids = {
-        str(_first(rt, "roomtypeId", "roomTypeId", "id", default="") or "") for rt in room_types
-    }
-    rooms_by_type: dict[str, int] = defaultdict(int)
-    orphans: dict[str, int] = defaultdict(int)
-    for room in physical_rooms:
-        key = str(_first(room, "roomtypeId", "roomTypeId", "roomtype_id", default="") or "")
-        rooms_by_type[key] += 1
-        if key not in known_type_ids:
-            orphans[key] += 1
-    for key, count in sorted(orphans.items()):
-        # Direction matters: these rooms are counted NOWHERE, so units_total
-        # comes out LOW, occupancy = sold/total is OVERSTATED, and the engine
-        # recommends HIGHER prices than warranted.
-        report.warnings.append(
-            f"{count} physical room(s) reference room type {key!r}, which roomtype-list "
-            f"does not contain. They are missing from units_total, which overstates "
-            f"occupancy and biases recommendations upward."
-        )
 
     units: dict[str, int] = defaultdict(int)
     capacity: dict[str, int] = {}
     for row in room_types:
         name = str(_first(row, "roomtypeName", "roomTypeName", "name", default="") or "").strip()
-        type_id = str(_first(row, "roomtypeId", "roomTypeId", "id", default="") or "")
+        type_id = str(_first(row, "roomtypeId", "roomTypeId", "id", default="") or "").strip()
         category = resolve_category(name, category_map)
-        count = rooms_by_type.get(type_id, 0)
-        if count == 0:
+        rooms = list(rooms_by_type.get(type_id) or [])
+
+        if unfiltered_room_total is not None and filter_looks_ignored(
+            rows=rooms, unfiltered_total=unfiltered_room_total
+        ):
+            # The response matched the WHOLE hotel, which is what a rejected
+            # filter returns. Counting it would hand this category every room.
+            report.warnings.append(
+                f"Room type {name!r} (id {type_id!r}) returned {len(rooms)} rooms, the same "
+                f"as the unfiltered list — the roomtypeId filter was probably IGNORED. "
+                f"Counted as 0 rather than assigning the whole property to one type."
+            )
+            rooms = []
+        elif not rooms:
             report.warnings.append(
                 f"Room type {name!r} (id {type_id!r}) has no physical rooms. Occupancy is "
                 f"units_sold/units_total, so a zero here makes every pace signal for it "
                 f"undefined."
             )
-        units[category] += count
-        capacity.setdefault(category, _as_int(_first(row, "capacity", "maxPerson"), 4))
+
+        units[category] += len(rooms)
+        capacity.setdefault(category, _as_int(_first(row, "capacity", "occ_max", "maxPerson"), 4))
 
     return [
         RoomTypeDTO(
@@ -710,11 +812,13 @@ def occupancy_row_problem(daily: Mapping[str, Any]) -> str | None:
     "your arithmetic disagrees with itself" and "you sent junk in TotalRoom"
     are not the same report, and collapsing both to False loses that.
     """
-    try:
-        raw = [daily["TotalRoom"], daily["RoomOccupied"], daily["RoomEmpty"]]
-    except KeyError:
+    # `EmptyRoom` is what the API actually sends; `RoomEmpty` is what the
+    # document says. Reading only the documented name made every REAL row
+    # "unparseable", so occupancy came out as zero on perfectly good data.
+    empty = _first(daily, "EmptyRoom", "RoomEmpty")
+    if empty is None or "TotalRoom" not in daily or "RoomOccupied" not in daily:
         return "unparseable"
-    raw.append(daily.get("Blocked", 0))
+    raw = [daily["TotalRoom"], daily["RoomOccupied"], empty, daily.get("Blocked", 0)]
     for value in raw:
         if value is None or isinstance(value, bool):
             return "unparseable"
@@ -726,8 +830,8 @@ def occupancy_row_problem(daily: Mapping[str, Any]) -> str | None:
     total = _as_int(daily["TotalRoom"])
     occupied = _as_int(daily["RoomOccupied"])
     blocked = _as_int(daily.get("Blocked"))
-    empty = _as_int(daily["RoomEmpty"])
-    return None if total - occupied - blocked == empty else "inconsistent"
+    empty_value = _as_int(_first(daily, "EmptyRoom", "RoomEmpty"))
+    return None if total - occupied - blocked == empty_value else "inconsistent"
 
 
 def occupancy_row_is_consistent(daily: Mapping[str, Any]) -> bool:
