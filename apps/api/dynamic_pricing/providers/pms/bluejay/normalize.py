@@ -255,6 +255,36 @@ def _check_envelope(payload: Mapping[str, Any]) -> None:
     """
     if not isinstance(payload, Mapping):
         raise VendorPayloadError(f"Expected a JSON object, got {type(payload).__name__}.")
+
+    # OBSERVED 2026-08-27: a THIRD envelope the document never mentions.
+    # `{"errors": {"code": ..., "title": ...}}` — and it arrives with HTTP 200,
+    # so neither the status-code check nor the `status` check saw it. It sailed
+    # through, sanitised to `{"data": null}`, and the capture recorded no error
+    # while writing a snapshot marked sanitised. D33, third instance, found by
+    # real data rather than by reasoning about it.
+    errors = payload.get("errors")
+    if errors:  # empty list/dict alongside real data is a normal idiom
+        detail = errors
+        if isinstance(errors, Mapping):
+            # Two grammars, observed on the same host: `code`/`title` from the
+            # AUTH GATE (missing or bad apikey) and `status`/`message` from the
+            # APPLICATION (unknown hotelId, closed window, date range too wide).
+            # `message` carries the only real diagnosis, and it is in
+            # Vietnamese — reading only `title` would reduce "the gap between
+            # from and to must not exceed 1 month" to "Unauthorized" and send
+            # the reader to check their API key.
+            detail = (
+                errors.get("message")
+                or errors.get("title")
+                or errors.get("code")
+                or errors.get("status")
+                or errors
+            )
+            extra = errors.get("detail")
+            if extra:
+                detail = f"{detail}: {extra}"
+        raise VendorPayloadError(f"Blue Jay returned an error envelope: {detail}")
+
     status = payload.get("status")
     if status is not None and str(status).strip().lower() not in _SUCCESS_STATUSES:
         raise VendorPayloadError(
@@ -464,6 +494,22 @@ def reservations_to_bookings(
 
 
 # ------------------------------------------------------ derived signals
+def filter_looks_ignored(*, rows: Sequence[Any], unfiltered_total: int) -> bool:
+    """Did a `roomtypeId` filter actually take effect?
+
+    OBSERVED 2026-08-27: `roomdetail-list?roomtypeId=abc` returns EVERY room
+    with `status: "Success"`. A malformed or unknown filter is IGNORED rather
+    than rejected, so the caller receives the whole hotel and no error.
+
+    Attributing all of it to one room type inflates units_total, which
+    understates occupancy, which understates pace, and pushes the price DOWN
+    across every date for that category. Equality with the unfiltered count is
+    not proof of a problem — a hotel with one room type would match legitimately
+    — so this reports SUSPICION, and the caller decides.
+    """
+    return unfiltered_total > 1 and len(rows) == unfiltered_total
+
+
 def units_sold_by_date(bookings: Iterable[BookingDTO]) -> dict[tuple[str, date], int]:
     """On-the-books units per category per night, counted from unit-nights."""
     counts: dict[tuple[str, date], int] = defaultdict(int)

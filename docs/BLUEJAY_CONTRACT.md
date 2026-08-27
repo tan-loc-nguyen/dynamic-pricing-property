@@ -1,4 +1,77 @@
-# Blue Jay — provisional contract and verification checklist
+# Blue Jay — contract, part VERIFIED as of 2026-08-27
+
+> **FIRST LIVE WINDOW: 2026-08-27, 08:00–08:30 Vietnam time.** Everything under
+> "Verified" below was observed against the real API. Where it contradicts the
+> API document, the observation wins.
+>
+> **The base URL in the ENGLISH TRANSLATION IS WRONG.** It gives
+> `api-test.bluejaypms.com`; the original Vietnamese says
+> `api1.bluejaypms.com`. `api-test` exists and serves a DIFFERENT
+> (booking-engine) API — `/properties`, `/roomtypes`, auth header `apikey`,
+> parameter `property` — so every documented endpoint 404s there and every
+> other call returns a blanket `Unauthorized` that carries no diagnosis. That
+> cost most of the first window.
+
+## VERIFIED against api1.bluejaypms.com
+
+| Thing | Value | Note |
+|---|---|---|
+| Base URL | `https://api1.bluejaypms.com/api/v2` | NOT `api-test` |
+| Auth header | `apikey`, raw value | the document only said "the Header" |
+| Property parameter | `hotelId` | as documented |
+| `roomtype-list` | `{status, message, data:[{id, name, code}]}` | field is `name`, NOT `roomtypeName` |
+| `roomdetail-list` | `{status, message, data:[{id, roomName}]}` | **no roomtypeId in the row** |
+| `roomdetail-list?roomtypeId=` | filters correctly | **this is the U11 unlock** |
+| `source-list` | `[{id, sourceName, code, commiission, isActive, isDelete}]` | note the misspelling; `commiission` is ASSUMPTIONS U13 |
+| `source-category` | `[{id, sourceName, isActive, isDelete}]` | |
+| Success envelope | `status: "Success"` | capitalised |
+
+Measured on tenant 1003: **15 room types, 67 rooms**, and the per-type counts
+sum exactly to the unfiltered list. So units per room type is now real data,
+not the seeded 10/8/4 guess.
+
+### Two error grammars, and which one you get is the diagnosis
+
+| Shape | Meaning | Example |
+|---|---|---|
+| `{errors:{code, title}}` | the AUTH GATE rejected you | missing or wrong `apikey` |
+| `{errors:{status, message}}` | the APPLICATION rejected you | `hotelId is not found`; `Api chỉ được gọi trong các khung giờ cho phép`; `khoảng cách giữa ngày from và to không được quá 1 tháng` |
+
+Both arrive with **HTTP 200**. Neither a status-code check nor a `status`-key
+check sees them. `message` carries the only real diagnosis and it is in
+Vietnamese — reducing it to "Unauthorized" sends the reader to check their key
+when the actual problem was a date range.
+
+Omitting `hotelId` entirely returns an **ASP.NET HTML error page**, not JSON.
+
+### Undocumented constraints
+
+- **`report-room-occupancy` rejects a range wider than one month.** Requests
+  must be chunked. Nothing in the document says so.
+- **A malformed `roomtypeId` is IGNORED, not rejected.**
+  `roomdetail-list?roomtypeId=abc` returns EVERY room with `status: Success`.
+  Attributing all 67 rooms to one type inflates `units_total`, understates
+  occupancy, understates pace, and pushes the price DOWN for that category.
+  `normalize.filter_looks_ignored()` exists for this.
+
+### STILL BLOCKED — the reports
+
+`reservation` and `report-room-occupancy` returned
+*"Api chỉ được gọi trong các khung giờ cho phép"* throughout, while the filter
+endpoints worked at the same instant, with the server's own `Date` header
+agreeing with our clock to the second. `report-room-occupancy` passed the
+window check once (it answered with the one-month error) and refused
+afterwards, which points at a **per-window call allowance for the report
+endpoints** rather than a clock problem — we had made roughly a dozen calls by
+then.
+
+**U16 therefore remains blocked.** No `bookDate`, no pickup, no fitted booking
+curve. Ask Blue Jay: is there a call quota per window, and does it differ
+between the filter and report endpoints?
+
+---
+
+# Original provisional notes, from the document only
 
 **Every statement in this file is PROVISIONAL.** It is derived from Blue Jay's
 API document (`private/BLUE_JAY_BE_API_Report_EN.md`, gitignored), not from an

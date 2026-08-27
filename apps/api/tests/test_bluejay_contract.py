@@ -898,3 +898,171 @@ def test_the_seasonal_base_fallback_uses_the_band_for_THAT_date():
     by_date = {row.stay_date: row.current_net_rate for row in inv}
     assert by_date[high_1] == 2_300_000.0
     assert by_date[low_2] == 2_100_000.0
+
+
+# =========================================================================
+# 12. OBSERVED, 2026-08-27 08:01 Vietnam time — the first live window
+#
+# These fixtures are REAL responses, not doc-derived. Where they disagree with
+# anything above, they win.
+# =========================================================================
+
+#: Verbatim from every endpoint during the first window. Note the HTTP status
+#: was 200 — this is an application-level error wearing a success code.
+OBSERVED_ERROR_ENVELOPE = {"errors": {"code": "Unauthorized", "title": "Unauthorized"}}
+
+
+def test_the_observed_error_envelope_is_recognised_as_an_error():
+    """A THIRD envelope shape, undocumented.
+
+    The document describes `{status, message, data}` and `{meta, data}`. Live
+    returns `{errors: {code, title}}` with HTTP 200, and `_check_envelope` only
+    looked at `status` — so this sailed through, `sanitize_reservations` turned
+    it into `{"data": null}`, and the capture recorded NO error while writing a
+    snapshot marked sanitised. D33 for the third time, found by real data
+    rather than by reasoning.
+    """
+    with pytest.raises(normalize.VendorPayloadError):
+        normalize.reservations_to_bookings(OBSERVED_ERROR_ENVELOPE, category_map=CATEGORY_MAP)
+
+
+def test_the_vendors_error_code_survives_into_the_message():
+    """"Unauthorized" is the whole diagnosis. Losing it leaves whoever reads
+    the failure guessing at what we already knew."""
+    with pytest.raises(normalize.VendorPayloadError) as excinfo:
+        normalize.reservations_to_bookings(OBSERVED_ERROR_ENVELOPE, category_map=CATEGORY_MAP)
+    assert "Unauthorized" in str(excinfo.value)
+
+
+def test_sanitising_the_observed_error_does_not_manufacture_an_empty_hotel():
+    laundered = sanitize.sanitize_reservations(OBSERVED_ERROR_ENVELOPE)
+    with pytest.raises(normalize.VendorPayloadError):
+        normalize.reservations_to_bookings(laundered, category_map=CATEGORY_MAP)
+
+
+def test_an_errors_key_that_is_empty_is_still_not_an_error():
+    """`errors: []` or `errors: null` alongside real data is a common API
+    idiom. Only a POPULATED errors object means the call failed."""
+    payload = {
+        "errors": [],
+        "data": {"type": "reservation", "attributes": {"reservations": []}},
+    }
+    assert normalize.reservations_to_bookings(payload, category_map=CATEGORY_MAP) == []
+
+
+# =========================================================================
+# 13. OBSERVED on the REAL host, api1.bluejaypms.com, 2026-08-27 08:14 VN
+#
+# The English translation gave the base URL as api-test.bluejaypms.com. That
+# host exists and serves a DIFFERENT (booking-engine) API, which is why every
+# documented endpoint 404'd there. The original Vietnamese says api1.
+# =========================================================================
+
+#: Verbatim. Note `status` is capitalised and the rows are a BARE list.
+OBSERVED_ROOMTYPE_LIST = {
+    "status": "Success",
+    "message": "Get list roomtypes successful",
+    "data": [
+        {"id": 6153, "name": "Căn hộ 02 phòng ngủ", "code": "TPL"},
+        {"id": 6154, "name": "Ninh Bình", "code": "DB"},
+    ],
+}
+
+#: Verbatim. NO roomtypeId — rooms cannot be grouped by type from this alone.
+OBSERVED_ROOMDETAIL_LIST = {
+    "status": "Success",
+    "message": "Get list roomdetails successful",
+    "data": [{"id": 1, "roomName": "R - 401"}, {"id": 2, "roomName": "R - 402"}],
+}
+
+#: Verbatim. The inner keys are `status`/`message`, NOT `code`/`title` — which
+#: is what the other host returned. Two error shapes, two hosts.
+OBSERVED_API1_ERROR = {
+    "errors": {
+        "status": "Unauthorized",
+        "message": "Api chỉ được gọi trong các khung giờ cho phép",
+    }
+}
+
+
+def test_the_capitalised_success_status_is_accepted():
+    """`Success`, not `success`. A case-sensitive check would read every good
+    response as an error."""
+    normalize._check_envelope(OBSERVED_ROOMTYPE_LIST)  # noqa: SLF001
+
+
+def test_the_real_error_envelope_surfaces_the_vietnamese_reason():
+    """The reason is the entire diagnosis, and it is in Vietnamese. Reading
+    only `code`/`title` — the other host's shape — would have thrown it away
+    and left a bare 'Unauthorized'."""
+    with pytest.raises(normalize.VendorPayloadError) as excinfo:
+        normalize._check_envelope(OBSERVED_API1_ERROR)  # noqa: SLF001
+    assert "khung giờ" in str(excinfo.value)
+
+
+def test_a_room_type_is_read_from_the_field_names_the_api_actually_uses():
+    """`name` and `id`. The document said `roomtypeName`, which appears nowhere
+    in a real response."""
+    resolved = normalize.build_name_category_map(
+        OBSERVED_ROOMTYPE_LIST["data"], {"6153": "2br_regular"}
+    )
+    assert resolved == {"Căn hộ 02 phòng ngủ": "2br_regular"}
+
+
+def test_room_details_carry_no_room_type_so_units_cannot_be_counted_from_them():
+    """A real `roomdetail-list` row is `{id, roomName}` — no roomtypeId.
+
+    So units_total per room type needs ONE CALL PER ROOM TYPE
+    (`roomdetail-list?hotelId=&roomtypeId=`), which is 15 extra calls for this
+    tenant. That is a window-budget fact, not a detail: counting rooms from a
+    single unfiltered call silently attributes every room to nothing.
+    """
+    assert all("roomtypeId" not in row for row in OBSERVED_ROOMDETAIL_LIST["data"])
+    report = normalize.NormalisationReport()
+    normalize.room_types_to_dtos(
+        OBSERVED_ROOMTYPE_LIST["data"],
+        OBSERVED_ROOMDETAIL_LIST["data"],
+        category_map={"Căn hộ 02 phòng ngủ": "2br_regular", "Ninh Bình": "3br"},
+        property_external_id="1003",
+        report=report,
+    )
+    assert report.warnings, "zero units for every type must not pass silently"
+
+
+#: Verbatim. Two DISTINCT error grammars, and which one you get tells you the
+#: layer that rejected you: `code`/`title` is the auth gate (no/!bad apikey),
+#: `status`/`message` is the application (bad hotelId, closed window, range too
+#: wide). Reading only one shape throws away the diagnosis.
+OBSERVED_AUTH_GATE_ERROR = {"errors": {"code": "Unauthorized", "title": "Unauthorized"}}
+OBSERVED_APP_ERRORS = [
+    {"errors": {"status": "Unauthorized", "message": "hotelId is not found"}},
+    {"errors": {"status": "Unauthorized",
+                "message": "khoảng cách giữa ngày from và to không được quá 1 tháng"}},
+]
+
+
+@pytest.mark.parametrize("payload", OBSERVED_APP_ERRORS)
+def test_the_application_error_message_is_what_reaches_the_reader(payload):
+    """These messages are the only diagnosis the API gives. "Unauthorized" for
+    a date range that is merely too wide would send someone to check the key."""
+    with pytest.raises(normalize.VendorPayloadError) as excinfo:
+        normalize._check_envelope(payload)  # noqa: SLF001
+    assert payload["errors"]["message"] in str(excinfo.value)
+
+
+def test_the_auth_gate_error_is_also_recognised():
+    with pytest.raises(normalize.VendorPayloadError):
+        normalize._check_envelope(OBSERVED_AUTH_GATE_ERROR)  # noqa: SLF001
+
+
+def test_an_ignored_room_type_filter_is_detected_rather_than_trusted():
+    """OBSERVED: `roomdetail-list?roomtypeId=abc` returns EVERY room with
+    status Success. A malformed filter is ignored, not rejected.
+
+    Direction matters. Silently attributing all 67 rooms to one room type
+    inflates units_total, which understates occupancy, which understates pace,
+    which pushes the price DOWN — on every date for that category.
+    """
+    every_room = [{"id": i, "roomName": f"R - {i}"} for i in range(1, 68)]
+    assert normalize.filter_looks_ignored(rows=every_room, unfiltered_total=67) is True
+    assert normalize.filter_looks_ignored(rows=every_room[:4], unfiltered_total=67) is False

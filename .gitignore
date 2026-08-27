@@ -42,6 +42,11 @@ release/
 # Client source documents — NEVER commit (repo is public)
 private/
 *.pdf
+# .docx too: the Blue Jay source document arrived as one and landed at the
+# repo root, where only *.pdf was covered.
+*.docx
+*.doc
+*.xlsx
 
 # Blue Jay captures — NEVER commit (repo is public, and the test tenant is a
 # THIRD PARTY's hotel). captures/ holds raw responses including guest names and

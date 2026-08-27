@@ -36,10 +36,10 @@ class BlueJayClient:
         api_key: str,
         hotel_id: str,
         timeout: float = 15.0,
-        auth_header: str = "X-API-KEY",
-        # BOTH are guesses. The document says the key goes in "the Header" and
-        # never names it, nor states the scheme. Configurable so a wrong guess
-        # costs one .env line rather than a code edit inside a 30-minute window.
+        auth_header: str = "apikey",
+        # VERIFIED 2026-08-27 against api1.bluejaypms.com: header `apikey`,
+        # raw value. Still configurable — a different tenant may differ, and
+        # the cost of being wrong is a whole window.
         auth_style: str = "raw",
         transport: httpx.BaseTransport | None = None,
         now: Callable[[], datetime] | None = None,

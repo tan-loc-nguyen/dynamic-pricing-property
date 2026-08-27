@@ -48,10 +48,12 @@ class Settings:
         # Never hard-code credentials. All values come from the environment.
         self.bluejay_base_url: str | None = os.getenv("BLUEJAY_BASE_URL") or None
         self.bluejay_api_key: str | None = os.getenv("BLUEJAY_API_KEY") or None
-        # How the key is presented. UNVERIFIED: the API document states only
-        # that it goes in "the Header". BLUEJAY_HOTEL_ID replaced the old
+        # VERIFIED 2026-08-27: the header is `apikey`, raw. The document said
+        # only "the Header"; this was found by noticing that `apikey` was the
+        # one variant returning 404 rather than 200-Unauthorized — a 404 means
+        # it got PAST the auth gate into routing. BLUEJAY_HOTEL_ID replaced the old
         # BLUEJAY_PROPERTY_IDS, which nothing reads any more.
-        self.bluejay_auth_header: str = os.getenv("BLUEJAY_AUTH_HEADER", "X-API-KEY").strip()
+        self.bluejay_auth_header: str = os.getenv("BLUEJAY_AUTH_HEADER", "apikey").strip()
         self.bluejay_auth_style: str = os.getenv("BLUEJAY_AUTH_STYLE", "raw").strip().lower()
         self.bluejay_timeout_seconds: float = float(os.getenv("BLUEJAY_TIMEOUT_SECONDS", "15"))
         self.bluejay_hotel_id: str = os.getenv("BLUEJAY_HOTEL_ID", "").strip()

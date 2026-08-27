@@ -607,7 +607,14 @@ def test_the_api_key_goes_in_a_configurable_header():
     assert seen[0]["authorization"] == "Bearer k"
 
 
-def test_the_default_header_is_the_one_we_guessed_from_the_document():
+def test_the_default_header_is_the_one_the_live_api_actually_accepts():
+    """VERIFIED 2026-08-27 against api1.bluejaypms.com: `apikey`, raw.
+
+    Was `X-API-KEY`, a guess. Real behaviour is authoritative, so the guess
+    loses. It was found by noticing that `apikey` was the only variant
+    returning 404 instead of 200-Unauthorized — a 404 means the request got
+    PAST the auth gate and into routing.
+    """
     seen: list[dict] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -615,14 +622,14 @@ def test_the_default_header_is_the_one_we_guessed_from_the_document():
         return httpx.Response(200, json={"data": []})
 
     client = bj_client.BlueJayClient(
-        base_url="https://api-test.example/api/v2",
+        base_url="https://api1.example/api/v2",
         api_key="k",
         hotel_id="1003",
         transport=httpx.MockTransport(handler),
         now=lambda: INSIDE_WINDOW,
     )
     client.get("reservation", {})
-    assert seen[0]["x-api-key"] == "k"
+    assert seen[0]["apikey"] == "k"
 
 
 def test_the_unnamed_auth_header_is_listed_as_unresolved():
