@@ -35,7 +35,7 @@ Open **<http://localhost:3000>**.
 `make dev` alone is enough — it runs setup if needed and seeds the database on
 API startup. Prerequisites: Python 3.10+ and Node 18+; `make setup` tells you
 the exact install command for your platform, or `AUTO_INSTALL=1 make setup`
-installs them for you. `make test` runs 406 tests.
+installs them for you. `make test` runs 475 tests.
 
 ---
 
@@ -328,7 +328,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 406 tests
+make test    # 475 tests
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15

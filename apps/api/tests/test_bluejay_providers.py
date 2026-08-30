@@ -644,11 +644,39 @@ def test_the_default_header_is_the_one_the_live_api_actually_accepts():
     assert seen[0]["apikey"] == "k"
 
 
-def test_the_unnamed_auth_header_is_listed_as_unresolved():
-    """A guess we are relying on has to be visible as a guess."""
+def test_the_unresolved_list_does_not_carry_settled_questions():
+    """`unresolved_mappings` is RENDERED to the operator.
+
+    It began as fifteen entries written before we could call the API. Most were
+    answered by observation, and a panel that keeps asking settled questions
+    teaches whoever reads it to skip the panel — which is where the questions
+    that DO matter live.
+
+    So each phrase below names something we verified, and must not appear.
+    """
     from dynamic_pricing.providers.pms.bluejay.provider import UNRESOLVED_MAPPINGS
 
-    assert any("header" in m.lower() for m in UNRESOLVED_MAPPINGS)
+    blob = " ".join(UNRESOLVED_MAPPINGS).lower()
+    settled = {
+        "which header": "the auth header is verified as `apikey`, raw",
+        "x-api-key": "that was the wrong guess; the answer is `apikey`",
+        "stay total or a nightly": "verified: roomPrice is the stay total",
+        "only 'đã huỷ' has ever been observed": "the whole status mapping is verified",
+        "response schema for roomtype-list": "both schemas are verified",
+        "pagination beyond": "verified: page until a SHORT page; meta.total is capped",
+        "correct endpoint for occupancy": "verified: /report-room-occupancy",
+    }
+    for phrase, why in settled.items():
+        assert phrase not in blob, f"still asking a settled question ({phrase!r}) — {why}"
+
+
+def test_the_unresolved_list_still_names_what_actually_blocks_us():
+    """The counterpart: trimming must not quietly drop a real blocker."""
+    from dynamic_pricing.providers.pms.bluejay.provider import UNRESOLVED_MAPPINGS
+
+    blob = " ".join(UNRESOLVED_MAPPINGS).lower()
+    for phrase in ("hotelid", "net or gross", "yield management"):
+        assert phrase in blob, f"{phrase!r} is still unresolved and must stay listed"
 
 
 # =========================================================================

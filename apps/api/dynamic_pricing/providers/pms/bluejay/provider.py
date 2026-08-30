@@ -43,28 +43,34 @@ from .client import BlueJayClient
 #: `dateType=3` filters by STAY NIGHT, which is the grain this system prices at.
 DATE_TYPE_STAY_NIGHT = 3
 
+#: What is genuinely still unknown, surfaced in the UI via
+#: `GET /api/status -> pms.unresolved_mappings`.
+#:
+#: Trimmed hard after the 2026-08-27 windows: most of the original list was
+#: ANSWERED by observation, and a list that keeps asking settled questions
+#: trains whoever reads it to skip the whole panel.
 UNRESOLVED_MAPPINGS = [
-    "WHICH HEADER carries the API key, and whether it is raw or 'Bearer <key>'. The "
-    "document says only that it goes in 'the Header'. We default to X-API-KEY raw; "
-    "BLUEJAY_AUTH_HEADER and BLUEJAY_AUTH_STYLE change it without a code edit.",
-    "Confirm the '24:00-24:59' testing window — it is not clock notation.",
-    "Response schema for roomtype-list and roomdetail-list (the document gives no sample).",
-    "Whether `roomPrice` is a STAY TOTAL or a NIGHTLY rate — both samples are night=1, "
-    "so the document cannot distinguish them (ASSUMPTIONS U14).",
-    "Whether `roomPrice` is NET to Luminous or gross of OTA commission (ASSUMPTIONS U14).",
-    "The full set of reservation status strings — only 'Đã huỷ' has ever been observed; "
-    "the rest of our vocabulary is inferred and a wrong guess MISCOUNTS OCCUPANCY silently.",
-    "Whether a reservation row is one physical room or a group booking.",
-    "Which endpoint, if any, publishes a FORWARD-LOOKING rate. None is documented, so "
-    "current_net_rate is reconstructed from bookings.",
-    "Whether report-room-occupancy projects forward or only reports history.",
-    "The correct endpoint for occupancy — the document's own example calls /reservation.",
-    "Pagination beyond `limit`/`page`, and the maximum safe page size.",
-    "Rate-limit and quota policy.",
-    "How cancellations are represented over time (status change, or row disappearance).",
-    "Whether Blue Jay's built-in rule-based Yield Management is active on this tenant.",
+    "Luminous' own hotelId. Everything verified so far is tenant 1003, a DEMO property "
+    "with 15 room types and 67 rooms — nothing has been checked against Luminous' own "
+    "data (22 apartments, 3 categories).",
+    "Why the report endpoints (reservation, report-room-occupancy) were refused during "
+    "the 08:00 window while the filter endpoints answered normally. Every client-side "
+    "explanation has been eliminated. Decisive test: call reservation FIRST in the next "
+    "08:00 window.",
+    "Whether `roomPrice` is NET or gross of OTA commission. We infer GROSS — `balance == "
+    "totalPrice - payment` on 122/122 rows makes it a guest ledger — but no OTA booking "
+    "exists on this tenant to confirm it directly (ASSUMPTIONS U14).",
+    "Why report-room-occupancy and the reservation list disagree on ~3% of room-nights. "
+    "Narrowed to a per-reservation attribute the payload does not expose; a hold expiry "
+    "is the obvious candidate.",
+    "What the documented '24:00-24:59' testing window means. Never trusted, never called.",
+    "Whether `commiission` carries real values on a live tenant. The field IS a "
+    "percentage (5/10/15 observed) but every OTA source reads 0 here (ASSUMPTIONS U13).",
+    "Whether any endpoint publishes a FORWARD-LOOKING rate. None found, so "
+    "current_net_rate is reconstructed from bookings. Probably permanent.",
+    "Whether Blue Jay's built-in rule-based Yield Management is active on the Luminous "
+    "tenant. If it already moves rates, the two systems would fight.",
     "How far back reservation history can be exported (ASSUMPTIONS U15).",
-    "Luminous' own hotelId — the documented tenant 1003 is a different property.",
 ]
 
 

@@ -647,3 +647,40 @@ The rule, applied wherever data is fetched:
 Related: D30's note that a structural guard cannot see English that was never
 keyed. Same family — the check passes because the thing it would have caught
 never reached it.
+
+## D34 — Observed behaviour outranks the vendor document, and the document is tracked as wrong
+
+The Blue Jay API document was wrong about the base URL, the auth header name,
+the room-type field name, the occupancy field names, what `meta.total` means,
+and it omitted a date-range limit and a silently-ignored filter. Its one worked
+occupancy sample fails its own arithmetic.
+
+So the rule is not "prefer the API" — it is that **every claim carries its
+provenance**, and a claim we have observed beats one we have only read. Both
+contract documents now mark each statement VERIFIED or UNVERIFIED, and untested
+parameters say "never tested" rather than being omitted, because omission reads
+as support.
+
+**Why this needed writing down.** After the first live window, both documents
+still asserted things the window had disproved — one said `/reservation` "never
+returned data to us" directly beneath the section listing the 122 rows it
+returned. A reference that contradicts itself is worse than none: a reader
+following the stale half acts on findings we had already overturned. The same
+applied to `UNRESOLVED_MAPPINGS`, which is RENDERED to the operator and was
+still asking questions we had answered.
+
+**The guard.** `test_the_unresolved_list_does_not_carry_settled_questions`
+fails if the operator-facing list mentions something we verified, and its
+counterpart fails if trimming drops a real blocker. Staleness in a document is
+invisible; staleness in a list a test can read is not.
+
+**The technique worth reusing.** The reservation `status` field returns
+Vietnamese prose while the input filter takes integers, and the document maps
+neither to the other. Filtering on each integer and reading back the string
+produced the whole mapping in seven calls — a question we were about to email a
+vendor about. It generalises to any enum an API filters on but documents only
+one side of.
+
+**What did NOT change.** The engine, the rate book, Shadow Mode, and the
+NET/OTA separation are untouched. Verification changed how we READ Blue Jay,
+not what we do with the numbers.

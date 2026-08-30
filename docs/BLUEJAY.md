@@ -1,41 +1,40 @@
 # Blue Jay PMS Integration
 
-## Status: adapter WIRED against the documented schema, not yet verified live
+## Status: VERIFIED against the live API, on a demo tenant
 
-> **The API document arrived.** The adapter is implemented against it and is
-> treated as PROVISIONAL until a live response confirms it. See
-> **[BLUEJAY_CONTRACT.md](BLUEJAY_CONTRACT.md)** for the field mapping, the
-> document's own inconsistencies, and the verification checklist to work
-> through during the next testing window.
+> **Called successfully on 2026-08-27**, both testing windows. Every documented
+> endpoint answered, and the adapter is wired to what they actually return —
+> replayed end to end against the real captures: 67 units across 3 categories
+> matching the property exactly, 66 unit-nights from 22 reservations, no
+> warnings.
+>
+> **The English translation of the API document had the wrong base URL.** It
+> gives `api-test.bluejaypms.com`; the original Vietnamese says
+> `api1.bluejaypms.com`. The `api-test` host exists and serves a DIFFERENT
+> booking-engine API, so every documented endpoint 404s there. That cost most of
+> the first window.
+>
+> **But it is a DEMO tenant** (`hotelId=1003`, 15 room types, 67 rooms), not
+> Luminous. See "What is still unresolved".
 >
 > Three data modes are interchangeable: **LIVE**, **SNAPSHOT** (sanitized real
 > data, the preferred demo source) and **MOCK**. Switch in Settings → Data.
 
-The API document is now in hand. Endpoints and request parameters come from it;
-**response field names for the filter endpoints are still inferred**, because
-the document gives no sample response for them. Nothing beyond the document has
-been invented, and every inference is listed in BLUEJAY_CONTRACT.md.
-
 What exists:
 
-- `BlueJayPMSProvider` conforms to the `PMSProvider` contract and normalises
-  Blue Jay JSON into vendor-neutral DTOs. Nothing downstream knows the vendor.
-- **Read-only by construction.** `BlueJayClient` exposes no verb but `GET`, so
-  there is no write path to reach for — Blue Jay documents POST for creating
-  bookings, and whether they operate a zero-data-retention policy is unknown.
-- **Window-gated.** A request outside a confirmed Vietnam-time testing window is
-  refused before it leaves the process.
-- Credentials come from the environment only, and the key is never logged,
-  captured or rendered.
-- Every fetch raises `ProviderUnavailable` with actionable remediation, which
-  the API surfaces before falling back to demo data.
+- `BlueJayPMSProvider` normalises Blue Jay JSON into vendor-neutral DTOs.
+  Nothing downstream knows the vendor.
+- **Read-only by construction.** `BlueJayClient` exposes no verb but `GET`.
+- **Window-gated.** A request outside a confirmed Vietnam-time window is refused
+  before it leaves the process. Note the FILTER endpoints turned out not to be
+  window-restricted at all — only the reports are.
+- **Paged.** `meta.total` is capped at `limit`, so the adapter pages until a
+  page comes back short.
+- Credentials come from the environment only; the key is never logged, captured
+  or rendered.
 - An unreadable response **raises rather than returning nothing**: zero bookings
-  would mean 0% occupancy across the horizon, which is the strongest discount
-  signal the engine has.
-
-**Demo mode is completely unaffected.** The product is fully usable today.
-
----
+  would mean 0% occupancy across the horizon, the strongest discount signal the
+  engine has.
 
 ## How to enable it
 
@@ -61,89 +60,46 @@ demo can never be broken by an integration outage.
 
 ---
 
-## Unresolved mappings — questions for the Blue Jay integration call
+## Status of the two hard blockers — BOTH UNBLOCKED
 
-These are surfaced in the UI (`GET /api/status` → `pms.unresolved_mappings`) so
-they are visible rather than buried.
+| | Was | Now |
+|---|---|---|
+| **U11** units per room category | hard blocker; occupancy undefined without it | `roomdetail-list?roomtypeId=` returns one type's rooms. Verified on a demo tenant: 15 types, 67 rooms, per-type counts summing exactly to the unfiltered list. Costs N+1 calls. |
+| **U16** booking creation timestamp | hard blocker; pickup permanently neutral | `reservation.bookDate` carries `YYYY-MM-DD HH:MM:SS` with real clock times. Pickup and a fitted booking curve are both possible. |
 
-### Authentication & transport
-1. Base URL and API version prefix for the Luminous tenant.
-2. Authentication scheme — Bearer token, `X-API-Key` header, or OAuth2 client
-   credentials? Do tokens expire, and is there a refresh flow?
-3. Rate limits and quota policy. Is bulk/date-range fetching supported, or must
-   we page per date?
-
-### Properties, room types & units
-4. Endpoint listing properties, and its pagination contract.
-5. Endpoint listing **room types**, and how the category (2BR Regular / 2BR
-   Premium / 3BR) is keyed.
-6. Endpoint listing **physical rooms**, and how many of the 22 units belong to
-   each room type. **HARD BLOCKER** — occupancy is computed per room type, so
-   without the unit split the pace signal is wrong (see ASSUMPTIONS U11).
-
-### Availability / inventory
-7. Endpoint for per-date availability.
-8. Does it return **units sold** or **units remaining**? (Either works; we need
-   to know which.)
-9. Which field carries the **currently published nightly rate**, and is it net
-   or gross of taxes, fees and OTA commission?
-10. Do **rate plans** exist? If a date has several, which one is "the" price —
-    and does length-of-stay pricing apply?
-
-### Bookings
-11. Endpoint for reservations.
-12. **Is a booking creation timestamp available? HARD BLOCKER.** Required twice
-    over: for the recent-pickup signal, and to fit real booking curves to
-    replace the demo curve (ASSUMPTIONS U1/U16). Without it, pickup is
-    permanently neutral and pace position rests on invented curves.
-12b. **How far back can reservation history be exported?** The client reports
-    Blue Jay has no data retention but that history *can* be extracted with
-    time. This is the single biggest unlock in the project (ASSUMPTIONS U15).
-13. Is the OTA/channel recorded per booking?
-14. How are cancellations represented — status change, or deletion?
-
-### Rates
-15. Which field carries the **NET revenue to Luminous**, versus the guest-facing
-    OTA sell price? The seasonal rate book is NET, so this determines whether
-    'current rate' is comparable at all (ASSUMPTIONS U14).
-16. Do rate plans / length-of-stay pricing exist, and how do they collapse to a
-    single nightly rate?
-17. **Is Blue Jay's built-in rule-based Yield Management active?** If it is
-    already moving rates by remaining inventory, its behaviour must be
-    understood before this system's recommendations are applied, or the two
-    will fight each other.
-
-### Write-back (future, explicitly out of scope for the MVP)
-16. Is there a rate-update endpoint, and what are its idempotency semantics?
-17. Does a price update propagate to OTAs automatically, or is a separate
-    channel-manager push required?
+Neither is verified against **Luminous'** data — see below.
 
 ---
 
-## Field-mapping worksheet
+## What is still unresolved
 
-Fill this in during the integration call. The left column is what the domain
-model needs; the right is what Blue Jay actually calls it.
+Surfaced in the UI (`GET /api/status` → `pms.unresolved_mappings`) so they are
+visible rather than buried, and kept short on purpose: a list that keeps asking
+settled questions teaches the reader to skip the panel.
 
-| Internal field | Type | Blue Jay field | Notes |
-|---|---|---|---|
-| `Property.external_id` | str | | |
-| `Property.name` | str | | |
-| `Property.currency` | str | | assume VND? |
-| `RoomType.external_id` | str | | |
-| `RoomType.category` | str | | 2br_regular / 2br_premium / 3br |
-| `RoomType.units_total` | int | | **HARD BLOCKER — required for occupancy** |
-| `PhysicalRoom.unit_label` | str | | the 22 individual apartments |
-| `StayDateInventory.current_net_rate` | float | | **NET to Luminous**, not OTA sell |
-| `StayDateInventory.current_ota_price` | float | | only if genuinely available |
-| `StayDateInventory.stay_date` | date | | |
-| `StayDateInventory.units_sold` | int | | or derive from units remaining |
+1. **Luminous' own `hotelId`.** Everything verified is tenant 1003, a DEMO
+   property of 15 room types and 67 rooms. Luminous is 22 apartments across 3
+   categories. **Nothing has been checked against their data.** This is now the
+   largest gap in the integration.
+2. **Why report endpoints were refused during the 08:00 window** while filters
+   answered normally. Every client-side explanation eliminated. Decisive test:
+   call `reservation` FIRST in the next 08:00 window.
+3. **Is `roomPrice` NET or gross?** We infer gross from two independent angles;
+   no OTA booking exists on this tenant to confirm directly (U14).
+4. **Why `report-room-occupancy` and `reservation` disagree on ~3% of
+   room-nights.** Narrowed to a per-reservation attribute the payload does not
+   expose.
+5. **What `24:00-24:59` means.** Never trusted, never called.
+6. **Whether `commiission` carries real values on a live tenant** (U13).
+7. **Whether any endpoint publishes a forward-looking rate.** None found, so
+   `current_net_rate` is reconstructed. Probably permanent.
+8. **Whether Blue Jay's Yield Management is active on the Luminous tenant.** If
+   it already moves rates, the two systems would fight.
+9. **How far back reservation history can be exported** (U15).
 
-| `Booking.booked_at` | date | | **HARD BLOCKER — pickup + booking curves** |
-| `Booking.net_rate` | float | | NET revenue received |
-| `Booking.stay_date` | date | | expand multi-night stays? |
-| `Booking.channel` | str | | |
-| `Booking.status` | str | | cancellation representation |
+The full endpoint contract — every verified field, every query parameter, both
+error grammars, and a table of what the vendor document gets wrong — is in
+**[BLUEJAY_CONTRACT.md](BLUEJAY_CONTRACT.md)**.
 
 ---
 
