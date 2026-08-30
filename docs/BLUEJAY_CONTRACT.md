@@ -154,75 +154,103 @@ reservations removes that dependency.
 
 ---
 
-## Field mapping, as currently implemented
+## Field mapping — VERIFIED against live responses
 
 ### `reservation` → `BookingDTO` (one row per **occupied unit-night**)
 
 | Blue Jay | Our field | Note |
 |---|---|---|
-| `checkInTime` … `checkOutTime` | `stay_date` × N | checkout day is **not** an occupied night |
-| `bookDate` | `booked_at` | **unblocks U16** — pickup and booking curves |
-| `roomType` (name) | `room_type_external_id` | resolved via `roomtypeId`, see below |
-| `roomPrice` ÷ nights | `net_rate` | **UNVERIFIED**, see U17 |
-| `source` | `channel` | |
-| `status` | `status` | **mostly guessed**, see U18 |
-| `roomName` | `physical_room_external_id` | |
+| `checkInTime` … `checkOutTime` | `stay_date` × N | checkout day is **not** an occupied night. `night` equalled the span on 22/22 rows |
+| `bookDate` | `booked_at` | `YYYY-MM-DD HH:MM:SS` with real clock times — **U16 unblocked** |
+| `roomType` (name) | `room_type_external_id` | resolved through `roomtypeId`; the vocabularies DO intersect |
+| `roomPrice` ÷ nights × (1 − commission) | `net_rate` | **VERIFIED stay total, and GROSS.** See below |
+| `source` | `channel` | commission looked up in `/source-list` |
+| `status` | `status` | **VERIFIED mapping**, see below |
+| `roomName` | `physical_room_external_id` | `"Unassigned"` is a placeholder → `None` |
 | — | `nights` | **always 1**; Blue Jay's `night` is a stay length |
 | — | `guests` | not present in the payload |
 
-### Why the category map is keyed on `roomtypeId`
+`bookingCode` is **not unique per row** — one booking spanned 22 rows across 6
+room types — and `(bookingCode, roomName, checkInTime)` collided 7 times in 100
+real rows via `"Unassigned"`. The row index is part of `external_id`.
 
-The reservation payload references room types by **localised display name
-only**. Those names are editable in Blue Jay's UI, and the document's own
-two-row sample already uses two conventions at once ("Holo Ben Thanh - 1 PN"
-beside "Căn hộ 3 phòng ngủ"). Worse, the reservation payload and the filter
-endpoint may not even use the same vocabulary — the one place the document
-pairs an id with a name gives `6153 = "Apartment Double VIP"`, which matches
-neither reservation sample.
+### `roomPrice` is a GROSS, guest-facing amount
 
-So the persisted map is `roomtypeId → category`, and `name → category` is
-rebuilt from `roomtype-list` on **every sync**. A rename cannot unmap a
-category.
+`balance == totalPrice − payment` on **122/122** rows, and a refunded booking
+reads `total=0, payment=600,000, balance=−600,000`: `balance` is a guest ledger,
+so `totalPrice` is what the **guest owes**, not the hotel's receipt. And
+`commiission` lives on the SOURCE, which only has something to act on if the
+amount is gross.
+
+We price in NET, so `net = roomPrice / nights × (1 − commiission/100)`, with an
+**unknown** commission reported rather than assumed zero — assuming zero
+overstates achieved rate and biases recommendations up.
+
+### Status vocabulary — VERIFIED
+
+Derived by filtering on each documented integer and reading back the string:
+
+| code | string | occupies? |
+|---|---|---|
+| 0 | `Đã xác nhận` | yes |
+| 1 | `Đang giữ phòng` | **yes** — a held room cannot be sold to anyone else |
+| 2 | `Không đến` | no |
+| 3 | `Đã nhận phòng` | yes |
+| 4 | `Đã trả phòng` | yes |
+| 5 | `Đã huỷ` | no |
+| -1 | no rows over 8 months | deleted rows appear to be withheld |
+
+`đã đặt` and `giữ chỗ` were both invented and neither exists — code 1 returns
+ONE string, so the firm-versus-tentative split encoded a distinction this API
+does not make.
+
+### Occupancy comes from `report-room-occupancy`, not from reservations
+
+The two disagree on ~3% of room-nights (406/420) and the rule could not be
+determined — some holds are counted, some are not, and two bookings made 96
+seconds apart fall on opposite sides. Re-fetched back to back, unpaginated:
+identical disagreement, so it is not drift.
+
+The PMS's own answer wins for occupancy; reservations supply `bookDate`, pickup
+and the derived rate. Blocked rooms leave the sellable denominator.
+
+### Units come from ONE CALL PER ROOM TYPE
+
+A `roomdetail-list` row is `{id, roomName}` with **no `roomtypeId`**, so an
+unfiltered list cannot be grouped — an earlier version tried and produced ZERO
+units for every category. `roomdetail-list?roomtypeId=` filters correctly:
+15 types, 67 rooms, per-type counts summing exactly to the unfiltered list.
+**That is the U11 unblock**, and it costs N+1 calls.
+
+A non-integer or comma-separated `roomtypeId` is **silently ignored** and
+returns the whole property, so a response matching the unfiltered count is
+refused rather than counted.
 
 ---
 
-## Verification checklist — work down this during the next window
+## What is still unverified
 
-Run `python scripts/bluejay_probe.py` first. It makes **no calls** and prints
-the window status. Then `--probe` (shapes only, no values), then `--capture`.
-
-- [ ] **Status vocabulary.** The single highest-value output. We have ONE
-      observed value (`Đã huỷ`) and nine inferences. A wrong inference does not
-      raise — it silently miscounts occupancy. `--capture` prints every distinct
-      status seen and flags any not in our vocabulary.
-- [ ] **`roomPrice`: stay total or nightly rate?** Both samples are `night: 1`,
-      where those are the same number. Find any multi-night reservation.
-- [ ] **`roomPrice`: NET or gross of OTA commission?** (U14)
-- [ ] **Is a reservation row one physical room, or a group booking?**
-      `roomName` is documented as "Physical room", which suggests one room.
-- [ ] **`roomtype-list` / `roomdetail-list` field names.** Entirely inferred.
-- [ ] **Do the reservation payload and `roomtype-list` use the SAME room-type
-      names?** Keying the map on `roomtypeId` protects against a rename, but a
-      reservation still joins to its room type by NAME, so two different
-      vocabularies would break every row. The one place the document pairs an
-      id with a name gives `6153 = "Apartment Double VIP"`, which matches
-      neither reservation sample — so this is a live risk, not a hypothetical.
-      It fails LOUDLY today (`UnmappedValue`), never silently.
-      **If they diverge**, the fix is to stop name-joining: query `reservation`
-      once per room type using the documented `roomTypes=<id>` filter, so each
-      response is known to belong to that id. That is 3 calls instead of 1 for
-      Luminous — affordable even in a 30-minute window.
-- [ ] **Does `report-room-occupancy` project forward?** If not, occupancy must
-      come from reservations, as it currently does.
-- [ ] **Which endpoint publishes a forward rate?** None is documented. If none
-      exists, `current_net_rate` stays derived and that is permanent.
-- [ ] **Pagination.** The documented default is 20 rows. We send `limit=5000`.
-      Confirm the maximum and whether `meta.total` requires paging.
-- [ ] **Rate limits and quota.**
-- [ ] **The `24:00-24:59` window.**
-- [ ] **Luminous' own `hotelId`.** `1003` is a different property.
-- [ ] **Is Blue Jay's built-in Yield Management active on this tenant?** If it
+- [ ] **Why report endpoints were refused in the 08:00 window.** Every
+      client-side explanation eliminated. **Decisive test: call `reservation`
+      FIRST in the next 08:00 window, before anything else.**
+- [ ] **`roomPrice` NET vs gross** — inferred from two independent angles, but
+      no OTA booking exists on this tenant to confirm directly.
+- [ ] **The occupancy/reservation disagreement** — narrowed to a per-reservation
+      attribute the payload does not expose.
+- [ ] **`24:00-24:59`** — never trusted, never called.
+- [ ] **`commiission` on a real tenant** — the field is a percentage (5/10/15
+      observed) but every OTA source reads 0 here.
+- [ ] **Luminous' own `hotelId`.** Everything above is tenant 1003, a demo
+      property of 15 room types and 67 rooms. Luminous is 22 apartments across
+      3 categories. **Nothing has been verified against their data.**
+- [ ] **Is Blue Jay's Yield Management active on the Luminous tenant?** If it
       already moves rates, the two systems would fight.
+- [ ] **Forward-looking rates.** No endpoint publishes one, so
+      `current_net_rate` stays derived. Probably permanent.
+
+Full endpoint reference, including every query parameter verified to work and a
+table of what the vendor document gets wrong, is in
+`private/BLUE_JAY_BE_API_Report_EN.md` (gitignored — vendor material).
 
 ---
 

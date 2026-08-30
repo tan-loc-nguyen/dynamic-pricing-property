@@ -188,7 +188,8 @@ band — is the product's entire purpose.
 | | |
 |---|---|
 | **Current value** | 10 × 2BR Regular, 8 × 2BR Premium, 4 × 3BR = 22 |
-| **Status** | `UNVALIDATED` — total is validated, split is a guess |
+| **Status** | `UNVALIDATED` for Luminous — but the MECHANISM is now proven |
+| **Mechanism resolved** | `roomdetail-list?roomtypeId=` returns the rooms of one room type, verified on a demo tenant: 15 types, 67 rooms, per-type counts summing exactly to the unfiltered list. The split stops being a guess the moment we have Luminous' own `hotelId`. |
 | **Why it matters** | Occupancy is computed per room category, so a wrong split distorts every pace signal. |
 | **Ask the operator** | *"How many of the 22 apartments are in each category?"* |
 
@@ -233,22 +234,26 @@ band — is the product's entire purpose.
 | **Status** | `UNVALIDATED` / blocked on Blue Jay |
 | **Why it matters** | Hard requirement for the recent-pickup signal AND for fitting historical booking curves. Without it, pickup goes permanently neutral. |
 
-## U17 — Is Blue Jay's `roomPrice` a stay total or a nightly rate?
+## U17 — Is Blue Jay's `roomPrice` a stay total or a nightly rate? **ANSWERED**
 
 | | |
 |---|---|
 | **Current behaviour** | Treated as a STAY TOTAL and divided by the number of nights. |
-| **Status** | `UNVALIDATED` — and the documentation *cannot* settle it |
+| **Status** | **RESOLVED 2026-08-27 against the live API** — it is the STAY TOTAL |
+| **Evidence** | Real bookings at one nightly rate: 1 night = 500,000, 3 nights = 1,500,000, 4 nights = 2,000,000, 30 nights = 48,000,000. Dividing by nights is correct. |
+| **Also resolved** | It is a GROSS, guest-facing amount, not NET: `balance == totalPrice - payment` on 122/122 rows, so `balance` is a guest ledger. NET requires removing the per-source `commiission`. |
 | **Why** | Both reservation samples in the API document are `night: 1`, where a stay total and a nightly rate are the same number. |
 | **Blast radius** | Not a mispricing: the band anchors the recommendation. It drives `change_pct`, which is the calendar's change column and the `bigChange` attention threshold. If `roomPrice` is already nightly, every multi-night date understates the current rate by roughly the mean stay length and gets flagged for review on a division error. |
 | **How to resolve** | One live multi-night reservation. The adapter emits a discrepancy for every `nights > 1` row until then. |
 
-## U18 — The reservation status vocabulary
+## U18 — The reservation status vocabulary **ANSWERED**
 
 | | |
 |---|---|
 | **Current value** | Ten Vietnamese strings mapped to seven meanings. **Exactly one (`Đã huỷ`) has ever been observed**; the other nine are inferred from the integer-code table used by the *input* filter. |
-| **Status** | `UNVALIDATED` — the most dangerous unknown in the integration |
+| **Status** | **RESOLVED 2026-08-27** — derived by filtering on each documented integer code and reading back the string it returns |
+| **The mapping** | 0 `Đã xác nhận` · 1 `Đang giữ phòng` · 2 `Không đến` · 3 `Đã nhận phòng` · 4 `Đã trả phòng` · 5 `Đã huỷ` · -1 returned no rows over 8 months |
+| **What we had wrong** | `đã đặt` and `giữ chỗ` were both invented and neither exists. Code 1 returns ONE string, so the firm-versus-tentative split we had encoded describes a distinction this API does not make. |
 | **Why it matters** | The output is prose, the input is codes, and the document never maps the two. An unknown string is skipped and reported, and a repeated unknown raises — but a **wrong guess does not raise at all**. It silently counts cancelled or held inventory as occupied, which inflates occupancy, inflates pace, and pushes prices UP on dates that are not filling. |
 | **Note** | `đã đặt` (a firm booking) and `giữ chỗ` (a tentative hold) both map to vendor code `1`. We treat only the former as occupancy, deliberately. |
 | **Ask Blue Jay** | *"What is the complete list of reservation status strings the reservation endpoint can return, and which integer code does each correspond to?"* |
