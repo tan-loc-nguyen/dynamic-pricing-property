@@ -9,7 +9,8 @@ thing that panel exists to build.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import dataclass, field, replace
 from datetime import date
 
 #: The engine's own code for the rounding step. The averaged breakdown reuses it
@@ -35,6 +36,11 @@ class Contribution:
     label_key: str | None = None
     is_neutral: bool = False
     is_ignored: bool = False
+    #: The figures the message key interpolates (D30). The engine emits a KEY
+    #: plus its numbers, never a finished sentence, so dropping these leaves
+    #: placeholders nothing fills -- ICU then refuses the whole message and the
+    #: operator gets no explanation at all.
+    params: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -114,6 +120,27 @@ class RangeAggregate:
     unpriced_nights: int = 0
 
 
+def _average_params(params: list[dict]) -> dict:
+    """Merge one line's params across the nights it covers.
+
+    Numbers are averaged, which is what makes a range readable: "on average 61%
+    sold against the 88% the curve expects". Anything else is carried when the
+    nights agree and taken from the first when they do not -- ICU refuses a
+    message with a missing argument, so dropping a differing value would lose
+    the whole sentence rather than one word of it. Grouping by label_key first
+    keeps those disagreements rare.
+    """
+    out: dict = {}
+    for key in {k for p in params for k in p}:
+        values = [p[key] for p in params if key in p]
+        numbers = [v for v in values if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        if numbers and len(numbers) == len(values):
+            out[key] = round(sum(numbers) / len(numbers), 4)
+        else:
+            out[key] = values[0]
+    return out
+
+
 def _mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
@@ -132,26 +159,36 @@ def aggregate_range(nights: list[NightlyPrice], *, rounding_increment: int) -> R
 
     priced = [n for n in nights if n.priced]
 
-    codes: list[str] = []
+    # Grouped by (code, label_key), NOT by code alone. `pace` carries six
+    # different label_keys -- well_behind through unavailable -- and a range can
+    # contain several of them. Collapsing on the code and keeping whichever
+    # label the first night happened to have would state one night's story as
+    # though it described the whole range.
+    groups: list[tuple[str, str | None]] = []
+    members: dict[tuple[str, str | None], list[Contribution]] = defaultdict(list)
     for n in priced:
         for c in n.adjustments:
-            if c.code not in codes:
-                codes.append(c.code)
+            key = (c.code, c.label_key)
+            if key not in members:
+                groups.append(key)
+            members[key].append(c)
 
     averaged: list[Contribution] = []
-    for code in codes:
-        sample = next(c for n in priced for c in n.adjustments if c.code == code)
-        deltas = [
-            next((c.delta for c in n.adjustments if c.code == code), 0.0) for n in priced
-        ]
+    for key in groups:
+        rows = members[key]
+        sample = rows[0]
         averaged.append(
             Contribution(
-                code=code,
+                code=sample.code,
                 label=sample.label,
                 label_key=sample.label_key,
-                delta=_mean(deltas),
+                # Divided by EVERY priced night, not by this group's nights, so
+                # the lines still sum to the averaged price: each night's
+                # contribution is counted exactly once across all groups.
+                delta=sum(c.delta for c in rows) / len(priced),
                 is_neutral=sample.is_neutral,
                 is_ignored=sample.is_ignored,
+                params=_average_params([c.params for c in rows]),
             )
         )
 
@@ -172,14 +209,10 @@ def aggregate_range(nights: list[NightlyPrice], *, rounding_increment: int) -> R
     if drift:
         for i, c in enumerate(averaged):
             if c.code == ROUNDING_CODE:
-                averaged[i] = Contribution(
-                    code=c.code,
-                    label=c.label,
-                    label_key=c.label_key,
-                    delta=c.delta + drift,
-                    is_neutral=c.is_neutral,
-                    is_ignored=c.is_ignored,
-                )
+                # `replace`, not a hand-built copy: rebuilding it field by
+                # field silently dropped `params` the moment one was added, and
+                # this is the one line guaranteed to be rebuilt.
+                averaged[i] = replace(c, delta=c.delta + drift)
                 break
         else:
             averaged.append(

@@ -67,14 +67,17 @@ export interface ConfigProblem {
   message: string;
 }
 
-export interface Adjustment {
-  sequence: number;
+/** One explainable step, reduced to what it takes to RENDER one.
+ *
+ *  A range's averaged breakdown carries exactly this and no more — it has no
+ *  single `price_before`, `factor` or `sequence`, because it is several
+ *  nights folded together. Typing those lines as full `Adjustment`s claimed
+ *  fields the API never sends, which is a union wider than the thing it
+ *  describes: the compiler would have accepted a component reaching for a
+ *  price that does not exist. */
+export interface ExplainedStep {
   code: string;
   label: string;
-  adjustment_pct: number;
-  factor: number;
-  price_before: number;
-  price_after: number;
   delta: number;
   /** Message key for the label and its sentence; null when the wording is
    *  operator-authored and must be shown verbatim. */
@@ -83,6 +86,14 @@ export interface Adjustment {
   params: Record<string, unknown>;
   is_neutral: boolean;
   is_ignored: boolean;
+}
+
+export interface Adjustment extends ExplainedStep {
+  sequence: number;
+  adjustment_pct: number;
+  factor: number;
+  price_before: number;
+  price_after: number;
 }
 
 export interface Decision {
@@ -286,7 +297,7 @@ export interface RangeDetail {
    *  server. `max` is nullable: an empty MAX means the only ceiling is the
    *  dynamic bound, and the band strip is drawn open to the right. */
   band: { min: number | null; base: number | null; max: number | null };
-  adjustments: Adjustment[];
+  adjustments: ExplainedStep[];
   nightly: RangeNight[];
   pace_gap: number | null;
   units_sold: number;

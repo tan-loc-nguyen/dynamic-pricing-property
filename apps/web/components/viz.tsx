@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { useFormat } from "@/lib/useFormat";
-import type { Adjustment } from "@/lib/types";
+import type { ExplainedStep } from "@/lib/types";
 
 /* ------------------------------------------------------------------ band */
 
@@ -207,8 +207,8 @@ export function PriceContribution({
   adjustments,
   render,
 }: {
-  adjustments: Adjustment[];
-  render: (a: Adjustment) => { label: string; reason: string };
+  adjustments: ExplainedStep[];
+  render: (a: ExplainedStep) => { label: string; reason: string };
 }) {
   const { formatSignedVND } = useFormat();
   const widest = Math.max(...adjustments.map((a) => Math.abs(a.delta)), 1);

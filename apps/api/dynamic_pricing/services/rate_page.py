@@ -94,6 +94,9 @@ def _nightly_prices(rows: list[PricingRecommendation]) -> list[NightlyPrice]:
                     delta=a.delta,
                     is_neutral=a.is_neutral,
                     is_ignored=a.is_ignored,
+                    # D30: the key alone is not an explanation. Without the
+                    # figures it interpolates, ICU refuses the whole message.
+                    params=dict(a.params or {}),
                 )
                 for a in sorted(r.adjustments, key=lambda a: a.sequence)
             ),

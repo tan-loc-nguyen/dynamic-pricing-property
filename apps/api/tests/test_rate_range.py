@@ -188,3 +188,151 @@ def test_unassigned_bookings_never_let_the_count_overstate_availability():
 
     assert result.units == 2, "the fully-sold night proves at most 2 units are free somewhere"
     assert result.is_exact is False
+
+
+# ------------------------------------------------- averaging the breakdown
+#
+# A code is not a narrative. `pace` alone carries six different label_keys --
+# well_behind, behind, on_pace, ahead, well_ahead, unavailable -- and a range
+# can contain several of them. Collapsing on `code` and keeping whichever
+# label the first night happened to have states one of them as though it
+# described the whole range.
+
+
+def contribution(code: str, label_key: str, delta: float, **params) -> Contribution:
+    return Contribution(
+        code=code, label=code, label_key=label_key, delta=delta, params=params
+    )
+
+
+def night_with(day: int, *, recommended: float, contributions: tuple[Contribution, ...]):
+    return NightlyPrice(
+        stay_date=date(2026, 9, day),
+        season_key="low_2",
+        base_net_rate=2_000_000.0,
+        recommended_net_rate=recommended,
+        current_net_rate=2_100_000.0,
+        band_min=1_800_000.0,
+        band_base=2_000_000.0,
+        band_max=2_300_000.0,
+        units_total=8,
+        units_sold=3,
+        priced=True,
+        adjustments=contributions,
+    )
+
+
+def test_nights_that_tell_different_stories_get_separate_lines():
+    """Four nights behind pace and two on pace are two facts, not one."""
+    nights = [
+        night_with(d, recommended=1_940_000, contributions=(
+            contribution("pace", "adjustments.pace.behind", -60_000, gap_pp=-12),
+        ))
+        for d in (1, 2)
+    ] + [
+        night_with(3, recommended=2_000_000, contributions=(
+            contribution("pace", "adjustments.pace.on_pace", 0.0, gap_pp=1),
+        ))
+    ]
+
+    agg = aggregate_range(nights, rounding_increment=10_000)
+
+    keys = [c.label_key for c in agg.adjustments if c.code == "pace"]
+    assert sorted(keys) == ["adjustments.pace.behind", "adjustments.pace.on_pace"]
+
+
+def test_separate_lines_still_sum_to_the_price_shown():
+    """Splitting the narrative must not break the arithmetic: each line's delta
+    is its share of the WHOLE range, not an average of its own nights."""
+    nights = [
+        night_with(d, recommended=1_940_000, contributions=(
+            contribution("pace", "adjustments.pace.behind", -60_000, gap_pp=-12),
+        ))
+        for d in (1, 2)
+    ] + [
+        night_with(3, recommended=2_000_000, contributions=(
+            contribution("pace", "adjustments.pace.on_pace", 0.0, gap_pp=1),
+        ))
+    ]
+
+    agg = aggregate_range(nights, rounding_increment=10_000)
+
+    total = agg.base_net_rate + sum(c.delta for c in agg.adjustments)
+    assert total == pytest.approx(agg.average_recommended_net_rate)
+
+
+def test_an_averaged_line_carries_the_params_its_message_needs():
+    """The engine emits a message KEY plus the numbers it interpolates (D30).
+
+    Dropping the params leaves a key whose placeholders nothing fills -- ICU
+    refuses the whole message, so the operator gets no explanation at all. It
+    also crashed the drawer outright, because the renderer reads them.
+    """
+    nights = [
+        night_with(1, recommended=1_940_000, contributions=(
+            contribution("pace", "adjustments.pace.behind", -60_000, gap_pp=-20, occupancy=0.4),
+        )),
+        night_with(2, recommended=1_980_000, contributions=(
+            contribution("pace", "adjustments.pace.behind", -20_000, gap_pp=-10, occupancy=0.6),
+        )),
+    ]
+
+    agg = aggregate_range(nights, rounding_increment=10_000)
+    line = next(c for c in agg.adjustments if c.code == "pace")
+
+    assert line.params["gap_pp"] == pytest.approx(-15), "numbers average across the range"
+    assert line.params["occupancy"] == pytest.approx(0.5)
+
+
+def test_the_loader_carries_params_off_the_stored_adjustment():
+    """The dataclass having a `params` field is not the same as it being filled.
+
+    It was added and left unpopulated, so every averaged line arrived with an
+    empty dict: the message key survived, the numbers it interpolates did not,
+    and ICU refuses a message whose arguments are missing.
+    """
+    from dynamic_pricing.services.rate_page import _nightly_prices
+
+    class FakeAdjustment:
+        code, label, label_key = "pace", "Behind", "adjustments.pace.behind"
+        delta, sequence, is_neutral, is_ignored = -60_000.0, 1, False, False
+        params = {"gap_pp": -12, "occupancy": 0.4}
+
+    class FakeRec:
+        stay_date = date(2026, 9, 1)
+        season_key = "low_2"
+        base_net_rate = current_net_rate = 2_000_000.0
+        recommended_net_rate = 1_940_000.0
+        band_min_net_rate, band_base_net_rate, band_max_net_rate = 1.8e6, 2e6, 2.3e6
+        status = "pending"
+        features: dict = {}
+        adjustments = [FakeAdjustment()]
+
+    nights = _nightly_prices([FakeRec()])
+
+    assert nights[0].adjustments[0].params == {"gap_pp": -12, "occupancy": 0.4}
+
+
+def test_folding_the_rounding_drift_does_not_discard_its_params():
+    """The rounding line is REBUILT to absorb the average's own rounding.
+
+    Rebuilding it by hand dropped the params on the way through, so the one
+    line guaranteed to be touched was also the one guaranteed to lose its
+    numbers -- and `adjustments.rounding` interpolates {increment}.
+    """
+    nights = [
+        night_with(1, recommended=2_050_000, contributions=(
+            contribution("rounding", "adjustments.rounding", 10_000, increment=10_000),
+        )),
+        night_with(2, recommended=1_990_000, contributions=(
+            contribution("rounding", "adjustments.rounding", 10_000, increment=10_000),
+        )),
+        night_with(3, recommended=2_030_000, contributions=(
+            contribution("rounding", "adjustments.rounding", 0, increment=10_000),
+        )),
+    ]
+
+    agg = aggregate_range(nights, rounding_increment=10_000)
+    rounding = next(c for c in agg.adjustments if c.code == "rounding")
+
+    assert rounding.params == {"increment": 10_000}

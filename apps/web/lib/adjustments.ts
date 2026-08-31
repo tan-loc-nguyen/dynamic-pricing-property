@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import type { Adjustment } from "./types";
+import type { ExplainedStep } from "./types";
 
 type IcuValues = Record<string, string | number | Date>;
 
@@ -19,7 +19,7 @@ export function useAdjustmentText() {
   const t = useTranslations();
   const enrich = useParamEnricher();
 
-  return (adj: Adjustment): { label: string; reason: string } => {
+  return (adj: ExplainedStep): { label: string; reason: string } => {
     // No key means the operator wrote this wording themselves (a renamed or
     // invented band). Translating it would put words in their mouth.
     if (!adj.label_key) return { label: adj.label, reason: "" };
@@ -58,14 +58,24 @@ export function useBandLabel() {
 function useParamEnricher() {
   const t = useTranslations("vocab");
 
-  return (params: Record<string, unknown>): IcuValues => {
+  return (rawParams: Record<string, unknown> | null | undefined): IcuValues => {
+    // A row written by an older build — or by a caller that forgot to send
+    // them — has no params at all. Reading through that threw a TypeError
+    // during render, which React escalates into a blank page: the whole Rate
+    // drawer died on one missing field.
+    const params = rawParams ?? {};
     const out: Record<string, unknown> = { ...params };
 
     // Always supplied, even when unknown: ICU refuses a message whose argument
     // is missing, so an absent {season} does not degrade one line — it renders
     // the raw message key where the whole explanation should be.
+    // `seasonsShort`, not `seasons`: the long form baked the months into the
+    // label ("Low Season 1 (May–Jun)"), which became a claim the data
+    // contradicts once an operator can move a boundary, so it was removed.
+    // Reading a namespace that no longer exists threw, and the catch upstream
+    // turned that into "no explanation at all" on every line.
     out.season =
-      typeof params.season_key === "string" ? t(`seasons.${params.season_key}`) : "—";
+      typeof params.season_key === "string" ? t(`seasonsShort.${params.season_key}`) : "—";
     if (typeof params.room_category === "string") {
       out.room_category = t(`roomCategories.${params.room_category}`);
     }

@@ -197,6 +197,11 @@ def rate_range(
                 "delta": a.delta,
                 "is_neutral": a.is_neutral,
                 "is_ignored": a.is_ignored,
+                # D30: a message KEY plus the figures it interpolates, never a
+                # finished sentence. Omitting these left every placeholder
+                # unfilled -- ICU refuses the whole message, so the operator
+                # got no explanation, and the renderer crashed reading them.
+                "params": a.params,
             }
             for a in aggregate.adjustments
         ],
