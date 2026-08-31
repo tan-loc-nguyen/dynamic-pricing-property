@@ -122,14 +122,11 @@ export const api = {
 
   // --- rate book (CLIENT VALIDATED) --------------------------------------
   // --- the Rate page: a DATE RANGE is the unit of work, not a stay date ---
-  // Where the season containing `on` starts and ends. The picker needs this
-  // BEFORE a range exists, to stop the second date at the boundary.
-  season: (on: string) =>
-    request<{ key: string; label: string; start: string; end: string }>(
-      `/api/rate/season${toQuery({ on })}`,
-    ),
-  rateTiles: (start_date: string, end_date: string) =>
-    request<RateTiles>(`/api/rate/tiles${toQuery({ start_date, end_date })}`),
+  // Pass end_date to price an explicit range, or null to have the server
+  // clamp `nights` to the season -- which is what the page does on load, so a
+  // range that crosses a boundary is never requested in the first place.
+  rateTiles: (start_date: string, end_date: string | null, nights = 7) =>
+    request<RateTiles>(`/api/rate/tiles${toQuery({ start_date, end_date, nights })}`),
   rateRange: (room_type_id: number, start_date: string, end_date: string) =>
     request<RangeDetail>(`/api/rate/range${toQuery({ room_type_id, start_date, end_date })}`),
   acceptRange: (room_type_id: number, start_date: string, end_date: string, note?: string) =>

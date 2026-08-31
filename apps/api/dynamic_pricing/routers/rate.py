@@ -92,9 +92,27 @@ def season_endpoint(on: date = Query(...), session: Session = Depends(get_sessio
 @router.get("/tiles")
 def rate_tiles(
     start_date: date = Query(...),
-    end_date: date = Query(...),
+    end_date: date | None = Query(
+        None,
+        description="Omit and pass `nights` instead to have the range clamped to the season.",
+    ),
+    nights: int = Query(7, ge=1, le=90),
     session: Session = Depends(get_session),
 ) -> dict:
+    """Tiles for a range. Either give an explicit `end_date`, or ask for `nights`.
+
+    The `nights` form exists to kill a race, not as a convenience. Discovering
+    the season boundary needs a call, so a client that asks for "today plus a
+    week" and clamps afterwards has a window where the unclamped request is
+    already in flight -- and on the last day of a season that request crosses a
+    boundary and comes back 422. Clamping here, where the boundary is already
+    known, means the page cannot ask for a range it is not allowed to have.
+    """
+    if end_date is None:
+        end_date = min(
+            date.fromordinal(start_date.toordinal() + nights - 1),
+            season_on(session, start_date)["end"],
+        )
     payload = get_active_configuration(session).payload or {}
     increment = int((payload.get("rounding") or {}).get("increment") or 0)
     try:

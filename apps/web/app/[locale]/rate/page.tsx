@@ -22,6 +22,10 @@ import type { RateTile, RateTiles } from "@/lib/types";
  * that lets you choose something it will refuse is a worse answer than one
  * that does not offer it.
  */
+/** The range the page opens on, before the season is known. The server
+ *  shortens it if it would cross a boundary. */
+const DEFAULT_NIGHTS = 7;
+
 export default function RatePage() {
   const t = useTranslations("rate");
   const tc = useTranslations("common");
@@ -29,36 +33,27 @@ export default function RatePage() {
   const { formatVND, formatAdjPct } = useFormat();
 
   const [startDate, setStartDate] = useState(todayISO);
-  const [endDate, setEndDate] = useState(() => addDaysISO(todayISO(), 6));
-  const [seasonEnd, setSeasonEnd] = useState<string | null>(null);
+  /** The end the OPERATOR asked for, or null to let the server pick one inside
+   *  the season. Null on first load and whenever the start moves, because the
+   *  boundary is not known here — asking for it first left a window where an
+   *  unclamped request was already in flight, and on the last day of a season
+   *  that request crosses a boundary and comes back 422. */
+  const [requestedEnd, setRequestedEnd] = useState<string | null>(null);
+  const [endInput, setEndInput] = useState(() => addDaysISO(todayISO(), 6));
   const [data, setData] = useState<RateTiles | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selection, setSelection] = useState<RangeSelection | null>(null);
 
-  // The season containing the START date decides how far the range may run.
-  useEffect(() => {
-    let alive = true;
-    api
-      .season(startDate)
-      .then((s) => {
-        if (!alive) return;
-        setSeasonEnd(s.end);
-        setEndDate((current) =>
-          current < startDate ? startDate : current > s.end ? s.end : current,
-        );
-      })
-      .catch(() => alive && setSeasonEnd(null));
-    return () => {
-      alive = false;
-    };
-  }, [startDate]);
-
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setData(await api.rateTiles(startDate, endDate));
+      const next = await api.rateTiles(startDate, requestedEnd, DEFAULT_NIGHTS);
+      setData(next);
+      // The server may have shortened the range at the season boundary; the
+      // input shows what was actually priced, not what was asked for.
+      setEndInput(next.end_date);
     } catch (e: any) {
       // An empty result and an unreachable API must not render alike: one of
       // them means "nothing is priced", which is a claim, not a blank screen.
@@ -67,13 +62,14 @@ export default function RatePage() {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, tc]);
+  }, [startDate, requestedEnd, tc]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const nights = data?.nights ?? 0;
+  const seasonEnd = data?.season.end ?? null;
 
   return (
     <div className="h-full overflow-y-auto px-7 py-6 space-y-5 max-w-[1500px]">
@@ -87,7 +83,14 @@ export default function RatePage() {
               type="date"
               className={inputClass}
               value={startDate}
-              onChange={(e) => e.target.value && setStartDate(e.target.value)}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setStartDate(e.target.value);
+                // A new start may sit in a different season, so hand the end
+                // back to the server rather than carrying over one that may
+                // now cross a boundary.
+                setRequestedEnd(null);
+              }}
             />
           </label>
           <div aria-hidden className="pb-2 text-ink-300">
@@ -98,12 +101,16 @@ export default function RatePage() {
             <input
               type="date"
               className={inputClass}
-              value={endDate}
+              value={endInput}
               min={startDate}
               // Capped at the season boundary rather than validated after the
               // fact, so the control cannot offer a range the server refuses.
               max={seasonEnd ?? undefined}
-              onChange={(e) => e.target.value && setEndDate(e.target.value)}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setEndInput(e.target.value);
+                setRequestedEnd(e.target.value);
+              }}
             />
           </label>
           {data && (
@@ -114,7 +121,7 @@ export default function RatePage() {
             </div>
           )}
         </div>
-        {seasonEnd && endDate === seasonEnd && (
+        {seasonEnd && endInput === seasonEnd && (
           <p className="mt-2 text-[11px] text-ink-400">{t("seasonBoundary")}</p>
         )}
       </Card>

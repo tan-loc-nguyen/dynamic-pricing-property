@@ -1236,3 +1236,30 @@ def test_a_refused_collection_does_not_claim_to_have_run(client):
     body = client.get("/api/market/collector").json()
     assert body["has_run"] is False
     assert body["attempted"] == 0
+
+
+def test_asking_for_a_week_from_a_seasons_last_day_shortens_the_range(client):
+    """The Rate page opens on "today plus a week" and must never 422 doing it.
+
+    On the last day of a season that week crosses a boundary. Making the client
+    discover the boundary with a SECOND call leaves a window where the first
+    request is already in flight with an unclamped range -- which is exactly how
+    the page greeted an operator with a red error on 31 August, the last day of
+    High Season 1.
+
+    So the range is clamped where the boundary is known: ask for seven nights
+    and get however many of them are actually in this season.
+    """
+    from datetime import date
+
+    today = date.today().isoformat()
+    season_end = client.get("/api/rate/season", params={"on": today}).json()["end"]
+
+    response = client.get(
+        "/api/rate/tiles", params={"start_date": season_end, "nights": 7}
+    )
+
+    assert response.status_code == 200, response.json()
+    body = response.json()
+    assert body["end_date"] == season_end, "the range must stop at the season boundary"
+    assert body["nights"] == 1
