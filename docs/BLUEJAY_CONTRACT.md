@@ -74,7 +74,7 @@ between the filter and report endpoints?
 # Original provisional notes, from the document only
 
 **Every statement in this file is PROVISIONAL.** It is derived from Blue Jay's
-API document (`private/BLUE_JAY_BE_API_Report_EN.md`, gitignored), not from an
+API document (see `BLUEJAY_ENDPOINTS.md`), not from an
 observed response. The document is internally inconsistent in several places,
 and those places are named below rather than quietly resolved.
 
@@ -250,7 +250,7 @@ refused rather than counted.
 
 Full endpoint reference, including every query parameter verified to work and a
 table of what the vendor document gets wrong, is in
-`private/BLUE_JAY_BE_API_Report_EN.md` (gitignored — vendor material).
+[`BLUEJAY_ENDPOINTS.md`](BLUEJAY_ENDPOINTS.md).
 
 ---
 

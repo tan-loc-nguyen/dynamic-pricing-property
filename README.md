@@ -20,8 +20,7 @@ why?* Blue Jay remains the system of record and the execution layer.
 ## Quick start
 
 ```bash
-make setup    # one-time: checks/installs prerequisites, installs deps, seeds the demo DB
-make dev      # starts the API and the web app together
+make demo     # deps, a fresh demo database, and both servers — one command
 ```
 
 Open **<http://localhost:3000>**.
@@ -32,10 +31,14 @@ Open **<http://localhost:3000>**.
 | API | http://127.0.0.1:8000 |
 | API docs | http://127.0.0.1:8000/docs |
 
-`make dev` alone is enough — it runs setup if needed and seeds the database on
-API startup. Prerequisites: Python 3.10+ and Node 18+; `make setup` tells you
-the exact install command for your platform, or `AUTO_INSTALL=1 make setup`
-installs them for you. `make test` runs 517 tests.
+Prerequisites are Python 3.10+ and Node 18+; `make check` says what is missing,
+and `AUTO_INSTALL=1 make setup` installs it. `make test` runs 527 tests.
+
+`make demo` rebuilds the demo database every time, on purpose — a database left
+over from before a schema change is the likeliest thing to stop a new machine,
+and it fails in a way that looks like the app is broken rather than the data
+being old. Full instructions, including the desktop build, are in
+**[docs/RUNNING.md](docs/RUNNING.md)**.
 
 ---
 
@@ -335,7 +338,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 517 tests
+make test    # 527 tests
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15
@@ -352,9 +355,11 @@ snapshot reproducibility, and a regression test for decision-history duplication
 
 | Document | Contents |
 |---|---|
+| **[docs/RUNNING.md](docs/RUNNING.md)** | Getting it running, confirming it works, and what to do when it is not |
 | **[ASSUMPTIONS.md](ASSUMPTIONS.md)** | Validated client input vs. unvalidated experiment, with the question to ask for each |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Engineering decisions and trade-offs |
 | [docs/BLUEJAY_CONTRACT.md](docs/BLUEJAY_CONTRACT.md) | The verified Blue Jay API contract |
+| [docs/BLUEJAY_ENDPOINTS.md](docs/BLUEJAY_ENDPOINTS.md) | Every verified endpoint, parameter and error grammar |
 | [docs/BLUEJAY.md](docs/BLUEJAY.md) | Integration status, unresolved mappings, field-mapping worksheet |
 | [docs/MARKET_DATA.md](docs/MARKET_DATA.md) | Providers, the confidence model, and honest limitations |
 

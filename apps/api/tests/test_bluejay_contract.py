@@ -2,7 +2,7 @@
 
 =============================================================================
  STATUS: PROVISIONAL. Every fixture in this file comes from
- BLUE_JAY_BE_API_Report_EN.md, not from a live call. The documentation is
+ docs/BLUEJAY_ENDPOINTS.md, not from a live call. The documentation is
  known to be internally inconsistent (see docs/BLUEJAY_CONTRACT.md), so these
  tests pin what we BELIEVE the contract is, so that the first live response
  can be diffed against a written-down expectation instead of against nobody's
