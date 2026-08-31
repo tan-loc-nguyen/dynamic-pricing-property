@@ -1,65 +1,59 @@
 "use client";
 
-import * as Tabs from "@radix-ui/react-tabs";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { MarketOverview } from "@/components/market/MarketOverview";
-import { CompetitorList } from "@/components/market/CompetitorList";
-import { EventsPanel } from "@/components/market/EventsPanel";
-import { RawObservations } from "@/components/market/RawObservations";
-
-const TABS = ["overview", "competitors", "events", "data"] as const;
+import { api } from "@/lib/api";
+import { useFormat } from "@/lib/useFormat";
+import type { CollectorReport } from "@/lib/types";
 
 /**
- * Market and events, in one place, insight first.
+ * One question, one answer: how do my prices compare to the market?
  *
- * The previous Market page opened on a table of raw observations — price
- * basis, tax inclusion, refundability — which is the collector's data model
- * rather than an answer. That table still exists, one tab away, because it is
- * genuinely useful for verifying the pipeline. It is just no longer the first
- * thing an owner meets.
+ * The page used to carry four tabs -- overview, comp set, events, raw
+ * observations. Events moved to Customisation, where the other pricing inputs
+ * live, and the comp set moved to Settings because market evidence informs
+ * this chart but never moves a price, which makes it plumbing rather than
+ * strategy.
  */
 export default function MarketPage() {
   const t = useTranslations("marketPage");
+  const { formatDateTime } = useFormat();
+  const [collector, setCollector] = useState<CollectorReport | null>(null);
+
+  useEffect(() => {
+    api
+      .marketCollector()
+      .then(setCollector)
+      .catch(() => setCollector(null));
+  }, []);
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full flex-col gap-3 px-7 py-6">
       <div>
         <h1 className="text-[19px] font-semibold text-ink-900">{t("title")}</h1>
         <p className="text-[12px] text-ink-500">{t("subtitle")}</p>
       </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <MarketOverview />
 
-      <Tabs.Root defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
-        <Tabs.List
-          className="flex shrink-0 gap-1 border-b border-ink-200"
-          aria-label={t("title")}
-        >
-          {TABS.map((key) => (
-            <Tabs.Trigger
-              key={key}
-              value={key}
-              className="-mb-px border-b-2 border-transparent px-3 py-2 text-[12.5px] text-ink-500
-                hover:text-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500
-                data-[state=active]:border-brand-600 data-[state=active]:font-medium
-                data-[state=active]:text-brand-700"
-            >
-              {t(`tabs.${key}`)}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-
-        {TABS.map((key) => (
-          <Tabs.Content
-            key={key}
-            value={key}
-            className="min-h-0 flex-1 overflow-y-auto pt-4 focus:outline-none"
-          >
-            {key === "overview" && <MarketOverview />}
-            {key === "competitors" && <CompetitorList />}
-            {key === "events" && <EventsPanel />}
-            {key === "data" && <RawObservations />}
-          </Tabs.Content>
-        ))}
-      </Tabs.Root>
+        {/* A collector that stopped extracting prices and a market with
+            nothing to say both leave the band thin. This is the only thing on
+            the page that can tell them apart. */}
+        {collector && (
+          <p className="mt-3 text-[11px] text-ink-400">
+            {!collector.has_run
+              ? t("collectorNeverRun")
+              : t("collectorSummary", {
+                  when: collector.ran_at ? formatDateTime(collector.ran_at) : "—",
+                  attempted: collector.attempted,
+                  found: collector.prices_found,
+                })}
+            {collector.truncated_nights > 0 &&
+              ` ${t("collectorTruncated", { nights: collector.truncated_nights })}`}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

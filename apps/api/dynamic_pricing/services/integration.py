@@ -20,6 +20,7 @@ from ..pricing.rate_book import ROOM_CATEGORIES
 PMS_SOURCE_KEY = "pms_source"
 CATEGORY_MAP_KEY = "bluejay_category_map"
 LAST_SYNC_FINDINGS_KEY = "last_sync_findings"
+MARKET_COLLECTOR_KEY = "market_collector_report"
 
 VALID_CATEGORIES = frozenset(c["key"] for c in ROOM_CATEGORIES)
 
@@ -93,3 +94,19 @@ def get_last_sync_findings(session: Session) -> dict:
 
 def set_last_sync_findings(session: Session, findings: dict) -> None:
     _set(session, LAST_SYNC_FINDINGS_KEY, findings or {})
+
+
+def get_market_collector_report(session: Session) -> dict:
+    """What the last market collection attempted and found.
+
+    Persisted because a provider is constructed per request, so an in-memory
+    report dies with it -- and because the Market page's chart cannot otherwise
+    tell a collector that stopped working from a market with nothing to say.
+    Both render as a thinner band.
+    """
+    value = _get(session, MARKET_COLLECTOR_KEY, {})
+    return value if isinstance(value, dict) else {}
+
+
+def set_market_collector_report(session: Session, report: dict) -> None:
+    _set(session, MARKET_COLLECTOR_KEY, report or {})

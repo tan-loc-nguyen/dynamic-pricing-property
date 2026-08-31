@@ -35,7 +35,7 @@ Open **<http://localhost:3000>**.
 `make dev` alone is enough — it runs setup if needed and seeds the database on
 API startup. Prerequisites: Python 3.10+ and Node 18+; `make setup` tells you
 the exact install command for your platform, or `AUTO_INSTALL=1 make setup`
-installs them for you. `make test` runs 475 tests.
+installs them for you. `make test` runs 517 tests.
 
 ---
 
@@ -171,14 +171,18 @@ Recommended NET rate                              2,170,000 ₫
 
 ## Screens
 
+Three places to work; everything else is setup.
+
 | Screen | Purpose |
 |---|---|
-| **Rate Review** | RoomType × StayDate table: availability, OTB occupancy, D-, pace position, pickup, current vs recommended NET, position in band, market confidence, status |
-| **Rate Book** | The client-validated seasonal MIN/BASE/MAX NET table, editable, with provenance per band |
-| **Dynamic Rules** | The experimental layer only — pace, pickup, events, market, bounds — with a live preview and a permanent reminder that none of it is validated |
-| **Market** | Comp-set management and observations with full basis metadata and derived confidence |
-| **Events** | Manually curated demand calendar |
-| **History** | Every accept/override with the system's recommendation beside the operator's rate |
+| **Rate** | Pick a date range, get one tile per room tier — average suggested NET and how many units still have a free night. The tile opens a drawer showing the band, the pace curve, a per-night occupancy strip and the full breakdown; accepting writes one price to every night in the range |
+| **Market** | One chart: your suggested price against the market band, per night, with a line saying when prices were last collected and how many were found |
+| **Customisation** | **Seasonal** — the seasonal MIN/BASE/MAX NET table, with the seasons themselves editable (MAX optional) · **Strategy** — the experimental layer, with a live preview and a permanent reminder that none of it is validated · **Events** — the manually curated demand calendar |
+| **Settings** | **Data** — which PMS source is live, room-type mapping · **Market sources** — which properties the report compares you against · **Activity** — every accept/override, with a bulk range shown as one entry |
+
+A range may not cross a season, because one price cannot sit inside two
+different validated bands — the picker stops at the boundary and the API
+refuses anyway. See **D35–D37** in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ---
 
@@ -294,19 +298,22 @@ surging pickup, event dates, strong/weak market, **low-confidence-only market**,
 
 ## Blue Jay
 
-**Status: integration boundary only.** The API documentation was not available
-(the client document confirms access was requested and is *awaiting
-confirmation*), so no endpoints, schemas or field mappings have been invented.
+**Status: VERIFIED against the live API, on a demo tenant.** Called
+successfully on 2026-08-27 in both testing windows; the adapter is wired to what
+the endpoints actually return and replays end to end against real captures.
 
-`BlueJayPMSProvider` conforms fully to the `PMSProvider` contract, reads
-credentials from environment variables only, and raises `ProviderUnavailable`
-with actionable remediation — which the UI surfaces before falling back to demo
-data. See **[docs/BLUEJAY.md](docs/BLUEJAY.md)** for the 15 unresolved mappings.
+`BlueJayPMSProvider` is **read-only by construction** — `BlueJayClient` exposes
+no verb but `GET` — reads credentials from environment variables only, and
+raises `ProviderUnavailable` with actionable remediation, which the UI surfaces
+before falling back to demo data.
 
-Two are hard blockers, not just mapping work:
-- **units per room category** — without it, occupancy and therefore pace break;
-- **booking creation timestamps** — without them, pickup goes permanently
-  neutral and no historical booking curve can be fitted.
+Both former hard blockers are now unblocked: **units per room category** comes
+from `roomdetail-list?roomtypeId=` (one call per type), and **booking creation
+timestamps** are real clock times on `reservation.bookDate`.
+
+The largest remaining gap is not technical: everything verified so far is a
+DEMO tenant, not Luminous. See **[docs/BLUEJAY.md](docs/BLUEJAY.md)** and
+**[docs/BLUEJAY_CONTRACT.md](docs/BLUEJAY_CONTRACT.md)**.
 
 No credentials are committed. `.env` and `private/` are gitignored.
 
@@ -328,7 +335,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 475 tests
+make test    # 517 tests
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15
@@ -347,6 +354,7 @@ snapshot reproducibility, and a regression test for decision-history duplication
 |---|---|
 | **[ASSUMPTIONS.md](ASSUMPTIONS.md)** | Validated client input vs. unvalidated experiment, with the question to ask for each |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Engineering decisions and trade-offs |
+| [docs/BLUEJAY_CONTRACT.md](docs/BLUEJAY_CONTRACT.md) | The verified Blue Jay API contract |
 | [docs/BLUEJAY.md](docs/BLUEJAY.md) | Integration status, unresolved mappings, field-mapping worksheet |
 | [docs/MARKET_DATA.md](docs/MARKET_DATA.md) | Providers, the confidence model, and honest limitations |
 

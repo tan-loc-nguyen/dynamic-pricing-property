@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import calendar
+
 from dataclasses import dataclass
 from datetime import date
 
@@ -82,6 +84,7 @@ SEASONS = [
     },
 ]
 SEASON_LABELS = {s["key"]: s["label"] for s in SEASONS}
+SEASON_MONTHS = {s["key"]: list(s["months"]) for s in SEASONS}
 SEASON_NOTES = {s["key"]: s["note"] for s in SEASONS}
 
 # month -> season_key, derived once so lookup is O(1) and cannot drift.
@@ -127,7 +130,10 @@ class RateBand:
     room_category: str
     min_net_rate: float
     base_net_rate: float
-    max_net_rate: float
+    #: OPTIONAL. None means the season imposes no ceiling of its own, so the
+    #: only limit is the dynamic bound in Strategy. Not unbounded -- just not
+    #: bounded HERE. See ASSUMPTIONS U9.
+    max_net_rate: float | None
     currency: str = "VND"
     rate_basis: str = RATE_BASIS
     source: str = RATE_BOOK_SOURCE
@@ -137,7 +143,7 @@ class RateBand:
         """Clamp a rate into the band. Returns (value, 'min'|'max'|None)."""
         if value < self.min_net_rate:
             return self.min_net_rate, "min"
-        if value > self.max_net_rate:
+        if self.max_net_rate is not None and value > self.max_net_rate:
             return self.max_net_rate, "max"
         return value, None
 
@@ -156,6 +162,48 @@ class RateBand:
         }
 
 
+def _shift_month(year: int, month: int, delta: int) -> tuple[int, int]:
+    total = year * 12 + (month - 1) + delta
+    return total // 12, total % 12 + 1
+
+
+def season_bounds(day: date) -> tuple[date, date]:
+    """First and last day of the season containing ``day``.
+
+    A season is a CONTIGUOUS run of whole months, and one of them wraps the
+    year end -- High Season 2 is Nov-Dec-Jan. Reading the run as
+    min(months)..max(months) inside a single year turns that into
+    January-to-December, which would let the Rate picker span a range across
+    three other seasons and write one price into bands it was never checked
+    against. So the run is walked from its real start month instead, and
+    January resolves to the season that began the PREVIOUS November.
+    """
+    return season_bounds_in(day, SEASON_MONTHS[season_for(day)])
+
+
+def season_bounds_in(day: date, months: list[int]) -> tuple[date, date]:
+    """As ``season_bounds``, for an EXPLICIT month run.
+
+    Takes the run rather than looking it up so a persisted, operator-edited
+    calendar gets the same wrap-aware arithmetic as the client one — the two
+    must not be able to answer differently.
+    """
+    present = set(months)
+    # The start is the month whose predecessor is NOT in the season. For a
+    # wrapping run that is 11, not 1.
+    start_month = next(m for m in months if (m - 2) % 12 + 1 not in present)
+
+    # How far into the run this date sits, counting forward from the start and
+    # wrapping through December.
+    offset = (day.month - start_month) % 12
+    start_year, start_m = _shift_month(day.year, day.month, -offset)
+    end_year, end_m = _shift_month(start_year, start_m, len(months) - 1)
+    return (
+        date(start_year, start_m, 1),
+        date(end_year, end_m, calendar.monthrange(end_year, end_m)[1]),
+    )
+
+
 def season_for(day: date) -> str:
     return MONTH_TO_SEASON[day.month]
 
@@ -171,27 +219,71 @@ class SeasonalRateBook:
     operator edit in Settings takes effect without a code change.
     """
 
-    def __init__(self, table: dict[tuple[str, str], tuple[float, float, float]] | None = None) -> None:
+    def __init__(
+        self,
+        table: dict[tuple[str, str], tuple[float, float, float]] | None = None,
+        *,
+        seasons: list[dict] | None = None,
+    ) -> None:
         self._table = dict(table) if table else dict(CLIENT_RATE_TABLE)
+        # The season calendar travels WITH the book rather than being read from
+        # the module global at lookup time. Once an operator can edit seasons,
+        # bands-from-the-database plus mapping-from-the-constant are two
+        # different answers that can silently disagree -- the band table saying
+        # September is high season while the mapping still says low, and a date
+        # quoted from the wrong band with nothing failing.
+        self._seasons = [dict(s) for s in (seasons if seasons is not None else SEASONS)]
+        self._month_to_season = {
+            int(month): str(season["key"])
+            for season in self._seasons
+            for month in season.get("months") or []
+        }
+        self._labels = {str(s["key"]): str(s.get("label") or s["key"]) for s in self._seasons}
+        self._notes = {str(s["key"]): (s.get("note") or None) for s in self._seasons}
 
     @classmethod
-    def from_rows(cls, rows) -> "SeasonalRateBook":
-        return cls({(r.season_key, r.room_category): (r.min_net_rate, r.base_net_rate, r.max_net_rate) for r in rows})
+    def from_rows(cls, rows, seasons: list[dict] | None = None) -> "SeasonalRateBook":
+        """Build from persisted bands, and from the persisted calendar if given.
+
+        ``seasons`` defaults to the client calendar so existing callers keep
+        their behaviour; the caller that owns edited seasons passes them.
+        """
+        return cls(
+            {
+                (r.season_key, r.room_category): (r.min_net_rate, r.base_net_rate, r.max_net_rate)
+                for r in rows
+            },
+            seasons=seasons,
+        )
+
+    def season_for(self, stay_date: date) -> str | None:
+        return self._month_to_season.get(stay_date.month)
+
+    @property
+    def seasons(self) -> list[dict]:
+        return [dict(s) for s in self._seasons]
 
     def lookup(self, room_category: str, stay_date: date) -> RateBand | None:
-        season_key = season_for(stay_date)
+        season_key = self.season_for(stay_date)
+        if season_key is None:
+            # A month no season covers. Returning None rather than guessing:
+            # an unpriced date is visible, a date quoted from an arbitrary band
+            # is not.
+            return None
         entry = self._table.get((season_key, room_category))
         if entry is None:
             return None
         minimum, base, maximum = entry
         return RateBand(
             season_key=season_key,
-            season_label=SEASON_LABELS[season_key],
+            season_label=self._labels.get(season_key, season_key),
             room_category=room_category,
             min_net_rate=float(minimum),
             base_net_rate=float(base),
-            max_net_rate=float(maximum),
-            note=SEASON_NOTES.get(season_key) or None,
+            # NULLABLE: an empty MAX means the only ceiling is the dynamic
+            # bound in Strategy. See ASSUMPTIONS U9.
+            max_net_rate=float(maximum) if maximum is not None else None,
+            note=self._notes.get(season_key) or None,
         )
 
     def all_bands(self) -> list[dict]:

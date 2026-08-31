@@ -18,6 +18,7 @@ from dynamic_pricing.pricing.rate_book import (
     ROOM_CATEGORIES,
     SEASONS,
     SeasonalRateBook,
+    season_bounds,
     season_for,
 )
 
@@ -114,3 +115,32 @@ def test_clamp_reports_which_bound_was_hit():
 
 def test_unknown_category_returns_no_band():
     assert SeasonalRateBook().lookup("penthouse", date(2026, 9, 10)) is None
+
+
+# ------------------------------------------------------- season boundaries
+#
+# The Rate page picks a DATE RANGE and a range may not cross a season, because
+# one accepted price cannot sit inside two different validated bands. The
+# picker therefore has to know where the season containing a date ends.
+
+
+def test_a_season_reports_the_first_and_last_day_it_covers():
+    start, end = season_bounds(date(2026, 9, 14))
+    assert (start, end) == (date(2026, 9, 1), date(2026, 10, 31))
+
+
+def test_the_wrapping_season_ends_in_the_FOLLOWING_year():
+    """High Season 2 is Nov-Dec-Jan, so it straddles the year end.
+
+    Read naively -- min(months) to max(months) within one year -- November's
+    season would run from January to December and the picker would let a range
+    cross three other seasons. January belongs to the season that STARTED the
+    previous November.
+    """
+    start, end = season_bounds(date(2026, 11, 15))
+    assert (start, end) == (date(2026, 11, 1), date(2027, 1, 31))
+
+
+def test_january_belongs_to_the_season_that_started_last_november():
+    start, end = season_bounds(date(2027, 1, 15))
+    assert (start, end) == (date(2026, 11, 1), date(2027, 1, 31))

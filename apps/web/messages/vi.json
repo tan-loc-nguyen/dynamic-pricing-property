@@ -8,16 +8,20 @@
   "nav": {
     "primary": "Chính",
     "language": "Ngôn ngữ",
-    "calendar": {
-      "label": "Lịch giá",
-      "hint": "Nơi làm việc hằng ngày"
-    },
     "market": {
-      "label": "Thị trường & Sự kiện",
-      "hint": "Điều đang diễn ra xung quanh"
+      "label": "Thị trường",
+      "hint": "Giá của bạn so với thị trường"
     },
     "settings": {
       "label": "Cài đặt"
+    },
+    "rate": {
+      "label": "Giá",
+      "hint": "Đặt giá cho một khoảng ngày"
+    },
+    "customisation": {
+      "label": "Tùy chỉnh",
+      "hint": "Mùa, chiến lược, sự kiện"
     }
   },
   "adjustments": {
@@ -139,13 +143,6 @@
     }
   },
   "vocab": {
-    "seasons": {
-      "low_1": "Mùa thấp điểm 1 (T5–T6)",
-      "high_1": "Mùa cao điểm 1 (T7–T8)",
-      "low_2": "Mùa thấp điểm 2 (T9–T10)",
-      "high_2": "Mùa cao điểm 2 (T11–T1)",
-      "medium": "Mùa trung bình (T2–T4)"
-    },
     "seasonNotes": {
       "low_1": "Chủ yếu là khách công tác, ít khách du lịch.",
       "high_1": "Du lịch hè — khách quốc tế và khách gia đình.",
@@ -335,11 +332,13 @@
     "marketSummary": "Ghi nhận {count, number} mức giá tương đương · độ tin cậy {confidence}",
     "marketReferenceOnly": "Dữ liệu thị trường ở đây chỉ để tham khảo và không ảnh hưởng giá đề xuất.",
     "marketNone": "Chưa có giá thị trường tương đương cho đêm này.",
-    "paceCrossSection": "Mỗi điểm là một đêm khác nhau ở mốc thời gian đó; chấm tròn là đêm này."
+    "paceCrossSection": "Mỗi điểm là một đêm khác nhau ở mốc thời gian đó; chấm tròn là đêm này.",
+    "rangeNights": "{from} → {to} · {nights, plural, other {# đêm}}",
+    "stripCaption": "Mức lấp đầy hiện tại của từng đêm trong khoảng này.",
+    "someUnpriced": "{count, plural, other {# đêm trong khoảng này không định giá được và sẽ được bỏ qua}}.",
+    "provenanceMixed": "Các đêm trong khoảng này lấy giá hiện tại từ những nguồn khác nhau, nên con số này pha trộn giá niêm yết và giá tái dựng."
   },
   "rateBook": {
-    "title": "Bảng giá theo mùa",
-    "subtitle": "Giá NET — số tiền Luminous thực nhận",
     "clientValidated": "Khách hàng đã xác thực",
     "loading": "Đang tải bảng giá…",
     "empty": "Chưa nạp khung giá nào",
@@ -348,16 +347,28 @@
     "sourceClient": "Khách hàng",
     "sourceEdited": "Đã sửa",
     "subtitleLong": "Giá NET SÀN / CƠ SỞ / TRẦN của chính Luminous theo mùa và hạng căn hộ. Đây là dữ liệu kinh doanh đã được xác thực — bộ tính giá lấy đây làm gốc thay vì tự mô hình hoá yếu tố mùa vụ.",
-    "updated": "Đã cập nhật {season} · {category}. Giá cho những ngày đó đã được tính lại.",
-    "roomCategory": "Hạng căn hộ",
     "minNet": "NET SÀN",
     "baseNet": "NET CƠ SỞ",
-    "maxNet": "NET TRẦN",
-    "statement": "Các mức SÀN/CƠ SỞ/TRẦN này là giá NET do Luminous cung cấp và đã được kiểm chứng qua vận hành thực tế. Chúng đã bao hàm yếu tố mùa vụ, nên bộ tính giá chỉ chọn khung theo mùa chứ không nhân thêm hệ số mùa vụ lên trên.",
     "bandCount": "{count, number} khung giá",
     "editedCount": "{count, number} khung đã khác giá khách hàng",
     "resetDisabled": "Không có gì để khôi phục — mọi khung đang đúng giá khách hàng đã xác thực.",
-    "resetEnabled": "Đưa toàn bộ 15 khung giá về đúng giá Luminous cung cấp."
+    "resetEnabled": "Khôi phục toàn bộ {count, number} khung giá về giá trị Luminous cung cấp.",
+    "granularity": "Độ dài mùa",
+    "byMonths": "Theo tháng",
+    "byQuarters": "Theo quý",
+    "startsIn": "Bắt đầu từ",
+    "addSeason": "Thêm mùa",
+    "removeSeason": "Xoá",
+    "newSeason": "Mùa mới",
+    "maxOptional": "Trần (không bắt buộc)",
+    "required": "Bắt buộc",
+    "noCeiling": "Không giới hạn",
+    "noCeilingNote": "Bỏ trống Trần nghĩa là mùa này không tự đặt trần — giới hạn duy nhất là mức điều chỉnh tối đa trong Chiến lược.",
+    "saved": "Đã lưu.",
+    "calendarSaved": "Đã cập nhật lịch mùa.",
+    "duplicateStart": "Hai mùa không thể bắt đầu cùng một tháng.",
+    "cannotSplit": "Mùa này chỉ dài một tháng nên không tách được.",
+    "cannotRemoveLast": "Cần ít nhất một mùa — mọi ngày đều phải có khung giá."
   },
   "events": {
     "title": "Lịch nhu cầu",
@@ -440,7 +451,9 @@
     "reason": "Lý do",
     "engine": "Bộ tính giá",
     "subtitle": "Toàn bộ các lần chấp nhận và điều chỉnh của người vận hành, đặt cạnh đề xuất của hệ thống. Chính dữ liệu này sau sẽ cho biết bộ tính giá đang sai ở đâu.",
-    "when": "Thời điểm"
+    "when": "Thời điểm",
+    "rangeDates": "{from} → {to}",
+    "bulkNights": "{nights, plural, other {# đêm, đặt giá cùng lúc}}"
   },
   "settings": {
     "title": "Quy tắc điều chỉnh giá",
@@ -535,67 +548,20 @@
     "promotion_unknown": "chưa rõ có khuyến mãi hay không"
   },
   "calendar": {
-    "title": "Lịch giá",
-    "subtitle": "Phòng trống và giá NET đề xuất theo từng đêm. Bấm vào một đêm để xem lý do.",
-    "roomType": "Hạng căn hộ",
-    "today": "Hôm nay",
-    "previousPeriod": "Kỳ trước",
-    "nextPeriod": "Kỳ sau",
-    "unitCount": "{count, number} căn",
-    "bookings": "Đặt phòng",
-    "unitUnassigned": "Chưa gán theo căn",
-    "noBookingsInRange": "Không có đặt phòng trong kỳ này.",
-    "expandRow": "Xem đặt phòng",
-    "collapseRow": "Ẩn đặt phòng",
-    "full": "Hết",
-    "occupancyOf": "Đã bán {sold, number}/{total, number}",
-    "needsReview": "Nên xem lại",
-    "empty": "Không có đề xuất nào trong kỳ này.",
-    "attentionHint": "Chỉ hiển thị những đêm nên xem lại.",
-    "openMostUrgent": "Mở đêm đầu tiên",
-    "summary": {
-      "occupancy": "Công suất",
-      "attention": "Cần chú ý",
-      "pending": "Chờ bạn quyết định",
-      "tapToFilter": "chỉ xem các đêm này",
-      "showingOnly": "đang chỉ xem các đêm này"
-    },
-    "rangeLabel": "Khoảng thời gian",
     "ranges": {
       "twoWeeks": "2 tuần",
       "oneMonth": "1 tháng",
       "threeMonths": "3 tháng",
       "sixMonths": "6 tháng",
       "custom": "Tùy chọn"
-    },
-    "weeklyNote": "Đang xem theo tuần — bấm vào một tuần để mở từng ngày.",
-    "weekAverage": "Trung bình {rate}",
-    "clickToOpenWeek": "bấm để mở tuần này",
-    "noPricingYet": "Chưa tính giá cho khoảng thời gian này.",
-    "legend": {
-      "event": "Sự kiện",
-      "attention": "Nên xem lại",
-      "direction": "Giá tăng / giảm",
-      "noPricing": "Chưa có giá"
-    },
-    "from": "Từ ngày",
-    "to": "Đến ngày",
-    "occupancyOfWeek": "Đã đầy {pct, number}% trong {nights, number} đêm",
-    "roomNights": "Đã bán {count, number} đêm-phòng",
-    "searchPlaceholder": "Hạng căn hộ hoặc mùa…",
-    "searchLabel": "Lọc theo hạng căn hộ hoặc mùa",
-    "filteredOut": "Không khớp bộ lọc hiện tại.",
-    "noMatch": "Không có kết quả nào. Thử tên hạng căn hộ hoặc tên mùa."
+    }
   },
   "marketPage": {
     "title": "Thị trường & Sự kiện",
     "subtitle": "Giá của bạn so với thị trường, bạn đang cạnh tranh với ai, và điều gì đang diễn ra trên lịch.",
-    "tabs": {
-      "overview": "Tổng quan",
-      "competitors": "Nhóm đối thủ",
-      "events": "Sự kiện",
-      "data": "Dữ liệu gốc"
-    }
+    "collectorNeverRun": "Chưa thu thập giá thị trường tự động. Vùng bên dưới chỉ dựa trên các mức giá nhập tay.",
+    "collectorSummary": "Thu thập lần cuối {when} — {attempted, plural, other {# lượt tải}}, {found, plural, =0 {không tìm thấy giá nào} other {tìm thấy # mức giá}}.",
+    "collectorTruncated": "{nights, plural, other {# đêm chưa được tải}} — khoảng ngày vượt quá giới hạn mỗi lần chạy."
   },
   "marketOverview": {
     "loading": "Đang tải dữ liệu thị trường…",
@@ -647,6 +613,10 @@
     "activity": {
       "title": "Nhật ký hoạt động",
       "hint": "Mọi mức giá bạn đã chấp nhận hoặc thay đổi, kèm mức hệ thống từng đề xuất."
+    },
+    "marketSources": {
+      "title": "Nguồn thị trường",
+      "hint": "Những cơ sở mà báo cáo thị trường dùng để so sánh với bạn."
     }
   },
   "dataSettings": {
@@ -724,5 +694,28 @@
     "mapNeedsAttention": "Chưa ánh xạ — loại căn hộ này chưa được tính giá",
     "saveFailed": "Không lưu được. Ứng dụng không kết nối được tới API.",
     "appliesNextSync": "Thay đổi này chỉ áp dụng từ lần đồng bộ dữ liệu tiếp theo. Các đề xuất đang hiển thị vẫn được tính từ nguồn trước đó."
+  },
+  "rate": {
+    "title": "Giá",
+    "subtitle": "Chọn khoảng đêm, rồi đặt một mức giá NET cho từng hạng phòng.",
+    "from": "Từ ngày",
+    "to": "Đến ngày",
+    "nightsSelected": "{nights, plural, other {# đêm}}",
+    "seasonBoundary": "Khoảng ngày dừng lại ở cuối mùa này — một mức giá không thể nằm trong hai khung giá khác nhau.",
+    "averageSuggested": "Giá NET đề xuất trung bình",
+    "inventory": "{units}/{total} căn còn ít nhất một đêm trống",
+    "inventoryAtLeast": "Ít nhất {units}/{total} căn còn một đêm trống — một số booking không ghi rõ ở căn nào.",
+    "unpricedNights": "{count, plural, other {# đêm không định giá được}}",
+    "empty": "Không có gì để định giá cho các đêm này",
+    "emptyHint": "Hãy chạy cập nhật giá, hoặc chọn khoảng ngày khác."
+  },
+  "customisation": {
+    "title": "Tùy chỉnh",
+    "subtitle": "Cách giá được tính: khung giá theo mùa, lớp điều chỉnh động, và lịch nhu cầu.",
+    "tabs": {
+      "seasonal": "Theo mùa",
+      "strategy": "Chiến lược",
+      "events": "Sự kiện"
+    }
   }
 }

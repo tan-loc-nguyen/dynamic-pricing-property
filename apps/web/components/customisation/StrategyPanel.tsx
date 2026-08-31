@@ -159,7 +159,7 @@ function BandEditor({
   );
 }
 
-export default function DynamicRulesPage() {
+export function StrategyPanel() {
   const t = useTranslations("settings");
   const tval = useTranslations("validation");
   const tv = useTranslations("vocab");
@@ -264,7 +264,7 @@ export default function DynamicRulesPage() {
   const delta = preview && baseline ? preview.recommended_net_rate - baseline.recommended_net_rate : 0;
 
   return (
-    <div className="px-7 py-6 max-w-[1500px]">
+    <div className="max-w-[1500px]">
       <PageHeader
         title={t("title")}
         subtitle={t("subtitle")}
@@ -502,7 +502,7 @@ export default function DynamicRulesPage() {
                   · {formatStayDate(preview.stay_date)}
                 </div>
                 <div className="text-[11px] text-ink-400">
-                  {preview.season_key ? tv(`seasons.${preview.season_key}`) : preview.season_label}
+                  {preview.season_key ? tv(`seasonsShort.${preview.season_key}`) : preview.season_label}
                 </div>
 
                 <div className="mt-3 rounded-lg bg-ink-50 border border-ink-200 p-3">

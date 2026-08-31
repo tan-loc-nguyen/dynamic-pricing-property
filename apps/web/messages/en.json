@@ -8,16 +8,20 @@
   "nav": {
     "primary": "Primary",
     "language": "Language",
-    "calendar": {
-      "label": "Pricing calendar",
-      "hint": "Your daily workspace"
-    },
     "market": {
-      "label": "Market & events",
-      "hint": "What is happening around you"
+      "label": "Market",
+      "hint": "How your prices compare"
     },
     "settings": {
       "label": "Settings"
+    },
+    "rate": {
+      "label": "Rate",
+      "hint": "Set prices for a date range"
+    },
+    "customisation": {
+      "label": "Customisation",
+      "hint": "Seasons, strategy, events"
     }
   },
   "adjustments": {
@@ -139,13 +143,6 @@
     }
   },
   "vocab": {
-    "seasons": {
-      "low_1": "Low Season 1 (May–Jun)",
-      "high_1": "High Season 1 (Jul–Aug)",
-      "low_2": "Low Season 2 (Sep–Oct)",
-      "high_2": "High Season 2 (Nov–Jan)",
-      "medium": "Medium Season (Feb–Apr)"
-    },
     "seasonNotes": {
       "low_1": "Mostly business travel, little tourism.",
       "high_1": "Summer tourism — international and family travel.",
@@ -335,11 +332,13 @@
     "marketSummary": "{count, number} comparable prices seen · confidence {confidence}",
     "marketReferenceOnly": "Market data here is for reference only and did not affect the recommended price.",
     "marketNone": "No comparable market prices for this night yet.",
-    "paceCrossSection": "Each point is a different night at that lead time, with the dot marking this one."
+    "paceCrossSection": "Each point is a different night at that lead time, with the dot marking this one.",
+    "rangeNights": "{from} → {to} · {nights, plural, one {# night} other {# nights}}",
+    "stripCaption": "How full each night in this range already is.",
+    "someUnpriced": "{count, plural, one {# night in this range could not be priced and will be skipped} other {# nights in this range could not be priced and will be skipped}}.",
+    "provenanceMixed": "The nights in this range got their current rate from different places, so this figure mixes published and reconstructed prices."
   },
   "rateBook": {
-    "title": "Seasonal rate book",
-    "subtitle": "NET rates — what Luminous receives",
     "clientValidated": "Client-validated",
     "loading": "Loading rate book…",
     "empty": "No rate bands loaded",
@@ -348,16 +347,28 @@
     "sourceClient": "Client",
     "sourceEdited": "Edited",
     "subtitleLong": "Luminous' own MIN / BASE / MAX NET rates by season and room category. This is validated business data — the pricing engine anchors on it rather than modelling seasonality itself.",
-    "updated": "Updated {season} · {category}. Prices for those dates have been recalculated.",
-    "roomCategory": "Room category",
     "minNet": "MIN NET",
     "baseNet": "BASE NET",
-    "maxNet": "MAX NET",
-    "statement": "These MIN/BASE/MAX figures are NET rates supplied by Luminous and validated by real operation. They already encode seasonality, so the pricing engine selects a band by season rather than multiplying a seasonality factor on top.",
     "bandCount": "{count, number} bands",
     "editedCount": "{count, number} band(s) edited from the client values",
     "resetDisabled": "Nothing to restore — every band matches the client-validated values.",
-    "resetEnabled": "Restore all 15 bands to the values Luminous supplied."
+    "resetEnabled": "Restore all {count, number} bands to the values Luminous supplied.",
+    "granularity": "Season length",
+    "byMonths": "By months",
+    "byQuarters": "By quarters",
+    "startsIn": "Starts in",
+    "addSeason": "Add a season",
+    "removeSeason": "Remove",
+    "newSeason": "New season",
+    "maxOptional": "Max (optional)",
+    "required": "Required",
+    "noCeiling": "No ceiling",
+    "noCeilingNote": "A blank Max means this season sets no ceiling of its own — the only limit is the total adjustment cap in Strategy.",
+    "saved": "Saved.",
+    "calendarSaved": "Season calendar updated.",
+    "duplicateStart": "Two seasons cannot start in the same month.",
+    "cannotSplit": "That season is only one month long, so there is nothing to split.",
+    "cannotRemoveLast": "At least one season is needed — every date must have a rate band."
   },
   "events": {
     "title": "Demand calendar",
@@ -440,7 +451,9 @@
     "reason": "Reason",
     "engine": "Engine",
     "subtitle": "Every accept and override the operator has made, with the system's recommendation alongside it. This record is what will eventually tell us where the engine is wrong.",
-    "when": "When"
+    "when": "When",
+    "rangeDates": "{from} → {to}",
+    "bulkNights": "{nights, plural, one {# night, priced together} other {# nights, priced together}}"
   },
   "settings": {
     "title": "Dynamic rules",
@@ -535,67 +548,20 @@
     "promotion_unknown": "promotion status unknown"
   },
   "calendar": {
-    "title": "Pricing calendar",
-    "subtitle": "Availability and recommended NET rates, night by night. Click a night to see why.",
-    "roomType": "Room type",
-    "today": "Today",
-    "previousPeriod": "Previous period",
-    "nextPeriod": "Next period",
-    "unitCount": "{count, number} units",
-    "bookings": "Bookings",
-    "unitUnassigned": "Not assigned to units",
-    "noBookingsInRange": "No bookings in this period.",
-    "expandRow": "Show bookings",
-    "collapseRow": "Hide bookings",
-    "full": "Full",
-    "occupancyOf": "{sold, number} of {total, number} sold",
-    "needsReview": "Worth a look",
-    "empty": "No recommendations in this period.",
-    "attentionHint": "Showing only the nights worth reviewing.",
-    "openMostUrgent": "Open the first one",
-    "summary": {
-      "occupancy": "Occupancy",
-      "attention": "Need attention",
-      "pending": "Awaiting your decision",
-      "tapToFilter": "show only these",
-      "showingOnly": "showing only these"
-    },
-    "rangeLabel": "Date range",
     "ranges": {
       "twoWeeks": "2 weeks",
       "oneMonth": "1 month",
       "threeMonths": "3 months",
       "sixMonths": "6 months",
       "custom": "Custom range"
-    },
-    "weeklyNote": "Shown by week — click a week to open it day by day.",
-    "weekAverage": "Average {rate}",
-    "clickToOpenWeek": "click to open this week",
-    "noPricingYet": "No prices calculated for this period yet.",
-    "legend": {
-      "event": "Event",
-      "attention": "Worth a look",
-      "direction": "Price up / down",
-      "noPricing": "No prices yet"
-    },
-    "from": "From",
-    "to": "To",
-    "occupancyOfWeek": "{pct, number}% full across {nights, number} nights",
-    "roomNights": "{count, number} room-nights sold",
-    "searchPlaceholder": "Room type or season…",
-    "searchLabel": "Filter by room type or season",
-    "filteredOut": "Does not match the current filter.",
-    "noMatch": "Nothing matches that. Try a room type or a season name."
+    }
   },
   "marketPage": {
     "title": "Market & events",
     "subtitle": "How your prices compare, who you compete with, and what is happening on the calendar.",
-    "tabs": {
-      "overview": "Overview",
-      "competitors": "Comp set",
-      "events": "Events",
-      "data": "Data details"
-    }
+    "collectorNeverRun": "Market prices have not been collected automatically. The band below is from manually entered references only.",
+    "collectorSummary": "Last collected {when} — {attempted, plural, one {# fetch} other {# fetches}}, {found, plural, =0 {no prices found} one {# price found} other {# prices found}}.",
+    "collectorTruncated": "{nights, plural, one {# night was not fetched} other {# nights were not fetched}} — the range exceeded the per-run limit."
   },
   "marketOverview": {
     "loading": "Loading market data…",
@@ -647,6 +613,10 @@
     "activity": {
       "title": "Activity log",
       "hint": "Every price you accepted or changed, and what the system had suggested."
+    },
+    "marketSources": {
+      "title": "Market sources",
+      "hint": "Which properties the market report compares you against."
     }
   },
   "dataSettings": {
@@ -724,5 +694,28 @@
     "mapNeedsAttention": "Not mapped yet — this room type is not priced",
     "saveFailed": "Could not save. The app could not reach the API.",
     "appliesNextSync": "Changing this applies to the next data sync. Recommendations already on screen were built by the previous source."
+  },
+  "rate": {
+    "title": "Rate",
+    "subtitle": "Pick the nights, then set one NET rate for each room tier.",
+    "from": "From",
+    "to": "To",
+    "nightsSelected": "{nights, plural, one {# night} other {# nights}}",
+    "seasonBoundary": "The range stops at the end of this season — one price cannot sit inside two different rate bands.",
+    "averageSuggested": "Average suggested NET",
+    "inventory": "{units} of {total} units have a free night",
+    "inventoryAtLeast": "At least {units} of {total} units have a free night — some bookings do not say which apartment they are in.",
+    "unpricedNights": "{count, plural, one {# night could not be priced} other {# nights could not be priced}}",
+    "empty": "Nothing to price for these nights",
+    "emptyHint": "Run a pricing update, or choose a different range."
+  },
+  "customisation": {
+    "title": "Customisation",
+    "subtitle": "How your prices are worked out: seasonal bands, the dynamic layer, and the demand calendar.",
+    "tabs": {
+      "seasonal": "Seasonal",
+      "strategy": "Strategy",
+      "events": "Events"
+    }
   }
 }

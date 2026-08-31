@@ -116,6 +116,25 @@ class PhysicalRoom(Base):
 
 
 # ------------------------------------------------------- validated rate book
+class Season(Base):
+    """An operator-defined season: a contiguous run of whole months.
+
+    Seasons must cover the year exactly once. The Rate page refuses a date
+    range that crosses a season boundary, so a gap is a hole its picker cannot
+    describe and a date inside one has no validated band at all. The invariant
+    is enforced on save (``pricing.seasons.validate_partition``) -- the same
+    check the hardcoded table made at import time, moved to where edits happen.
+    """
+
+    __tablename__ = "seasons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(48), unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(120))
+    months: Mapped[list] = mapped_column(JSON)  # e.g. [11, 12, 1]
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class SeasonalRateBand(Base):
     """CLIENT-VALIDATED seasonal MIN/BASE/MAX NET rates.
 
@@ -137,7 +156,10 @@ class SeasonalRateBand(Base):
 
     min_net_rate: Mapped[float] = mapped_column(Float)
     base_net_rate: Mapped[float] = mapped_column(Float)
-    max_net_rate: Mapped[float] = mapped_column(Float)
+    #: NULLABLE. An empty MAX means the season has no ceiling of its own, so
+    #: the only limit is the dynamic bound in Strategy (base x 1 + bound).
+    #: See ASSUMPTIONS U9.
+    max_net_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     currency: Mapped[str] = mapped_column(String(8), default="VND")
     rate_basis: Mapped[str] = mapped_column(String(16), default="NET")
@@ -451,6 +473,10 @@ class OperatorDecision(Base):
     engine_version: Mapped[str] = mapped_column(String(48), default="1.0.0")
     config_version: Mapped[int] = mapped_column(Integer, default=1)
     operator: Mapped[str] = mapped_column(String(80), default="demo-operator")
+    #: Ties together the rows written by ONE bulk action over a date range, so
+    #: the activity log can show "1-14 Sep, 14 nights" as a single entry rather
+    #: than fourteen near-identical lines. NULL for a single-date decision.
+    group_id: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
     recommendation: Mapped[PricingRecommendation] = relationship(back_populates="decisions")

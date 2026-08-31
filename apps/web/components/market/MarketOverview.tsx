@@ -15,7 +15,7 @@ import {
 import { api } from "@/lib/api";
 import { addDaysISO, todayISO } from "@/lib/dates";
 import { RANGES, daysFor, granularityFor } from "@/lib/ranges";
-import { buildColumns, bucketKeyFor } from "@/lib/calendarModel";
+import { buildColumns, bucketKeyFor } from "@/lib/buckets";
 import { useFormat } from "@/lib/useFormat";
 import { Card, Spinner } from "@/components/ui";
 import type { FormatLocale } from "@/lib/format";

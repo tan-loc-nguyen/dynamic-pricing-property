@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass, field
 import urllib.robotparser
 from datetime import date, datetime, timezone
 from urllib.parse import urlparse
@@ -62,8 +63,69 @@ BLOCKED_HOSTS = (
 _PRICE_PATTERN = re.compile(
     r"(?:₫|VND|vnd)?\s*([0-9]{1,3}(?:[.,\s][0-9]{3}){1,3})\s*(?:₫|VND|vnd|đ)?"
 )
+#: A source may be configured as a TEMPLATE carrying the stay dates into the
+#: request. Without them the collector files a price under a night the site was
+#: never asked about, so one number stands in for the whole range -- a flat line
+#: wearing the costume of a market band.
+CHECKIN_PLACEHOLDER = "{checkin}"
+CHECKOUT_PLACEHOLDER = "{checkout}"
+
+#: A 200-night range must not become 200 requests to a small hotel's website.
+#: Exceeding it truncates, and the caller REPORTS the truncation rather than
+#: presenting a short band as a complete one.
+MAX_NIGHTS_PER_COLLECTION = 30
+
+
+def is_dated_template(url: str) -> bool:
+    return CHECKIN_PLACEHOLDER in url
+
+
+def nightly_urls(url: str, start: date, end: date) -> list[tuple[date, str]]:
+    """One (night, url) pair per night for a template; one pair otherwise.
+
+    An undated URL is fetched ONCE. Requesting it per night would be thirty
+    identical requests to somebody else's server for a single answer, and every
+    one of them would be filed under a different night as though it differed.
+    """
+    if not is_dated_template(url):
+        return [(start, url)]
+    out: list[tuple[date, str]] = []
+    night = start
+    while night <= end and len(out) < MAX_NIGHTS_PER_COLLECTION:
+        # checkout is the night AFTER checkin: this system prices one night at
+        # a time, and checkin == checkout is a zero-night stay.
+        checkout = date.fromordinal(night.toordinal() + 1)
+        out.append(
+            (
+                night,
+                url.replace(CHECKIN_PLACEHOLDER, night.isoformat()).replace(
+                    CHECKOUT_PLACEHOLDER, checkout.isoformat()
+                ),
+            )
+        )
+        night = date.fromordinal(night.toordinal() + 1)
+    return out
+
+
 _MIN_PLAUSIBLE_VND = 200_000
 _MAX_PLAUSIBLE_VND = 50_000_000
+
+
+@dataclass
+class CollectionReport:
+    """What the last run actually did.
+
+    Without it a collector that silently stopped extracting prices is
+    indistinguishable from a market with nothing to say: the chart does not
+    error, it just thins out. This is what lets the page say "12 fetches, 0
+    prices found".
+    """
+
+    attempted: int = 0
+    prices_found: int = 0
+    errors: list[str] = field(default_factory=list)
+    truncated_nights: int = 0
+    ran_at: datetime | None = None
 
 
 class PublicWebMarketDataProvider(MarketDataProvider):
@@ -81,6 +143,8 @@ class PublicWebMarketDataProvider(MarketDataProvider):
         self.sources = [
             s.strip() for s in os.getenv("MARKET_PUBLIC_SOURCES", "").split(",") if s.strip()
         ]
+        #: The last run, for the status line on the Market report.
+        self.last_run: CollectionReport | None = None
 
     # ------------------------------------------------------------------
     def status(self) -> ProviderStatus:
@@ -125,22 +189,44 @@ class PublicWebMarketDataProvider(MarketDataProvider):
                 remediation="Set MARKET_PUBLIC_SOURCES in .env.",
             )
 
-        stay_date = kwargs.get("stay_date") or start
         property_external_id = kwargs.get("property_external_id")
         room_type_external_id = kwargs.get("room_type_external_id")
+        # An explicit stay_date pins the whole collection to one night, which is
+        # what the single-date "collect now" action wants.
+        pinned = kwargs.get("stay_date")
+        first, last = (pinned, pinned) if pinned else (start, end)
 
         observations: list[MarketObservationDTO] = []
         errors: list[str] = []
+        report = CollectionReport(ran_at=datetime.now(timezone.utc).replace(tzinfo=None))
 
         for url in self.sources:
-            try:
-                observations.extend(
-                    self._collect_one(url, stay_date, property_external_id, room_type_external_id)
+            pairs = nightly_urls(url, first, last)
+            wanted = (last - first).days + 1
+            if is_dated_template(url) and wanted > len(pairs):
+                # Say what was dropped. A silently short band reads as a quiet
+                # market rather than as a truncated collection.
+                skipped = wanted - len(pairs)
+                report.truncated_nights = max(report.truncated_nights, skipped)
+                errors.append(
+                    f"{url}: capped at {MAX_NIGHTS_PER_COLLECTION} nights; {skipped} not fetched."
                 )
-            except ProviderUnavailable as exc:
-                errors.append(f"{url}: {exc.message}")
-            except Exception as exc:  # network, parse, anything
-                errors.append(f"{url}: {type(exc).__name__}: {exc}")
+            for night, resolved in pairs:
+                report.attempted += 1
+                try:
+                    observations.extend(
+                        self._collect_one(
+                            resolved, night, property_external_id, room_type_external_id
+                        )
+                    )
+                except ProviderUnavailable as exc:
+                    errors.append(f"{resolved}: {exc.message}")
+                except Exception as exc:  # network, parse, anything
+                    errors.append(f"{resolved}: {type(exc).__name__}: {exc}")
+
+        report.prices_found = len(observations)
+        report.errors = errors
+        self.last_run = report
 
         if not observations and errors:
             raise ProviderUnavailable(
@@ -179,20 +265,7 @@ class PublicWebMarketDataProvider(MarketDataProvider):
                 remediation="Respect the site's robots policy; enter this reference manually.",
             )
 
-        headers = {"User-Agent": self.user_agent, "Accept": "text/html,application/json"}
-        with httpx.Client(timeout=self.timeout, follow_redirects=True, headers=headers) as client:
-            response = client.get(url)
-
-        if response.status_code in (401, 403, 429):
-            # Explicitly do NOT retry, rotate, or work around this.
-            raise ProviderUnavailable(
-                self.name,
-                f"Source returned HTTP {response.status_code}; treating it as 'do not collect'.",
-                remediation="Do not attempt to bypass. Use manual market entry instead.",
-            )
-        response.raise_for_status()
-
-        prices = self._extract_prices(response.text)
+        prices = self._extract_prices(self._fetch_html(url))
         if not prices:
             raise ProviderUnavailable(
                 self.name,
@@ -223,6 +296,27 @@ class PublicWebMarketDataProvider(MarketDataProvider):
             )
             for price in prices
         ]
+
+    # ------------------------------------------------------------------
+    def _fetch_html(self, url: str) -> str:
+        """The ONE place this provider touches the network.
+
+        Its own method so collection logic can be exercised without a network,
+        and so every refusal stays in a single readable place.
+        """
+        headers = {"User-Agent": self.user_agent, "Accept": "text/html,application/json"}
+        with httpx.Client(timeout=self.timeout, follow_redirects=True, headers=headers) as client:
+            response = client.get(url)
+
+        if response.status_code in (401, 403, 429):
+            # Explicitly do NOT retry, rotate, or work around this.
+            raise ProviderUnavailable(
+                self.name,
+                f"Source returned HTTP {response.status_code}; treating it as 'do not collect'.",
+                remediation="Do not attempt to bypass. Use manual market entry instead.",
+            )
+        response.raise_for_status()
+        return response.text
 
     # ------------------------------------------------------------------
     def _robots_allows(self, parsed) -> bool:

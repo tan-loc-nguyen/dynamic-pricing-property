@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { useFormat } from "@/lib/useFormat";
-import type { Adjustment, Recommendation } from "@/lib/types";
+import type { Adjustment } from "@/lib/types";
 
 /* ------------------------------------------------------------------ band */
 
@@ -86,12 +86,25 @@ export function RateBand({
  * Plotting the room type's own rows recovers the shape honestly; nothing is
  * modelled here that the engine did not already compute.
  */
+/** The three fields the curve actually reads.
+ *
+ *  Widened from `Recommendation` so a RANGE's nights can be plotted by the
+ *  same chart: each night has its own lead time, so averaging occupancy
+ *  against days-to-arrival across a range is the same shape of question. */
+export interface PacePoint {
+  days_to_arrival: number | null;
+  expected_occupancy: number | null;
+  occupancy: number | null;
+}
+
 export function PaceChart({
   peers,
   current,
 }: {
-  peers: Recommendation[];
-  current: Recommendation;
+  peers: PacePoint[];
+  /** Omitted for a range: there is no single "you are here" lead time when
+   *  every night in the selection sits at a different one. */
+  current?: PacePoint | null;
 }) {
   const t = useTranslations("drawer");
 
@@ -109,11 +122,14 @@ export function PaceChart({
     return [...byDta.values()].sort((a, b) => b.dta - a.dta);
   }, [peers]);
 
-  if (data.length < 3 || current.days_to_arrival === null) {
+  if (data.length < 3) {
     return <div className="text-[11.5px] text-ink-400">{t("paceNoCurve")}</div>;
   }
 
-  const here = data.find((d) => d.dta === current.days_to_arrival);
+  const here =
+    current && current.days_to_arrival !== null
+      ? data.find((d) => d.dta === current.days_to_arrival)
+      : undefined;
 
   return (
     <>
@@ -297,4 +313,61 @@ export function MarketRange({
       </div>
     </div>
   );
+}
+
+
+/* ------------------------------------------------------ occupancy strip */
+
+/**
+ * One bar per night in the range: how full each night already is.
+ *
+ * Bulk accept writes ONE price to every night, so an averaged pace reading can
+ * hide a range whose first ten nights are healthy and whose last four are
+ * empty — and the operator would never find out, because they only ever see
+ * the average. This is the smallest thing that makes the disagreement visible
+ * before they commit.
+ */
+export function OccupancyStrip({ nights }: { nights: PaceStripNight[] }) {
+  const t = useTranslations("drawer");
+  const { formatDayMonth } = useFormat();
+
+  if (nights.length < 2) return null;
+
+  return (
+    <div>
+      <p className="mb-1 text-[10.5px] text-ink-400">{t("stripCaption")}</p>
+      <div className="flex items-end gap-[3px]" role="img" aria-label={t("stripCaption")}>
+        {nights.map((n) => {
+          const sold = n.units_total > 0 ? n.units_sold / n.units_total : 0;
+          const pct = Math.round(sold * 100);
+          return (
+            <div key={n.stay_date} className="flex flex-1 flex-col items-center gap-1">
+              <div className="flex h-12 w-full items-end rounded-sm bg-ink-100">
+                <div
+                  className={`w-full rounded-sm ${
+                    !n.priced ? "bg-amber-300" : pct >= 80 ? "bg-brand-600" : "bg-brand-400"
+                  }`}
+                  // A night with nothing sold still gets a hairline, so an
+                  // empty night reads as "measured, zero" rather than as a gap
+                  // in the chart.
+                  style={{ height: `${Math.max(pct, 3)}%` }}
+                  title={`${formatDayMonth(n.stay_date)} · ${pct}%`}
+                />
+              </div>
+              <span className="text-[8.5px] leading-none text-ink-400">
+                {formatDayMonth(n.stay_date).replace(/\s/g, "\u00a0")}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export interface PaceStripNight {
+  stay_date: string;
+  units_sold: number;
+  units_total: number;
+  priced: boolean;
 }

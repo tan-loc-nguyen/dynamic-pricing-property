@@ -167,3 +167,46 @@ Rather than scraping, prefer in this order:
 2. official partner APIs where Luminous has a commercial relationship;
 3. operator-entered manual observations (already built);
 4. public sources only where terms clearly permit it.
+
+
+---
+
+## Dated collection (added with the Market rework)
+
+The Market report plots a band **per night**. A URL fetched verbatim cannot
+answer that: the collector stamps the result with a stay date it never asked the
+site about, so one number stands in for the whole range — a flat line wearing
+the costume of a market band.
+
+A source may therefore be configured as a **template**:
+
+```
+https://a-comparable-hotel.example/booking?checkin={checkin}&checkout={checkout}
+```
+
+- A template is fetched **once per night**, capped at 30 nights per run.
+  `checkout` is the night after `checkin`, because this system prices one night
+  at a time.
+- **The cap is reported**, never silent. A truncated collection that rendered as
+  a short band would read as a quiet market.
+- A URL **without** the placeholders still works and is fetched once, filed
+  under the range start only. Honest, but it cannot fill a per-night band.
+
+Everything else is unchanged: `robots.txt` is checked first, OTA hosts are
+refused outright, there is no retry on 401/403/429, and **nothing here bypasses
+a bot control**. Google publishes no free per-night price feed, so it is a
+swappable slot rather than a dependency — a paid aggregator key drops in without
+touching the page.
+
+### The run report
+
+Confidence stays `LOW`, so none of this moves a rate (**D38**). That makes the
+run report load-bearing: with the observations table gone, it is the only thing
+that can distinguish
+
+1. **never ran** — collection was never switched on,
+2. **ran, found nothing** — a source changed its markup,
+3. **ran, found prices**,
+
+and the first two leave the chart looking identical. `GET /api/market/collector`
+answers it, and the Market page renders it as one line under the chart.

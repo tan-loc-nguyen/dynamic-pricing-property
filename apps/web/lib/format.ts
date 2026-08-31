@@ -64,6 +64,18 @@ export function formatStayDate(iso: string, locale: FormatLocale): string {
   }).format(parseISODate(iso));
 }
 
+/** Day and short month, no weekday.
+ *
+ *  For dense repeated labels -- the per-night occupancy strip puts one of
+ *  these under every bar, where `formatStayDate`'s weekday would not fit.
+ *  The month is kept because a range can cross one inside a single season. */
+export function formatDayMonth(iso: string, locale: FormatLocale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    day: "numeric",
+    month: "short",
+  }).format(parseISODate(iso));
+}
+
 export function formatLongDate(iso: string, locale: FormatLocale): string {
   return new Intl.DateTimeFormat(intlLocale(locale), {
     weekday: "long",

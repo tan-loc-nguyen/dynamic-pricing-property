@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import {
   formatAdjPct,
   formatDateTime,
+  formatDayMonth,
   formatLongDate,
   formatSignedVND,
   formatPct,
@@ -29,6 +30,7 @@ export function useFormat() {
         formatVND(value, locale, opts),
       formatSignedVND: (value: number | null | undefined) => formatSignedVND(value, locale),
       formatStayDate: (iso: string) => formatStayDate(iso, locale),
+      formatDayMonth: (iso: string) => formatDayMonth(iso, locale),
       formatLongDate: (iso: string) => formatLongDate(iso, locale),
       formatDateTime: (iso: string) => formatDateTime(iso, locale),
       formatPct: (value: number | null | undefined, digits = 1) =>

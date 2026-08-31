@@ -6,28 +6,32 @@ import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { useAdjustmentText } from "@/lib/adjustments";
 import { useFormat } from "@/lib/useFormat";
-import { MarketRange, PaceChart, PriceContribution, RateBand } from "./viz";
+import { MarketRange, OccupancyStrip, PaceChart, PriceContribution, RateBand } from "./viz";
 import { Button } from "./ui";
-import type { MarketObservation, Recommendation, RecommendationDetail } from "@/lib/types";
+import type { MarketObservation, RangeDetail } from "@/lib/types";
 
 /**
- * The answer to "what should I do about this night?", in the order an owner
- * asks it: what to do -> is it inside my range -> how is the date selling ->
- * why did the price move -> what does the market say -> decide.
+ * The answer to "what should I charge for this tier over these nights?", in
+ * the order an owner asks it: what to do -> is it inside my range -> how is it
+ * selling -> why did the price move -> what does the market say -> decide.
  *
- * Radix Dialog rather than the previous hand-rolled panel: that one had no
- * focus trap, did not restore focus on close, and left the page behind it
- * reachable by Tab. §33 asks for all three and none of them are worth
- * re-implementing.
+ * A RANGE, not a night. Accepting writes one price to every night in the
+ * selection, so the per-night strip under the pace curve is load-bearing: it
+ * is the only place a range whose nights disagree with each other becomes
+ * visible before the operator commits one number to all of them.
  */
-export function RecommendationDrawer({
-  recommendation,
-  peers,
+export interface RangeSelection {
+  roomTypeId: number;
+  startDate: string;
+  endDate: string;
+}
+
+export function RangeDrawer({
+  selection,
   onClose,
   onChanged,
 }: {
-  recommendation: Recommendation | null;
-  peers: Recommendation[];
+  selection: RangeSelection | null;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -38,7 +42,7 @@ export function RecommendationDrawer({
   const { formatVND, formatAdjPct, formatLongDate } = useFormat();
   const adjustmentText = useAdjustmentText();
 
-  const [detail, setDetail] = useState<RecommendationDetail | null>(null);
+  const [detail, setDetail] = useState<RangeDetail | null>(null);
   const [observations, setObservations] = useState<MarketObservation[]>([]);
   const [busy, setBusy] = useState(false);
   const [overriding, setOverriding] = useState(false);
@@ -56,40 +60,41 @@ export function RecommendationDrawer({
       });
   }, []);
 
-  const id = recommendation?.id ?? null;
+  const key = selection
+    ? `${selection.roomTypeId}:${selection.startDate}:${selection.endDate}`
+    : null;
 
   useEffect(() => {
-    if (id === null) return;
+    if (!selection) return;
     setDetail(null);
     setObservations([]);
     setOverriding(false);
     setError(null);
     let alive = true;
     api
-      .recommendation(id)
+      .rateRange(selection.roomTypeId, selection.startDate, selection.endDate)
       .then((d) => {
         if (!alive) return;
         setDetail(d);
-        setOverrideRate(String(Math.round(d.recommended_net_rate)));
+        setOverrideRate(String(Math.round(d.average_recommended_net_rate)));
       })
       .catch((e) => alive && setError(e?.message ?? tc("unknownError")));
-    // Real observed prices for this night, so the market band is a range that
-    // actually exists rather than one inferred from a single index number.
-    if (recommendation) {
-      api
-        .observations({
-          room_type_id: recommendation.room_type_id,
-          stay_date: recommendation.stay_date,
-        })
-        .then((o) => alive && setObservations(o))
-        .catch(() => {
-          /* market context is optional; the rest of the drawer still works */
-        });
-    }
+    // Real observed prices across the range, so the market band is a range
+    // that actually exists rather than one inferred from an index number.
+    api
+      .observations({
+        room_type_id: selection.roomTypeId,
+        start_date: selection.startDate,
+        end_date: selection.endDate,
+      })
+      .then((o) => alive && setObservations(o))
+      .catch(() => {
+        /* market context is optional; the rest of the drawer still works */
+      });
     return () => {
       alive = false;
     };
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const market = useMemo(() => {
     const prices = observations
@@ -122,11 +127,13 @@ export function RecommendationDrawer({
     [onChanged, onClose, tc],
   );
 
-  const rec = detail ?? recommendation;
-  // The engine publishes this directly; inferring it from `status` was how
-  // the branch got lost, because the Status union omitted "error".
-  const unpriced = rec?.unpriced === true;
-  const open = recommendation !== null;
+  const open = selection !== null;
+  // Every night failed to price. Accepting would write a number the engine
+  // never calculated, so the action is withdrawn rather than left to fail.
+  const allUnpriced = !!detail && detail.unpriced_nights >= detail.nights;
+  const leadTimes = (detail?.nightly ?? [])
+    .map((n) => n.days_to_arrival)
+    .filter((d): d is number => d !== null);
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
@@ -137,18 +144,24 @@ export function RecommendationDrawer({
             focus:outline-none"
           aria-describedby={undefined}
         >
-          {rec ? (
+          {detail ? (
             <>
               {/* ------------------------------------------------ header */}
               <header className="shrink-0 border-b border-ink-100 px-5 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Dialog.Title className="text-[15px] font-semibold text-ink-900">
-                      {tv(`roomCategories.${rec.room_category}`)}
+                      {tv(`roomCategories.${detail.room_category}`)}
                     </Dialog.Title>
                     <p className="mt-0.5 text-[12px] text-ink-500">
-                      {formatLongDate(rec.stay_date)}
-                      {rec.season_key ? ` · ${tv(`seasonsShort.${rec.season_key}`)}` : ""}
+                      {detail.nights === 1
+                        ? formatLongDate(detail.start_date)
+                        : t("rangeNights", {
+                            from: formatLongDate(detail.start_date),
+                            to: formatLongDate(detail.end_date),
+                            nights: detail.nights,
+                          })}
+                      {detail.season?.key ? ` · ${tv(`seasonsShort.${detail.season.key}`)}` : ""}
                     </p>
                   </div>
                   <Dialog.Close asChild>
@@ -160,12 +173,6 @@ export function RecommendationDrawer({
                     </button>
                   </Dialog.Close>
                 </div>
-                {rec.is_event && rec.event_name && (
-                  <div className="mt-2.5 flex items-center gap-1.5 rounded-lg bg-violet-50 border border-violet-200 px-2.5 py-1.5">
-                    <span aria-hidden>★</span>
-                    <span className="text-[11.5px] text-violet-900">{rec.event_name}</span>
-                  </div>
-                )}
               </header>
 
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
@@ -177,45 +184,51 @@ export function RecommendationDrawer({
                         {t("recommendedNet")}
                       </div>
                       <div className="tnum text-[30px] font-bold leading-tight text-brand-700">
-                        {formatVND(rec.recommended_net_rate)}
+                        {formatVND(detail.average_recommended_net_rate)}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-[11px] text-ink-400">{t("currentNet")}</div>
                       <div className="tnum text-[14px] text-ink-600">
-                        {formatVND(rec.current_net_rate)}
+                        {formatVND(detail.average_current_net_rate)}
                       </div>
                       {/* Blue Jay publishes no forward rate, so this figure is
                           often RECONSTRUCTED from bookings. Silence here would
                           let an operator read an achieved average as a list
-                          price, which is the whole reason the field exists.
-                          Shown only when it is not a published rate — saying
-                          "published" on every demo row would be noise. */}
-                      {rec.rate_provenance && rec.rate_provenance !== "published" && (
+                          price, which is the whole reason the field exists. */}
+                      {detail.rate_provenance !== "published" && (
                         <div
                           className="mt-0.5 max-w-[13rem] text-[10px] leading-snug text-amber-700"
                           title={tds("provenanceTitle")}
                         >
-                          {rec.rate_provenance === "derived_adr" && tds("provenance.derived_adr")}
-                          {rec.rate_provenance === "last_known_adr" && tds("provenance.last_known_adr")}
-                          {/* seasonal_base is the MOST COMMON non-published value:
-                              it catches every night with no bookings, which is most
-                              of a 90-day horizon. Omitting it drew a styled, empty
-                              box on exactly the dates needing the most explanation. */}
-                          {rec.rate_provenance === "seasonal_base" && tds("provenance.seasonal_base")}
-                          {rec.rate_provenance === "unavailable" && tds("provenance.unavailable")}
+                          {/* "mixed" is a RANGE-level answer -- no provider
+                              emits it -- so it gets its own string rather than
+                              being smuggled into the provider vocabulary that
+                              a guard test checks against the backend. */}
+                          {detail.rate_provenance === "mixed"
+                            ? t("provenanceMixed")
+                            : tds(`provenance.${detail.rate_provenance}`)}
                         </div>
                       )}
                       <div
                         className={`tnum text-[12.5px] font-semibold ${
-                          rec.change_pct > 0.5
+                          detail.average_recommended_net_rate >
+                          detail.average_current_net_rate * 1.005
                             ? "text-emerald-600"
-                            : rec.change_pct < -0.5
+                            : detail.average_recommended_net_rate <
+                                detail.average_current_net_rate * 0.995
                               ? "text-amber-600"
                               : "text-ink-400"
                         }`}
                       >
-                        {formatAdjPct(rec.change_pct)}
+                        {formatAdjPct(
+                          detail.average_current_net_rate
+                            ? ((detail.average_recommended_net_rate -
+                                detail.average_current_net_rate) /
+                                detail.average_current_net_rate) *
+                                100
+                            : 0,
+                        )}
                       </div>
                     </div>
                   </div>
@@ -226,11 +239,14 @@ export function RecommendationDrawer({
                 <section>
                   <h3 className="mb-2 text-[12px] font-semibold text-ink-800">{t("bandTitle")}</h3>
                   <RateBand
-                    min={rec.band_min_net_rate}
-                    base={rec.band_base_net_rate}
-                    max={rec.band_max_net_rate}
-                    recommended={rec.recommended_net_rate}
-                    clamped={rec.clamp_applied}
+                    min={detail.band.min}
+                    base={detail.band.base}
+                    max={detail.band.max}
+                    recommended={detail.average_recommended_net_rate}
+                    /* An AVERAGE is not itself clamped — the individual nights
+                       were. Claiming a clamp here would attribute one night's
+                       bound to the whole range. */
+                    clamped={null}
                   />
                 </section>
 
@@ -238,59 +254,56 @@ export function RecommendationDrawer({
                 <section>
                   <h3 className="mb-1 text-[12px] font-semibold text-ink-800">{t("paceTitle")}</h3>
                   <p className="mb-2 text-[12px] text-ink-600">
-                    {rec.pace_gap === null
+                    {detail.pace_gap === null
                       ? t("paceUnknown")
                       : t("pacePlain", {
-                          direction: rec.pace_gap >= 0 ? "ahead" : "behind",
-                          points: Math.abs(Math.round(rec.pace_gap * 100)),
+                          direction: detail.pace_gap >= 0 ? "ahead" : "behind",
+                          points: Math.abs(Math.round(detail.pace_gap * 100)),
                         })}
                   </p>
-                  <div className="flex gap-4 text-[11.5px] text-ink-500">
+                  <div className="flex flex-wrap gap-4 text-[11.5px] text-ink-500">
                     <span>
                       {t("paceOnTheBooks")}{" "}
                       <span className="tnum font-medium text-ink-800">
-                        {rec.units_sold ?? 0}/{rec.units_total ?? 0}
+                        {detail.units_sold}/{detail.units_total * detail.nights}
                       </span>
                     </span>
-                    <span>
-                      {t("paceLeadTime")}{" "}
-                      <span className="tnum font-medium text-ink-800">
-                        D-{rec.days_to_arrival ?? "—"}
+                    {leadTimes.length > 0 && (
+                      <span>
+                        {t("paceLeadTime")}{" "}
+                        <span className="tnum font-medium text-ink-800">
+                          D-{Math.min(...leadTimes)}
+                          {leadTimes.length > 1 && ` … D-${Math.max(...leadTimes)}`}
+                        </span>
                       </span>
-                    </span>
+                    )}
                   </div>
-                  <PaceChart peers={peers} current={rec} />
+                  <PaceChart peers={detail.nightly} />
+                  <div className="mt-3">
+                    <OccupancyStrip nights={detail.nightly} />
+                  </div>
                 </section>
 
                 {/* ------------------------------ D. why did it move? */}
                 <section>
                   <h3 className="mb-2 text-[12px] font-semibold text-ink-800">{t("whyTitle")}</h3>
-                  {detail ? (
-                    <>
-                      <PriceContribution
-                        adjustments={detail.adjustments}
-                        render={adjustmentText}
-                      />
-                      <details className="mt-3 group">
-                        <summary className="cursor-pointer text-[11.5px] text-brand-600 hover:underline">
-                          {t("showReasoning")}
-                        </summary>
-                        <ul className="mt-2 space-y-2">
-                          {detail.adjustments.map((a, i) => {
-                            const { label, reason } = adjustmentText(a);
-                            if (!reason) return null;
-                            return (
-                              <li key={i} className="text-[11.5px] leading-relaxed text-ink-600">
-                                <span className="font-medium text-ink-800">{label}.</span> {reason}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </details>
-                    </>
-                  ) : (
-                    <div className="text-[11.5px] text-ink-400">{tc("loading")}</div>
-                  )}
+                  <PriceContribution adjustments={detail.adjustments} render={adjustmentText} />
+                  <details className="mt-3 group">
+                    <summary className="cursor-pointer text-[11.5px] text-brand-600 hover:underline">
+                      {t("showReasoning")}
+                    </summary>
+                    <ul className="mt-2 space-y-2">
+                      {detail.adjustments.map((a, i) => {
+                        const { label, reason } = adjustmentText(a);
+                        if (!reason) return null;
+                        return (
+                          <li key={i} className="text-[11.5px] leading-relaxed text-ink-600">
+                            <span className="font-medium text-ink-800">{label}.</span> {reason}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </details>
                 </section>
 
                 {/* ------------------------------- market context */}
@@ -304,47 +317,23 @@ export function RecommendationDrawer({
                         low={market.low}
                         high={market.high}
                         reference={market.median}
-                        recommended={rec.recommended_net_rate}
-                        applied={rec.market_qualified_count > 0}
+                        recommended={detail.average_recommended_net_rate}
+                        /* Market evidence informs; it never moves a price.
+                           Everything the collector can reach is LOW confidence
+                           and the engine's gate is MEDIUM. */
+                        applied={false}
                       />
                       <p className="mt-2 text-[11.5px] text-ink-500">
-                        {t("marketSummary", {
-                          count: market.count,
-                          confidence: rec.market_confidence ?? "—",
-                        })}
+                        {t("marketSummary", { count: market.count, confidence: "LOW" })}
                       </p>
-                      {rec.market_qualified_count === 0 && (
-                        <p className="mt-1.5 rounded-md bg-ink-50 px-2.5 py-1.5 text-[11.5px] text-ink-600">
-                          {t("marketReferenceOnly")}
-                        </p>
-                      )}
+                      <p className="mt-1.5 rounded-md bg-ink-50 px-2.5 py-1.5 text-[11.5px] text-ink-600">
+                        {t("marketReferenceOnly")}
+                      </p>
                     </>
                   ) : (
                     <p className="text-[11.5px] text-ink-400">{t("marketNone")}</p>
                   )}
                 </section>
-
-                {/* ------------------------- past decisions on this date */}
-                {detail && detail.decisions.length > 0 && (
-                  <section>
-                    <h3 className="mb-2 text-[12px] font-semibold text-ink-800">
-                      {t("decisionsOnDate")}
-                    </h3>
-                    <ul className="space-y-1.5">
-                      {detail.decisions.map((d) => (
-                        <li
-                          key={d.id}
-                          className="flex items-center justify-between rounded-lg bg-ink-50 px-2.5 py-1.5 text-[11.5px]"
-                        >
-                          <span className="text-ink-600">{tv(`status.${d.decision}`)}</span>
-                          <span className="tnum text-ink-800">
-                            {formatVND(d.final_net_rate)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
               </div>
 
               {/* ------------------------------------- sticky actions */}
@@ -352,6 +341,15 @@ export function RecommendationDrawer({
                 {error && (
                   <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11.5px] text-rose-700">
                     {error}
+                  </div>
+                )}
+                {/* Some nights priced, some not. Accepting still works and the
+                    server skips the failures -- but silently covering fewer
+                    nights than the operator selected is exactly the kind of
+                    partial success that has to be said out loud. */}
+                {!allUnpriced && detail.unpriced_nights > 0 && (
+                  <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11.5px] text-amber-800">
+                    {t("someUnpriced", { count: detail.unpriced_nights })}
                   </div>
                 )}
                 {overriding ? (
@@ -375,12 +373,7 @@ export function RecommendationDrawer({
                         className="mt-1 w-full rounded-lg border border-ink-200 px-3 py-2 text-[12.5px]
                           focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
                       >
-                        {/* From the SERVER's whitelist, not a copy of it. The
-                            inline array had silently lost `channel_mix`, which
-                            the backend still accepts and the vocabulary still
-                            translates — so it was simply unselectable, and the
-                            two lists could drift again without anything
-                            noticing. */}
+                        {/* From the SERVER's whitelist, not a copy of it. */}
                         {reasonCodes.map((code) => (
                           <option key={code} value={code}>
                             {tv(`overrideReasons.${code}`)}
@@ -393,7 +386,15 @@ export function RecommendationDrawer({
                         variant="primary"
                         disabled={busy || !overrideRate}
                         onClick={() =>
-                          act(() => api.override(rec.id, Number(overrideRate), reasonCode))
+                          act(() =>
+                            api.overrideRange(
+                              detail.room_type_id,
+                              detail.start_date,
+                              detail.end_date,
+                              Number(overrideRate),
+                              reasonCode,
+                            ),
+                          )
                         }
                       >
                         {tc("save")}
@@ -403,11 +404,7 @@ export function RecommendationDrawer({
                       </Button>
                     </div>
                   </div>
-                ) : unpriced ? (
-                  /* The engine could not price this night. Its `recommended`
-                     equals `current`, so without this branch the drawer shows a
-                     confident rate that was never calculated and Accept fails
-                     with a 409 from the server. */
+                ) : allUnpriced ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">
                     {t("unpriced")}
                   </div>
@@ -417,9 +414,19 @@ export function RecommendationDrawer({
                       variant="primary"
                       className="flex-1"
                       disabled={busy}
-                      onClick={() => act(() => api.accept(rec.id))}
+                      onClick={() =>
+                        act(() =>
+                          api.acceptRange(
+                            detail.room_type_id,
+                            detail.start_date,
+                            detail.end_date,
+                          ),
+                        )
+                      }
                     >
-                      {t("acceptRate", { rate: formatVND(rec.recommended_net_rate) })}
+                      {t("acceptRate", {
+                        rate: formatVND(detail.average_recommended_net_rate),
+                      })}
                     </Button>
                     <Button onClick={() => setOverriding(true)} disabled={busy}>
                       {t("adjust")}
@@ -429,7 +436,13 @@ export function RecommendationDrawer({
               </footer>
             </>
           ) : (
-            <div className="p-6 text-[12px] text-ink-400">{tc("loading")}</div>
+            <div className="p-6 text-[12px] text-ink-400">
+              {error ? (
+                <span className="text-rose-700">{error}</span>
+              ) : (
+                tc("loading")
+              )}
+            </div>
           )}
         </Dialog.Content>
       </Dialog.Portal>

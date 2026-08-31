@@ -43,10 +43,18 @@ an interview question waiting to be asked.
 | **High Season 2** | **Nov–Dec–Jan** | Holiday season |
 | Medium Season | Feb–Apr | — |
 
-**Status:** `CLIENT_VALIDATED`.
+**Status:** `CLIENT_VALIDATED` — and now the SEED, not the ceiling.
+
 **Note:** High Season 2 wraps the year end. **January belongs to the Nov–Jan
 high season**, not to the start of the year. This is the single most
 error-prone part of the table and is pinned by a dedicated test.
+
+**Since the UI rework:** seasons are stored in a `seasons` table and are
+editable in Customisation → Seasonal. The client calendar above is what ships,
+and nothing changes until an operator edits it. Edits must still cover the year
+exactly once — contiguous runs of whole months (or quarters), no gaps, no
+overlaps — because a date belonging to no season has no validated band and
+cannot be priced at all. Enforced on save; see **D37**.
 
 ## V4 — Seasonal MIN / BASE / MAX NET rate table
 
@@ -167,13 +175,15 @@ band — is the product's entire purpose.
 | **Status** | `UNVALIDATED` |
 | **Ask the operator** | *"What is the most you would move a rate away from your normal price in one go?"* |
 
-## U9 — Are the seasonal MIN/MAX hard limits?
+## U9 — Are the seasonal MIN/MAX hard limits? **PARTLY ANSWERED**
 
 | | |
 |---|---|
-| **Current behaviour** | Treated as **hard**. The engine never recommends outside the band; an operator override may go outside, and is recorded as such. |
-| **Status** | `UNVALIDATED` — an important open question |
-| **Ask the operator** | *"On New Year's Eve or during a major event, would you ever go above your seasonal MAX? Is MIN ever breachable to fill a date?"* |
+| **Current behaviour** | MIN is **hard and required**. MAX is **optional**: leaving it empty means the season imposes no ceiling of its own. The engine never recommends outside a band that HAS one; an operator override may go outside either way, and is recorded as such. |
+| **Status** | `UNVALIDATED` for MIN; MAX answered by the operator during the UI rework — *"why would we limit the max when we can increase right there?"* |
+| **An empty MAX is not unbounded** | The dynamic layer is capped at ±15% of BASE before the band is consulted, so `base × 1.15` remains the real ceiling. Measured against the client table, MAX binds before that bound on **13 of 15 bands**; on High 2 2BR Regular and Premium the bound binds first at 2,875,000 and 3,450,000, so those MAX values of 3,200,000 and 3,500,000 were **already unreachable**. |
+| **Consequence** | To get genuinely more headroom the lever is `Tổng điều chỉnh tối đa` in Strategy, not the rate table. |
+| **Still ask the operator** | *"Is MIN ever breachable to fill a date?"* |
 
 ## U10 — Rounding
 
@@ -192,6 +202,15 @@ band — is the product's entire purpose.
 | **Mechanism resolved** | `roomdetail-list?roomtypeId=` returns the rooms of one room type, verified on a demo tenant: 15 types, 67 rooms, per-type counts summing exactly to the unfiltered list. The split stops being a guess the moment we have Luminous' own `hotelId`. |
 | **Why it matters** | Occupancy is computed per room category, so a wrong split distorts every pace signal. |
 | **Ask the operator** | *"How many of the 22 apartments are in each category?"* |
+
+## U11b — Which physical unit a booking occupies
+
+| | |
+|---|---|
+| **Why it matters** | The Rate tile counts *units with at least one free night in the range*. That needs to know WHICH unit is booked, and Blue Jay leaves `roomName` as `"Unassigned"` on roughly a third of real reservation rows. |
+| **Current behaviour** | Exact when every booking in the range names its room. Otherwise it falls back to what is provably true — the most units free on any single night — and marks the count inexact, which the tile says out loud. |
+| **Why err LOW** | Telling an operator they have less to sell than they do costs a missed booking; telling them they have more costs an oversell. |
+| **Ask Blue Jay** | *"Is the assigned room recoverable for reservations that show as Unassigned?"* |
 
 ## U12 — Comp set
 

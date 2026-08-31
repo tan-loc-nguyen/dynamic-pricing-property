@@ -38,6 +38,7 @@ from .providers.pms.mock import HISTORY_DAYS, HORIZON_DAYS
 from .services.configuration import get_active_configuration
 from .services.outcomes import generate_demo_outcomes
 from .services.rate_book import ensure_rate_book
+from .services.seasons import ensure_seasons
 from .services.recommendations import PricingRunFailed, generate_recommendations
 from .services.sync import default_window, sync_market, sync_pms
 
@@ -151,6 +152,8 @@ def bootstrap(force: bool = False, today: date | None = None, quiet: bool = Fals
         start, end = default_window(today, HISTORY_DAYS, HORIZON_DAYS)
 
         # --- 1. CLIENT-VALIDATED rate book --------------------------------
+        # Seasons FIRST: the rate book's calendar is read from them.
+        ensure_seasons(session)
         bands = ensure_rate_book(session)
         summary["rate_bands"] = bands
         log(f"Seasonal Rate Book: {bands} CLIENT_VALIDATED bands (NET rates).")

@@ -684,3 +684,115 @@ one side of.
 **What did NOT change.** The engine, the rate book, Shadow Mode, and the
 NET/OTA separation are untouched. Verification changed how we READ Blue Jay,
 not what we do with the numbers.
+
+---
+
+## D35 — The unit of pricing work is a DATE RANGE, not a night
+
+The calendar grid is gone. The Rate page takes a from/to range and shows one
+tile per room tier: average suggested NET, and how many units still have a free
+night. Clicking a tile opens the same drawer, and accepting writes **one price
+to every night in the range**.
+
+**Why.** The grid asked the operator to scan ~91 cells and work out which needed
+attention. The range asks the opposite question — *"these nights, this tier,
+what should I charge?"* — and answers it in one number per tier. A single day is
+just a range of length one, so there is one code path rather than two.
+
+**What it cost.** `attention.ts` and the whole "which dates need review" concept
+went with the grid. That was the grid's job and nothing inherited it; the
+per-night occupancy strip in the drawer (D36) covers the part that mattered.
+
+**Deleted, not adapted:** `PricingCalendar.tsx`, `CalendarLegend.tsx`,
+`calendarModel.ts`, `attention.ts`, `RecommendationDrawer.tsx`. The bucketing
+helpers survived as `lib/buckets.ts` because the market report still offers the
+same day/week granularity and must bucket dates identically — two views of one
+period that disagreed about where a week starts would be worse than either
+being wrong alone.
+
+---
+
+## D36 — A range may not cross a season, and the drawer shows the nights disagreeing
+
+**The rule.** One accepted price cannot sit inside two validated bands. 2BR
+Premium is capped at 2,700,000 through October and based at 3,000,000 from
+November; a 25 Oct – 5 Nov average of ~2,800,000 is legal in one and above the
+ceiling in the other. So the picker stops at the boundary and
+`check_one_season()` refuses anyway — a UI guard is a convenience, this is an
+invariant.
+
+Compared on **bounds**, not on the season key, so the wrapping Nov–Dec–Jan
+season is one continuous stretch: 20 Dec – 5 Jan is legitimate.
+
+**The strip.** Bulk accept can hide a range whose first ten nights are healthy
+and whose last four are empty — the average reads "slightly behind" and one
+flat price goes to all of them. The drawer draws one bar per night underneath
+the averaged curve, so that disagreement is visible *before* the operator
+commits. Averaging is linear, so the breakdown still reconciles exactly; the
+rounding of the average is folded back into the existing rounding line, because
+lines that do not sum to the total above them destroy the only thing that panel
+exists to build.
+
+**Bulk accept OVERWRITES existing decisions without prompting** — the
+operator's explicit call. `OperatorDecision.group_id` ties one action's rows
+together so a fortnight reads as one entry in the activity log while remaining
+fourteen per-night records, which is what Shadow Mode measures and what an
+outcome attaches to. Protecting a prior manual override stays a small change:
+the `decision` field already distinguishes accepted from overridden.
+
+---
+
+## D37 — Seasons are data, and the calendar travels WITH the rate book
+
+Seasons moved from a hardcoded constant to a `seasons` table an operator edits.
+The partition rule the constant asserted at import
+(`assert len(MONTH_TO_SEASON) == 12`) is now enforced on save: contiguous runs
+of whole months, covering the year exactly once, wrap allowed.
+
+**The bug this was really about.** `SeasonalRateBook.lookup()` took its *bands*
+from the database and its *month-to-season mapping* from the module global.
+Once seasons are editable those are two different answers that disagree
+silently — the band table saying September is high season while the mapping
+still says low, and a date quoted from the wrong band with nothing failing. The
+calendar is now constructor state on the book. Same family as a predicate with
+fewer states than the thing it reads.
+
+**MAX became optional** (ASSUMPTIONS U9). An empty ceiling means the season
+imposes none — *not* unbounded: the dynamic layer is already capped, so
+`base × (1 + bound)` is the real limit. Measured on the client table, MAX binds
+before that bound on 13 of 15 bands; on High 2 Regular and Premium the bound
+binds first and those MAX values were already unreachable. An absent ceiling
+must survive the round trip as absent: `float(None)` raises and `float(v or 0)`
+writes a ceiling of ZERO, which would clamp every recommendation for that
+season down to nothing.
+
+**Labels lost their months.** `vocab.seasons` read "Low Season 1 (May–Jun)".
+The moment a boundary moves, that label asserts something the data contradicts,
+so names come from messages and months come from data.
+
+---
+
+## D38 — Market evidence informs the report; it never moves a price
+
+The Market page is one chart: our suggested price against the market band, per
+night. Comp-set management moved to Settings (it configures a report, not a
+pricing input) and the raw observations table was cut.
+
+**Confidence gate unchanged.** Everything the collector can reach is `LOW` and
+the engine's gate is `MEDIUM`, so the market line in the drawer reads
+"considered, excluded". Promoting it is a one-line change once there is a
+reason — after watching the chart track reality, not before.
+
+**Dated collection.** A source may be a template carrying `{checkin}` and
+`{checkout}` into the request; it is then fetched once per night (capped at 30
+per run, and the cap is reported) and each price is filed under the night it
+was asked about. Without that the collector stamps a price with a stay date it
+never asked the site for, and one number stands in for the whole range — a flat
+line wearing the costume of a market band.
+
+**The status line replaces the deleted table.** A collector that stopped
+extracting prices and a market with nothing to say both leave the band thin. The
+run report distinguishes three states — never ran, ran and found nothing, ran
+and found prices — because a refused collection reported as "0 prices found"
+would send the operator hunting for a broken competitor site when the collector
+was simply never switched on. D33, again.

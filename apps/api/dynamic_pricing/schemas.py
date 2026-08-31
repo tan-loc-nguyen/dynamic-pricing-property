@@ -53,7 +53,8 @@ class RateBandOut(BaseModel):
     room_category_label: str
     min_net_rate: float
     base_net_rate: float
-    max_net_rate: float
+    #: null = no ceiling from this season; the dynamic bound is the only limit.
+    max_net_rate: float | None
     currency: str
     rate_basis: str
     source: str
@@ -63,7 +64,8 @@ class RateBandOut(BaseModel):
 class RateBandUpdateIn(BaseModel):
     min_net_rate: float = Field(gt=0)
     base_net_rate: float = Field(gt=0)
-    max_net_rate: float = Field(gt=0)
+    #: Optional. Left out or null, the season imposes no ceiling of its own.
+    max_net_rate: float | None = Field(default=None, gt=0)
 
 
 # ----------------------------------------------------------- recommendations
@@ -448,6 +450,8 @@ class HistoryOut(BaseModel):
     config_version: int
     operator: str
     currency: str = "VND"
+    #: Set when this row came from a bulk range action; the log groups on it.
+    group_id: str | None = None
 
 
 # -------------------------------------------------------------------- system

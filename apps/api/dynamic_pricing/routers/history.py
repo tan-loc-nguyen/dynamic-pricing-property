@@ -71,6 +71,7 @@ def list_history(
                 config_version=d.config_version,
                 operator=d.operator,
                 currency=f.get("currency", "VND"),
+                group_id=d.group_id,
             )
         )
     return rows

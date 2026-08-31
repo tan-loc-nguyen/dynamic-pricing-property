@@ -938,3 +938,301 @@ def test_an_empty_category_is_refused_rather_than_stored_as_a_mapping(client):
     """`{"6153": ""}` was what the panel's own "Not mapped" option sent."""
     response = client.put("/api/pms/category-map", json={"map": {"6153": ""}})
     assert response.status_code == 422
+
+
+# ------------------------------------------------------------- rate page
+#
+# The Rate page prices a DATE RANGE: one tile per room tier showing the average
+# suggested NET rate and how many units still have a free night. Dates are
+# derived rather than hardcoded so these keep working as the demo horizon moves.
+
+
+def _a_range_inside_one_season(nights: int = 6):
+    from datetime import date, timedelta
+
+    from dynamic_pricing.pricing.rate_book import season_bounds
+
+    start = date.today() + timedelta(days=3)
+    _, season_end = season_bounds(start)
+    return start, min(start + timedelta(days=nights), season_end)
+
+
+def test_rate_tiles_returns_one_tile_per_room_category(client):
+    start, end = _a_range_inside_one_season()
+
+    body = client.get(
+        "/api/rate/tiles",
+        params={"start_date": start.isoformat(), "end_date": end.isoformat()},
+    ).json()
+
+    assert {t["room_category"] for t in body["tiles"]} == {"2br_regular", "2br_premium", "3br"}
+    for tile in body["tiles"]:
+        assert tile["average_recommended_net_rate"] > 0
+        assert 0 <= tile["available_units"] <= tile["units_total"]
+
+
+def test_rate_tiles_refuses_a_range_that_crosses_a_season(client):
+    """The picker greys these out, but the API is the actual guard.
+
+    One accepted price cannot sit inside two validated bands, so a range that
+    straddles a season boundary is refused rather than silently averaged across
+    both.
+    """
+    from datetime import date, timedelta
+
+    from dynamic_pricing.pricing.rate_book import season_bounds
+
+    _, season_end = season_bounds(date.today() + timedelta(days=3))
+
+    response = client.get(
+        "/api/rate/tiles",
+        params={
+            "start_date": season_end.isoformat(),
+            "end_date": (season_end + timedelta(days=1)).isoformat(),
+        },
+    )
+
+    assert response.status_code == 422
+    assert "season" in response.json()["detail"].lower()
+
+
+def _a_room_type_id(client) -> int:
+    return client.get("/api/properties").json()[0]["room_types"][0]["id"]
+
+
+def test_rate_range_returns_one_strip_entry_per_night(client):
+    """The drawer shows a per-night occupancy strip under the averaged curve.
+
+    Bulk accept writes ONE price to every night, so an averaged pace reading
+    can hide a range where the first ten nights are healthy and the last four
+    are empty. The strip is what makes that visible before the operator
+    commits.
+    """
+    start, end = _a_range_inside_one_season()
+
+    body = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": _a_room_type_id(client),
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+        },
+    ).json()
+
+    assert len(body["nightly"]) == (end - start).days + 1
+    for entry in body["nightly"]:
+        assert {"stay_date", "units_sold", "units_total", "recommended_net_rate"} <= set(entry)
+
+
+def test_the_drawer_breakdown_sums_to_the_price_it_shows(client):
+    """The operator can add the lines up by hand. They have to reconcile."""
+    start, end = _a_range_inside_one_season()
+
+    body = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": _a_room_type_id(client),
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+        },
+    ).json()
+
+    total = body["base_net_rate"] + sum(a["delta"] for a in body["adjustments"])
+    assert round(total, 2) == round(body["average_recommended_net_rate"], 2)
+
+
+def test_accepting_a_range_records_a_decision_for_every_night(client):
+    """One click, one price, one decision row PER NIGHT.
+
+    The per-night record is what Shadow Mode measures -- our recommendation
+    against the operator's price, with an outcome attached per stay date. A
+    single row for the whole range would have to be fanned out later anyway.
+    """
+    start, end = _a_range_inside_one_season()
+    room_type_id = _a_room_type_id(client)
+    params = {
+        "room_type_id": room_type_id,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+    }
+    before = client.get("/api/rate/range", params=params).json()
+
+    response = client.post("/api/rate/accept", json=params)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decisions_written"] == before["nights"] - before["unpriced_nights"]
+    assert body["net_rate"] == before["average_recommended_net_rate"]
+
+
+def test_a_bulk_accept_is_one_group_in_the_log(client):
+    """Fourteen rows stored, one entry shown.
+
+    Without a shared group id the Activity log gets a wall of near-identical
+    lines every time someone prices a fortnight, and the log stops being read
+    at all.
+    """
+    start, end = _a_range_inside_one_season()
+    room_type_id = _a_room_type_id(client)
+    params = {
+        "room_type_id": room_type_id,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+    }
+
+    group_id = client.post("/api/rate/accept", json=params).json()["group_id"]
+
+    assert group_id
+    rows = client.get("/api/history", params={"room_type_id": room_type_id}).json()
+    grouped = [r for r in rows if r["group_id"] == group_id]
+    assert len(grouped) > 1
+    assert {r["final_net_rate"] for r in grouped} == {
+        client.get("/api/rate/range", params=params).json()["average_recommended_net_rate"]
+    }
+
+
+def test_the_range_carries_the_pace_reading_and_its_curve_points(client):
+    """Averaged pace, plus the points the build-up curve is drawn from.
+
+    Averaging occupancy against lead time across the range is meaningful
+    because each night has its own days-to-arrival: "at D-7 these nights were
+    on average 61% sold against the 88% the curve expects".
+    """
+    start, end = _a_range_inside_one_season()
+
+    body = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": _a_room_type_id(client),
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+        },
+    ).json()
+
+    assert "pace_gap" in body
+    assert body["units_total"] > 0
+    for entry in body["nightly"]:
+        assert {"days_to_arrival", "expected_occupancy", "occupancy"} <= set(entry)
+
+
+def test_the_season_endpoint_tells_the_picker_where_the_range_must_stop(client):
+    """The 'to' calendar greys out everything past the season's last day.
+
+    It needs the boundary BEFORE it can constrain the input, so this answers
+    without requiring a range to have been chosen yet.
+    """
+    from datetime import date, timedelta
+
+    on = date.today() + timedelta(days=3)
+    body = client.get("/api/rate/season", params={"on": on.isoformat()}).json()
+
+    assert body["start"] <= on.isoformat() <= body["end"]
+    assert body["key"]
+
+
+# ------------------------------------------------------------- seasons
+#
+# Seasons are operator-defined: contiguous runs of whole months covering the
+# year exactly once. These share the module database, so the last one restores
+# the client calendar before returning.
+
+
+def test_the_seasons_start_as_the_client_calendar(client):
+    seasons = client.get("/api/seasons").json()["seasons"]
+
+    assert {s["key"] for s in seasons} == {"low_1", "high_1", "low_2", "high_2", "medium"}
+    high_2 = next(s for s in seasons if s["key"] == "high_2")
+    assert high_2["months"] == [11, 12, 1], "High Season 2 wraps the year end"
+
+
+def test_a_partition_with_a_gap_is_refused(client):
+    """The API is the guard, not the form. A month covered by no season leaves
+    those dates with no validated band at all."""
+    response = client.put(
+        "/api/seasons",
+        json={"seasons": [{"key": "only", "label": "Only", "months": [1, 2, 3]}]},
+    )
+
+    assert response.status_code == 422
+    assert "4" in response.json()["detail"]
+
+
+def test_editing_a_season_changes_which_band_a_date_is_priced_from(client):
+    """The whole point of making seasons editable.
+
+    Moving September from Low Season 2 into High Season 1 must make a September
+    date resolve to the high-season band -- otherwise bands and calendar have
+    drifted apart and the engine is quoting from the wrong one.
+    """
+    from datetime import date
+
+    original = client.get("/api/seasons").json()["seasons"]
+    try:
+        moved = client.put(
+            "/api/seasons",
+            json={
+                "seasons": [
+                    {"key": "low_1", "label": "Low 1", "months": [5, 6]},
+                    {"key": "high_1", "label": "High 1", "months": [7, 8, 9]},
+                    {"key": "low_2", "label": "Low 2", "months": [10]},
+                    {"key": "high_2", "label": "High 2", "months": [11, 12, 1]},
+                    {"key": "medium", "label": "Medium", "months": [2, 3, 4]},
+                ]
+            },
+        )
+        assert moved.status_code == 200
+
+        september = date(date.today().year, 9, 14).isoformat()
+        assert client.get("/api/rate/season", params={"on": september}).json()["key"] == "high_1"
+    finally:
+        client.put(
+            "/api/seasons",
+            json={
+                "seasons": [
+                    {"key": s["key"], "label": s["label"], "months": s["months"]}
+                    for s in original
+                ]
+            },
+        )
+
+
+# ------------------------------------------------------- market collector
+#
+# The observations table is gone from the Market page, so the run report is the
+# only thing left that can tell a dead collector from a calm market: a chart
+# whose band thins out looks identical either way.
+
+
+def test_the_market_collector_report_is_readable_even_before_any_run(client):
+    """Never run and ran-and-found-nothing are different answers.
+
+    Returning an empty object for both would put the page back where it
+    started -- unable to say whether silence means no data or no collection.
+    """
+    body = client.get("/api/market/collector").json()
+
+    assert "has_run" in body
+    if not body["has_run"]:
+        assert body["attempted"] == 0
+        assert body["prices_found"] == 0
+
+
+def test_a_refused_collection_does_not_claim_to_have_run(client):
+    """Three states, not two: never ran, ran and found nothing, ran and found
+    prices.
+
+    Public-web collection is off by default, so asking for it is REFUSED before
+    any fetch happens. Recording that as a run would report "0 prices found"
+    and send the operator hunting for a broken competitor site, when the real
+    answer is that the collector was never switched on. The per-night attempt
+    counting is exercised offline in test_market_dated_collection.py.
+    """
+    from datetime import date, timedelta
+
+    stay = (date.today() + timedelta(days=5)).isoformat()
+    outcome = client.post("/api/market/collect", json={"stay_date": stay}).json()
+    assert outcome["ok"] is False
+
+    body = client.get("/api/market/collector").json()
+    assert body["has_run"] is False
+    assert body["attempted"] == 0

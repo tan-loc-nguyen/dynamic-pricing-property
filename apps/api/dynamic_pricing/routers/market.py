@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..constants import CONFIDENCE_LEVELS, INCLUSION_OPTIONS, PRICE_BASES, PROMOTION_OPTIONS
 from ..db import get_session
+from ..services.integration import get_market_collector_report
 from ..lookup import UnknownRegistryKey
 from ..models import Competitor, MarketObservation, Property, RoomType
 from ..providers.market import get_market_provider, score_confidence
@@ -272,6 +273,50 @@ def providers():
     return out
 
 
+def _record_run(session: Session, market) -> None:
+    """Persist the provider's own account of the run, if it keeps one.
+
+    Duck-typed: only the public-web collector reports this, and mock/manual
+    legitimately have nothing to say.
+    """
+    from ..services.integration import set_market_collector_report
+
+    report = getattr(market, "last_run", None)
+    if report is None:
+        return
+    set_market_collector_report(
+        session,
+        {
+            "ran_at": report.ran_at.isoformat() if report.ran_at else None,
+            "attempted": report.attempted,
+            "prices_found": report.prices_found,
+            "truncated_nights": report.truncated_nights,
+            "errors": list(report.errors),
+        },
+    )
+
+
+@router.get("/collector")
+def collector_report(session: Session = Depends(get_session)) -> dict:
+    """The last collection run, for the status line on the Market report.
+
+    `has_run` is the load-bearing field: never-collected and
+    collected-and-found-nothing are different answers, and a page that showed
+    the same thing for both would be back where it started.
+    """
+    stored = get_market_collector_report(session)
+    return {
+        "has_run": bool(stored),
+        "ran_at": stored.get("ran_at"),
+        "attempted": int(stored.get("attempted") or 0),
+        "prices_found": int(stored.get("prices_found") or 0),
+        "truncated_nights": int(stored.get("truncated_nights") or 0),
+        # Capped: the whole list can be one line per night and nobody reads it.
+        "errors": list(stored.get("errors") or [])[:5],
+        "error_count": len(stored.get("errors") or []),
+    }
+
+
 @router.post("/collect")
 def collect(
     body: MarketCollectIn,
@@ -305,6 +350,7 @@ def collect(
             property_external_id=property_external_id,
         )
     except ProviderUnavailable as exc:
+        _record_run(session, market)
         return {
             "ok": False,
             "collected": 0,
@@ -313,6 +359,7 @@ def collect(
             "provider": market.name,
         }
     except Exception as exc:  # noqa: BLE001
+        _record_run(session, market)
         return {
             "ok": False,
             "collected": 0,
@@ -322,6 +369,7 @@ def collect(
         }
 
     count = persist_observations(session, observations)
+    _record_run(session, market)
     session.commit()
     return {
         "ok": True,

@@ -52,11 +52,20 @@ def ensure_rate_book(session: Session) -> int:
 
 
 def load_rate_book(session: Session) -> SeasonalRateBook:
-    """Build the lookup from persisted rows, falling back to the client table."""
+    """Build the lookup from persisted rows AND the persisted season calendar.
+
+    Both, together: bands from the database with a calendar from the hardcoded
+    constant is two sources that can disagree, and the disagreement is silent
+    -- a September date quoted from the low-season band while the table says
+    high. The calendar travels with the book for exactly that reason.
+    """
+    from .seasons import season_calendar
+
     rows = list(session.scalars(select(SeasonalRateBand)).all())
+    seasons = season_calendar(session)
     if not rows:
-        return SeasonalRateBook()
-    return SeasonalRateBook.from_rows(rows)
+        return SeasonalRateBook(seasons=seasons)
+    return SeasonalRateBook.from_rows(rows, seasons=seasons)
 
 
 def list_bands(session: Session) -> list[SeasonalRateBand]:
@@ -69,8 +78,25 @@ def list_bands(session: Session) -> list[SeasonalRateBand]:
     )
 
 
+def _coerce_ceiling(value) -> float | None:
+    """An absent MAX stays absent.
+
+    `float(None)` raises and `float(value or 0)` writes a ceiling of ZERO,
+    which would clamp every recommendation for that season down to nothing.
+    Absence has to survive the round trip intact.
+    """
+    if value is None or value == "":
+        return None
+    return float(value)
+
+
 def update_band(
-    session: Session, band_id: int, *, min_net_rate: float, base_net_rate: float, max_net_rate: float
+    session: Session,
+    band_id: int,
+    *,
+    min_net_rate: float,
+    base_net_rate: float,
+    max_net_rate: float | None,
 ) -> SeasonalRateBand | None:
     """Operator edit. Marks the row as operator-modified so provenance is kept."""
     row = session.get(SeasonalRateBand, band_id)
@@ -78,9 +104,9 @@ def update_band(
         return None
     row.min_net_rate = float(min_net_rate)
     row.base_net_rate = float(base_net_rate)
-    row.max_net_rate = float(max_net_rate)
+    row.max_net_rate = _coerce_ceiling(max_net_rate)
     original = CLIENT_RATE_TABLE.get((row.season_key, row.room_category))
-    if original and (float(min_net_rate), float(base_net_rate), float(max_net_rate)) != tuple(
+    if original and (float(min_net_rate), float(base_net_rate), row.max_net_rate) != tuple(
         float(v) for v in original
     ):
         row.source = "OPERATOR_EDITED"

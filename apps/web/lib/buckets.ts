@@ -7,13 +7,19 @@ import {
   startOfDay,
   startOfWeek,
 } from "date-fns";
-import { attentionReasons } from "./attention";
 import { columnHeader, parseStayDate, toISODate } from "./dates";
 import type { FormatLocale } from "./format";
-import type { Recommendation } from "./types";
 
 /**
- * Day columns and week columns are the same shape, so the grid only knows one.
+ * Bucketing a date range into day or week periods.
+ *
+ * Extracted from the deleted calendar model: the grid is gone, but the market
+ * report still offers the same day/week granularity and must bucket dates
+ * exactly the way the range picker does. Two views of the same period that
+ * disagreed about where a week starts would be worse than either being wrong
+ * alone.
+ *
+ * Day columns and week columns are the same shape, so a caller only knows one.
  *
  * Beyond about a month, per-night columns stop being useful and start being a
  * wall: nobody prices a specific Tuesday eighty days out, and at 180 columns
@@ -38,32 +44,6 @@ export type Column = {
   isWeekend: boolean;
   /** Days covered — 1 for a day column, up to 7 for a week. */
   nights: number;
-};
-
-/**
- * One cell's worth of pricing, whether that is one night or a week of them.
- *
- * `single` is set only when the cell IS one recommendation, which is what makes
- * it openable in the drawer. A week has no single recommendation to explain, so
- * clicking it drills down instead of opening one arbitrarily.
- */
-export type Cell = {
-  rate: number | null;
-  changePct: number;
-  sold: number;
-  total: number;
-  soldOutNights: number;
-  isEvent: boolean;
-  attention: boolean;
-  single: Recommendation | null;
-  count: number;
-};
-
-export type CalendarRow = {
-  roomTypeId: number;
-  category: string;
-  unitsTotal: number;
-  byColumn: Map<string, Cell>;
 };
 
 export function buildColumns(
@@ -155,73 +135,4 @@ export function bucketKeyFor(
   // the same way and then did NOT clamp — silently discarding every date in
   // the first partial week. Folding it in here means a caller cannot forget it.
   return firstColumnKey && key < firstColumnKey ? firstColumnKey : key;
-}
-
-export function buildRows(
-  recs: Recommendation[],
-  granularity: Granularity,
-  columns: Column[],
-): CalendarRow[] {
-  const firstColumn = columns[0]?.startISO;
-  const byType = new Map<number, { row: CalendarRow; buckets: Map<string, Recommendation[]> }>();
-
-  for (const r of recs) {
-    let entry = byType.get(r.room_type_id);
-    if (!entry) {
-      entry = {
-        row: {
-          roomTypeId: r.room_type_id,
-          category: r.room_category,
-          unitsTotal: r.units_total ?? 0,
-          byColumn: new Map(),
-        },
-        buckets: new Map(),
-      };
-      byType.set(r.room_type_id, entry);
-    }
-    const key = bucketKeyFor(r.stay_date, granularity, firstColumn);
-    const bucket = entry.buckets.get(key);
-    if (bucket) bucket.push(r);
-    else entry.buckets.set(key, [r]);
-  }
-
-  for (const { row, buckets } of byType.values()) {
-    for (const [key, group] of buckets) {
-      row.byColumn.set(key, summarise(group));
-    }
-  }
-
-  return [...byType.values()]
-    .map((e) => e.row)
-    .sort((a, b) => a.category.localeCompare(b.category));
-}
-
-function summarise(group: Recommendation[]): Cell {
-  const rates = group.map((r) => r.recommended_net_rate).filter((v) => typeof v === "number");
-  const sold = group.reduce((s, r) => s + (r.units_sold ?? 0), 0);
-  const total = group.reduce((s, r) => s + (r.units_total ?? 0), 0);
-  return {
-    // The mean, not the first: a week's headline rate has to describe the week.
-    rate: rates.length ? rates.reduce((s, v) => s + v, 0) / rates.length : null,
-    // A ratio of sums, NOT a mean of ratios. The arrow has to describe the rate
-    // printed above it, and mean(change_pct) is a different statistic that
-    // drifts from it — measured at up to 0.39pp on this data, which is small
-    // only until it straddles zero and points the wrong way. This is also
-    // revenue-weighted rather than night-weighted, which is the more useful
-    // reading of "how much did the week move".
-    changePct: (() => {
-      const before = group.reduce((s, r) => s + (r.current_net_rate ?? 0), 0);
-      const after = group.reduce((s, r) => s + (r.recommended_net_rate ?? 0), 0);
-      return before ? ((after - before) / before) * 100 : 0;
-    })(),
-    sold,
-    total,
-    soldOutNights: group.filter(
-      (r) => (r.units_total ?? 0) > 0 && (r.units_sold ?? 0) >= (r.units_total ?? 0),
-    ).length,
-    isEvent: group.some((r) => r.is_event),
-    attention: group.some((r) => attentionReasons(r).length > 0),
-    single: group.length === 1 ? group[0] : null,
-    count: group.length,
-  };
 }

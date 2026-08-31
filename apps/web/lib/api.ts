@@ -4,6 +4,7 @@
  */
 import type {
   Booking,
+  BulkDecisionResult,
   Competitor,
   EventItem,
   HistoryEntry,
@@ -11,7 +12,11 @@ import type {
   Preview,
   PricingConfig,
   Property,
+  CollectorReport,
+  RangeDetail,
   RateBand,
+  RateTiles,
+  SeasonDef,
   Recommendation,
   RecommendationDetail,
   Summary,
@@ -116,9 +121,58 @@ export const api = {
     request<RecommendationDetail>(`/api/recommendations/${id}/reset`, { method: "POST" }),
 
   // --- rate book (CLIENT VALIDATED) --------------------------------------
+  // --- the Rate page: a DATE RANGE is the unit of work, not a stay date ---
+  // Where the season containing `on` starts and ends. The picker needs this
+  // BEFORE a range exists, to stop the second date at the boundary.
+  season: (on: string) =>
+    request<{ key: string; label: string; start: string; end: string }>(
+      `/api/rate/season${toQuery({ on })}`,
+    ),
+  rateTiles: (start_date: string, end_date: string) =>
+    request<RateTiles>(`/api/rate/tiles${toQuery({ start_date, end_date })}`),
+  rateRange: (room_type_id: number, start_date: string, end_date: string) =>
+    request<RangeDetail>(`/api/rate/range${toQuery({ room_type_id, start_date, end_date })}`),
+  acceptRange: (room_type_id: number, start_date: string, end_date: string, note?: string) =>
+    request<BulkDecisionResult>("/api/rate/accept", {
+      method: "POST",
+      body: JSON.stringify({ room_type_id, start_date, end_date, note: note || null }),
+    }),
+  overrideRange: (
+    room_type_id: number,
+    start_date: string,
+    end_date: string,
+    final_net_rate: number,
+    reason_code: string,
+    note?: string,
+  ) =>
+    request<BulkDecisionResult>("/api/rate/override", {
+      method: "POST",
+      body: JSON.stringify({
+        room_type_id,
+        start_date,
+        end_date,
+        final_net_rate,
+        reason_code,
+        note: note || null,
+      }),
+    }),
+
+  // --- the season calendar (operator-defined) -----------------------------
+  seasons: () => request<{ seasons: SeasonDef[] }>("/api/seasons"),
+  saveSeasons: (seasons: SeasonDef[]) =>
+    request<{ seasons: SeasonDef[] }>("/api/seasons", {
+      method: "PUT",
+      body: JSON.stringify({ seasons }),
+    }),
+
   rateBook: () => request<RateBand[]>("/api/rate-book"),
   rateBookMeta: () => request<any>("/api/rate-book/meta"),
-  updateRateBand: (id: number, body: { min_net_rate: number; base_net_rate: number; max_net_rate: number }) =>
+  updateRateBand: (
+    id: number,
+    // max_net_rate is NULLABLE: an empty ceiling means the season imposes none,
+    // and 0 would clamp every recommendation for it down to nothing.
+    body: { min_net_rate: number; base_net_rate: number; max_net_rate: number | null },
+  ) =>
     request<RateBand>(`/api/rate-book/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   resetRateBook: () => request<any>("/api/rate-book/reset", { method: "POST" }),
 
@@ -153,6 +207,10 @@ export const api = {
   deleteObservation: (id: number) =>
     request<void>(`/api/market/observations/${id}`, { method: "DELETE" }),
   marketMeta: () => request<any>("/api/market/meta"),
+  // The last collection run. `has_run` is load-bearing: a collector that was
+  // never switched on and one that fetched twelve pages and found nothing both
+  // leave the chart looking thin, and they need different fixes.
+  marketCollector: () => request<CollectorReport>("/api/market/collector"),
   marketProviders: () =>
     request<{ key: string; name: string; healthy: boolean; mode: string; detail: string; remediation: string; max_confidence: string }[]>(
       "/api/market/providers",

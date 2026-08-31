@@ -5,14 +5,16 @@ import { useLocale, useTranslations } from "next-intl";
 import { Card } from "@/components/ui";
 
 /**
- * Where complexity lives, and the only place an owner has to be deliberate to
- * reach. Each entry says what it is FOR, not what it contains — "seasonal rate
- * book" means nothing to someone who has never used a revenue tool.
+ * Plumbing, and the only place an owner has to be deliberate to reach.
+ *
+ * The pricing inputs an operator tunes -- seasonal bands, strategy, events --
+ * moved to Customisation. What is left here is setup: which data source, which
+ * competitors the market report watches, and what has been decided so far.
+ * Each entry says what it is FOR, not what it contains.
  */
 const SECTIONS = [
-  { href: "/settings/rate-book", key: "rateBook", validated: true },
-  { href: "/settings/strategy", key: "strategy", validated: false },
   { href: "/settings/data", key: "data", validated: false },
+  { href: "/settings/market-sources", key: "marketSources", validated: false },
   { href: "/settings/activity", key: "activity", validated: false },
 ] as const;
 

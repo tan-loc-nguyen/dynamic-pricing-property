@@ -23,6 +23,9 @@ npm-debug.log*
 data/*.db
 data/*.db-shm
 data/*.db-wal
+# Schema changes are migrated by reseed (D24), which means deleting the file --
+# so a backup is taken first, and it is just as much a database as the original.
+data/*.db.backup-*
 
 # OS / editor
 .DS_Store

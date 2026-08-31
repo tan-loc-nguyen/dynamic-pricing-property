@@ -1,4 +1,4 @@
-import type { Granularity } from "./calendarModel";
+import type { Granularity } from "./buckets";
 
 /**
  * The time spans an owner thinks in, defined once.

@@ -50,7 +50,8 @@ export interface RateBand {
   room_category_label: string;
   min_net_rate: number;
   base_net_rate: number;
-  max_net_rate: number;
+  /** null = this season imposes no ceiling; the dynamic bound is the limit. */
+  max_net_rate: number | null;
   currency: string;
   rate_basis: string;
   source: string;
@@ -199,6 +200,111 @@ export interface Recommendation {
   clamp_applied: "min" | "max" | null;
 }
 
+/** Where a range's `current_net_rate` figures came from.
+ *
+ *  Same values as `Recommendation.rate_provenance`, plus "mixed" — a range can
+ *  span nights that disagree, and showing the majority value would hide a
+ *  minority "unavailable" behind a confident-looking one. */
+export type RangeProvenance = Recommendation["rate_provenance"] | "mixed";
+
+/** What the last market collection attempted and found. */
+export interface CollectorReport {
+  /** False = never collected. Distinct from ran-and-found-nothing, which is a
+   *  broken source rather than an unconfigured one. */
+  has_run: boolean;
+  ran_at: string | null;
+  attempted: number;
+  prices_found: number;
+  truncated_nights: number;
+  errors: string[];
+  error_count: number;
+}
+
+/** One operator-defined season: a contiguous run of whole months.
+ *
+ *  The seasons together cover the year exactly once. `months` may WRAP —
+ *  [11, 12, 1] is High Season 2 — so it is not safe to sort it. */
+export interface SeasonDef {
+  key: string;
+  label: string;
+  months: number[];
+}
+
+/** One room tier over a date range: the Rate page's tile. */
+export interface RateTile {
+  room_type_id: number;
+  room_type_name: string;
+  room_category: string;
+  room_category_label: string;
+  units_total: number;
+  /** Units with at least one FREE NIGHT in the range — not unit-nights. */
+  available_units: number;
+  /** False when unassigned bookings make the count a provable floor rather
+   *  than the exact answer, so the tile can say so instead of implying
+   *  precision it does not have. */
+  availability_is_exact: boolean;
+  average_recommended_net_rate: number;
+  average_current_net_rate: number;
+  change_pct: number;
+  unpriced_nights: number;
+}
+
+export interface RateTiles {
+  start_date: string;
+  end_date: string;
+  nights: number;
+  season: { key: string; label: string; start: string; end: string };
+  tiles: RateTile[];
+}
+
+/** One night inside a range — the per-night strip and the pace curve. */
+export interface RangeNight {
+  stay_date: string;
+  units_sold: number;
+  units_total: number;
+  recommended_net_rate: number;
+  priced: boolean;
+  days_to_arrival: number | null;
+  expected_occupancy: number | null;
+  occupancy: number | null;
+}
+
+/** What the drawer renders for a range. */
+export interface RangeDetail {
+  room_type_id: number;
+  room_type_name: string;
+  room_category: string;
+  room_category_label: string;
+  start_date: string;
+  end_date: string;
+  nights: number;
+  season: { key: string; label: string; start: string; end: string };
+  base_net_rate: number;
+  average_recommended_net_rate: number;
+  average_current_net_rate: number;
+  /** ONE band for the whole range — guaranteed by the season check on the
+   *  server. `max` is nullable: an empty MAX means the only ceiling is the
+   *  dynamic bound, and the band strip is drawn open to the right. */
+  band: { min: number | null; base: number | null; max: number | null };
+  adjustments: Adjustment[];
+  nightly: RangeNight[];
+  pace_gap: number | null;
+  units_sold: number;
+  units_total: number;
+  available_units: number;
+  availability_is_exact: boolean;
+  unpriced_nights: number;
+  rate_provenance: RangeProvenance;
+}
+
+export interface BulkDecisionResult {
+  group_id: string;
+  net_rate: number;
+  decisions_written: number;
+  nights: number;
+  skipped_unpriced: number;
+}
+
 export interface RecommendationDetail extends Recommendation {
   adjustments: Adjustment[];
   decisions: Decision[];
@@ -324,6 +430,9 @@ export interface HistoryEntry {
   config_version: number;
   operator: string;
   currency: string;
+  /** Set when this decision came from a bulk range action; the log groups on
+   *  it so a fortnight priced in one click reads as one entry, not fourteen. */
+  group_id: string | null;
 }
 
 export interface MarketObservation {
