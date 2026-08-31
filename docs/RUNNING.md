@@ -24,9 +24,14 @@ Run `make demo` **first** even if the binary is what you want. It takes seconds
 against `make bundle`'s minutes, so a broken environment surfaces before you
 spend the build — and it is the fast loop if you end up changing anything.
 
-The two show the **same numbers**. The packaged app keeps its own database and
-seeds it on first launch from the same fixed seed, so 31 Aug reads
-2,570,000 / 2,160,000 / 3,130,000 in both. Verified, not assumed.
+The two show the **same numbers as each other**. The packaged app keeps its own
+database and seeds it on first launch from the same fixed seed, so a given date
+prices identically in both — checked, not assumed.
+
+Those numbers are not fixed across days, though: the demo horizon is generated
+relative to today, so what you see this morning is not what a colleague saw last
+week. Compare dev against the binary on the SAME day; do not compare either
+against a figure someone quoted you.
 
 > **Do not run `make bundle` while `make demo` is still running.** The build
 > deletes `apps/web/.next` out from under the dev server and it dies with a 500.
