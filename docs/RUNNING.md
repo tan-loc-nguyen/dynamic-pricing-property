@@ -10,14 +10,26 @@ Vietnamese is the default language; English is one click away in the sidebar.
 ## The short version
 
 ```bash
-make demo
+make demo     # deps, fresh demo data, both servers  ->  http://localhost:3000
 ```
 
-Installs dependencies, rebuilds the demo database, and starts both servers.
-Then open **<http://localhost:3000>**.
+Stop it (Ctrl-C) when you want the packaged app instead:
 
-That is the whole thing. The rest of this page is what to do when it does not
-work, and how to build the double-clickable version.
+```bash
+make bundle                     # a few minutes
+./dist/DynamicPricingProperty   # opens your browser on a free port
+```
+
+Run `make demo` **first** even if the binary is what you want. It takes seconds
+against `make bundle`'s minutes, so a broken environment surfaces before you
+spend the build — and it is the fast loop if you end up changing anything.
+
+The two show the **same numbers**. The packaged app keeps its own database and
+seeds it on first launch from the same fixed seed, so 31 Aug reads
+2,570,000 / 2,160,000 / 3,130,000 in both. Verified, not assumed.
+
+> **Do not run `make bundle` while `make demo` is still running.** The build
+> deletes `apps/web/.next` out from under the dev server and it dies with a 500.
 
 ---
 
@@ -61,19 +73,16 @@ failing suite means the demo data is not trustworthy either.
 
 ## The desktop build
 
-For handing someone a file to double-click, or demoing without a terminal:
+One ~23MB executable, for handing someone a file to double-click or demoing
+without a terminal. It serves the API and the web app from a single process on
+the first free port, then opens your browser.
 
-```bash
-make bundle              # a few minutes
-./dist/DynamicPricingProperty
-```
+It does **not** use the repository's database — it seeds its own, so `make
+reseed` has no effect on it. See the troubleshooting section for where that
+file lives.
 
-One ~23MB executable. It serves the API and the web app from a single process
-on the first free port, then opens your browser.
-
-**Do not run `make bundle` while `make dev` is running.** The build deletes
-`apps/web/.next`, which the dev server is using, and dev dies with a 500. Stop
-dev first.
+`make bundle` needs the venv, so `make setup` (or `make demo`) has to have run
+at least once.
 
 **PyInstaller cannot cross-compile.** A Windows `.exe` must be built on
 Windows, a macOS binary on macOS. `.github/workflows/release.yml` builds both
