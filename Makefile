@@ -11,7 +11,7 @@ WEB   := $(ROOT)/apps/web
 PY    := $(API)/.venv/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web seed reseed test test-watch lint clean check env bundle run-bundle
+.PHONY: help setup dev api web seed reseed demo test test-watch lint clean check env bundle run-bundle
 
 help:
 	@echo ""
@@ -26,7 +26,8 @@ help:
 	@echo "  make api       Backend only"
 	@echo "  make web       Frontend only"
 	@echo "  make seed      Create demo data if the database is empty"
-	@echo "  make reseed    Wipe and rebuild the demo data"
+	@echo "  make demo      One command for a fresh machine: deps, demo data, run"
+	@echo "  make reseed    Rebuild the demo database from scratch"
 	@echo "  make check     Verify prerequisites without installing"
 	@echo "  make clean     Remove venv, node_modules and the database"
 	@echo ""
@@ -48,6 +49,13 @@ seed:
 
 reseed:
 	@cd $(API) && $(PY) -m dynamic_pricing.seed --force
+
+# The whole path from a fresh clone to a running demo, in one command. Reseed
+# runs FIRST and unconditionally: a database from before a schema change is the
+# single thing most likely to stop a teammate, and it fails in a way that reads
+# like the app is broken rather than the data being old.
+demo: setup reseed
+	@$(MAKE) dev
 
 test:
 	@cd $(API) && $(PY) -m pytest -q

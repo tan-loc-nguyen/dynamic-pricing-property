@@ -557,8 +557,8 @@
     }
   },
   "marketPage": {
-    "title": "Thị trường & Sự kiện",
-    "subtitle": "Giá của bạn so với thị trường, bạn đang cạnh tranh với ai, và điều gì đang diễn ra trên lịch.",
+    "title": "Thị trường",
+    "subtitle": "Giá của bạn so với các cơ sở tương đương, theo từng đêm.",
     "collectorNeverRun": "Chưa thu thập giá thị trường tự động. Vùng bên dưới chỉ dựa trên các mức giá nhập tay.",
     "collectorSummary": "Thu thập lần cuối {when} — {attempted, plural, other {# lượt tải}}, {found, plural, =0 {không tìm thấy giá nào} other {tìm thấy # mức giá}}.",
     "collectorTruncated": "{nights, plural, other {# đêm chưa được tải}} — khoảng ngày vượt quá giới hạn mỗi lần chạy."

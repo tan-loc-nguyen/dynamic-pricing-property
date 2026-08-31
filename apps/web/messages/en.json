@@ -557,8 +557,8 @@
     }
   },
   "marketPage": {
-    "title": "Market & events",
-    "subtitle": "How your prices compare, who you compete with, and what is happening on the calendar.",
+    "title": "Market",
+    "subtitle": "How your prices compare to comparable properties, night by night.",
     "collectorNeverRun": "Market prices have not been collected automatically. The band below is from manually entered references only.",
     "collectorSummary": "Last collected {when} — {attempted, plural, one {# fetch} other {# fetches}}, {found, plural, =0 {no prices found} one {# price found} other {# prices found}}.",
     "collectorTruncated": "{nights, plural, one {# night was not fetched} other {# nights were not fetched}} — the range exceeded the per-run limit."

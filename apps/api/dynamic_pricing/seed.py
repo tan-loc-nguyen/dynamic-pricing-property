@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from .db import SessionLocal, init_db
+from .db import SessionLocal, init_db, rebuild_schema
 from .lookup import UnknownRegistryKey
 from .models import (
     Booking,
@@ -124,6 +124,25 @@ def refresh_stale_run(session, today: date | None = None) -> bool:
     return True
 
 
+def _has_data_or_explain(session) -> bool:
+    """Is there data? And if the question itself fails, say what to do.
+
+    A database older than the models raises OperationalError on the first
+    query. Left bare that surfaced as a stack trace during startup, which tells
+    a teammate nothing; the fix is one command and it should be named.
+    """
+    from sqlalchemy.exc import OperationalError
+
+    try:
+        return has_data(session)
+    except OperationalError as exc:
+        raise SystemExit(
+            f"  This database is older than the current models ({exc.orig}).\n"
+            f"  Rebuild it with:  make reseed\n"
+            f"  (that drops and recreates the demo data; nothing else uses this file)"
+        ) from None
+
+
 def bootstrap(force: bool = False, today: date | None = None, quiet: bool = False) -> dict:
     """Create the schema and populate demo data if needed."""
     today = today or date.today()
@@ -135,8 +154,17 @@ def bootstrap(force: bool = False, today: date | None = None, quiet: bool = Fals
 
     summary: dict = {"today": today.isoformat(), "skipped": False}
 
+    if force:
+        # Rebuild the SCHEMA, not just the rows. Emptying the tables left a
+        # database written before a column existed just as broken -- the wipe
+        # succeeded and the very next INSERT failed on the missing column. That
+        # is the state a teammate's clone lands in after pulling a model
+        # change, so `--force` has to mean the schema too.
+        log("Rebuilding the database…")
+        rebuild_schema()
+
     with SessionLocal() as session:
-        if has_data(session) and not force:
+        if _has_data_or_explain(session) and not force:
             summary["skipped"] = True
             if refresh_stale_run(session, today=today):
                 summary["regenerated"] = True
@@ -144,10 +172,6 @@ def bootstrap(force: bool = False, today: date | None = None, quiet: bool = Fals
             else:
                 log("Existing data found — leaving it alone (use --force to rebuild).")
             return summary
-
-        if force:
-            log("Wiping existing data…")
-            wipe(session)
 
         start, end = default_window(today, HISTORY_DAYS, HORIZON_DAYS)
 
