@@ -16,8 +16,25 @@ from ..constants import EVENT_IMPACT_LEVELS, EVENT_TYPES
 from ..db import get_session
 from ..models import Event
 from ..schemas import EventIn, EventOut
+from ..services.recommendations import PricingRunFailed, generate_recommendations
 
 router = APIRouter(prefix="/api/events", tags=["events"])
+
+
+def _regenerate_or_422(session: Session, *, saved: str) -> None:
+    """Re-price so an event actually shows up in a recommendation.
+
+    Mirrors `routers/rate_book.py::edit_band`: the event IS saved at this
+    point, so failing the request misrepresents what happened -- but there is
+    no response_model field to carry a partial-success flag through, and a
+    saved event that silently never re-prices anything is worse.
+    """
+    try:
+        generate_recommendations(session)
+    except PricingRunFailed as exc:
+        raise HTTPException(
+            status_code=422, detail=f"{saved}, but re-pricing failed: {exc}"
+        ) from exc
 
 
 @router.get("", response_model=list[EventOut])
@@ -50,6 +67,7 @@ def create_event(body: EventIn, session: Session = Depends(get_session)):
     session.add(event)
     session.commit()
     session.refresh(event)
+    _regenerate_or_422(session, saved="Event created")
     return event
 
 
@@ -67,6 +85,7 @@ def update_event(event_id: int, body: EventIn, session: Session = Depends(get_se
         setattr(event, key, value)
     session.commit()
     session.refresh(event)
+    _regenerate_or_422(session, saved="Event updated")
     return event
 
 
@@ -74,3 +93,4 @@ def update_event(event_id: int, body: EventIn, session: Session = Depends(get_se
 def delete_event(event_id: int, session: Session = Depends(get_session)):
     session.execute(delete(Event).where(Event.id == event_id))
     session.commit()
+    _regenerate_or_422(session, saved="Event deleted")

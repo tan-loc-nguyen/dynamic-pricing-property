@@ -132,7 +132,7 @@ export function EventsPanel() {
                 >
                   {(meta?.impact_levels || []).map((l: any) => (
                     <option key={l.code} value={l.code}>
-                      {l.label}
+                      {tv(`eventImpact.${l.code}`)}
                     </option>
                   ))}
                 </select>
@@ -143,9 +143,9 @@ export function EventsPanel() {
                   value={form.event_type}
                   onChange={(e) => setForm({ ...form, event_type: e.target.value })}
                 >
-                  {(meta?.event_types || []).map((t: any) => (
-                    <option key={t.code} value={t.code}>
-                      {t.label}
+                  {(meta?.event_types || []).map((et: any) => (
+                    <option key={et.code} value={et.code}>
+                      {tv(`eventTypes.${et.code}`)}
                     </option>
                   ))}
                 </select>

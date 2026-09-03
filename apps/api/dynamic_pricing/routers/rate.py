@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..db import get_session
@@ -19,6 +19,7 @@ from ..services.configuration import get_active_configuration
 from ..constants import DECISION_ACCEPTED, DECISION_OVERRIDDEN, OVERRIDE_REASON_CODES
 from ..services.rate_decisions import apply_to_range
 from ..services.rate_page import RangeCrossesSeason, Tile, load_range, load_tiles
+from ..services.recommendations import PricingRunFailed, generate_recommendations
 from ._shared import category_label
 
 router = APIRouter(prefix="/api/rate", tags=["rate"])
@@ -243,7 +244,7 @@ class RangeDecisionIn(BaseModel):
 
 
 class RangeOverrideIn(RangeDecisionIn):
-    final_net_rate: float
+    final_net_rate: float = Field(gt=0)
     reason_code: str
 
 
@@ -282,6 +283,25 @@ def _result_payload(result) -> dict:
     }
 
 
+def _regenerate_after_decision(session: Session, result: dict) -> dict:
+    """Re-price so the page the operator is looking at reflects what they just did.
+
+    `apply_to_range` writes the new price onto `StayDateInventory`, but every
+    read path (tiles, drawer, current-rate display) serves the last
+    `PricingRecommendation` run, not that table directly. Without this, an
+    accepted or overridden price is saved and silently invisible until
+    something else happens to trigger a regenerate -- indistinguishable from
+    the action having failed.
+    """
+    try:
+        generate_recommendations(session)
+    except PricingRunFailed as exc:
+        # The decision IS saved at this point. Failing the whole request would
+        # tell the operator their accept/override was rejected when it was not.
+        result["regenerate_failed"] = str(exc)
+    return result
+
+
 @router.post("/accept")
 def accept_range(body: RangeDecisionIn, session: Session = Depends(get_session)) -> dict:
     """Accept the averaged price for every night in the range.
@@ -289,7 +309,7 @@ def accept_range(body: RangeDecisionIn, session: Session = Depends(get_session))
     Existing decisions are replaced without a prompt.
     """
     aggregate = _priced_range(session, body)
-    return _result_payload(
+    result = _result_payload(
         apply_to_range(
             session,
             room_type_id=body.room_type_id,
@@ -301,6 +321,7 @@ def accept_range(body: RangeDecisionIn, session: Session = Depends(get_session))
             operator=body.operator,
         )
     )
+    return _regenerate_after_decision(session, result)
 
 
 @router.post("/override")
@@ -311,7 +332,7 @@ def override_range(body: RangeOverrideIn, session: Session = Depends(get_session
             status_code=422, detail=f"Unknown override reason '{body.reason_code}'"
         )
     _priced_range(session, body)
-    return _result_payload(
+    result = _result_payload(
         apply_to_range(
             session,
             room_type_id=body.room_type_id,
@@ -324,3 +345,4 @@ def override_range(body: RangeOverrideIn, session: Session = Depends(get_session
             operator=body.operator,
         )
     )
+    return _regenerate_after_decision(session, result)
