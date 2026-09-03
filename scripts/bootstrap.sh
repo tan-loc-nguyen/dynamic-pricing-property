@@ -33,6 +33,12 @@ die() {
 OS="$(uname -s)"
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# A Windows venv (via Git Bash) puts the interpreter under Scripts/, not bin/.
+case "$OS" in
+  MINGW*|MSYS*|CYGWIN*) VENV_BIN="$VENV/Scripts" ;;
+  *)                    VENV_BIN="$VENV/bin" ;;
+esac
+
 # --- package-manager helper -------------------------------------------------
 install_hint() {
   local tool="$1"
@@ -123,8 +129,8 @@ if [ ! -d "$VENV" ]; then
   info "Creating virtualenv at apps/api/.venv…"
   "$PYTHON" -m venv "$VENV"
 fi
-"$VENV/bin/python" -m pip install --quiet --upgrade pip
-"$VENV/bin/pip" install --quiet -r "$API_DIR/requirements.txt"
+"$VENV_BIN/python" -m pip install --quiet --upgrade pip
+"$VENV_BIN/pip" install --quiet -r "$API_DIR/requirements.txt"
 ok "Python packages installed"
 
 # --- 4. Frontend ------------------------------------------------------------
@@ -146,7 +152,7 @@ else
 fi
 
 mkdir -p "$ROOT/data"
-( cd "$API_DIR" && "$VENV/bin/python" -m dynamic_pricing.seed )
+( cd "$API_DIR" && "$VENV_BIN/python" -m dynamic_pricing.seed )
 ok "Demo database ready at data/dynamic_pricing.db"
 
 echo

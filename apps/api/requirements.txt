@@ -8,6 +8,10 @@ python-dotenv>=1.0.1
 pytest>=8.3.0
 ruff>=0.8.0
 
+# zoneinfo (ZoneInfo("Asia/Ho_Chi_Minh")) relies on the OS's IANA tz database.
+# macOS and Linux ship one; Windows does not, so this fills it in from PyPI.
+tzdata>=2024.1
+
 # Packaging the desktop build (`make bundle`). Cannot cross-compile:
 # a Windows .exe must be built on Windows, a macOS binary on macOS.
 pyinstaller>=6.11.0

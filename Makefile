@@ -8,7 +8,10 @@ SHELL := /bin/bash
 ROOT  := $(shell pwd)
 API   := $(ROOT)/apps/api
 WEB   := $(ROOT)/apps/web
-PY    := $(API)/.venv/bin/python
+# `=` (not `:=`) so this re-checks on every recipe line rather than once at
+# parse time — `make demo` creates the venv via `setup` before `PY` is first
+# used, and a Windows venv puts the interpreter under Scripts/, not bin/.
+PY    = $(if $(wildcard $(API)/.venv/Scripts/python.exe),$(API)/.venv/Scripts/python.exe,$(API)/.venv/bin/python)
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev api web seed reseed demo test test-watch lint clean check env bundle run-bundle

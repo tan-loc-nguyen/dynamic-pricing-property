@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { MarketOverview } from "@/components/market/MarketOverview";
+import { PageHeader } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useFormat } from "@/lib/useFormat";
 import type { CollectorReport } from "@/lib/types";
@@ -30,10 +31,7 @@ export default function MarketPage() {
 
   return (
     <div className="flex h-full flex-col gap-3 px-7 py-6">
-      <div>
-        <h1 className="text-[19px] font-semibold text-ink-900">{t("title")}</h1>
-        <p className="text-[12px] text-ink-500">{t("subtitle")}</p>
-      </div>
+      <PageHeader title={t("title")} subtitle={t("subtitle")} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <MarketOverview />
 

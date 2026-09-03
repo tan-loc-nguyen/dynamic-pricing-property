@@ -3,7 +3,6 @@
 import { useTranslations } from "next-intl";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { Button, Card, Chip, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
 
@@ -159,7 +158,7 @@ function BandEditor({
   );
 }
 
-export function StrategyPanel() {
+export function StrategyPanel({ onOpenSeasonal }: { onOpenSeasonal: () => void }) {
   const t = useTranslations("settings");
   const tval = useTranslations("validation");
   const tv = useTranslations("vocab");
@@ -287,12 +286,13 @@ export function StrategyPanel() {
             {t("rateBookNoticeBody")}
           </p>
         </div>
-        <Link
-          href="/rate-book"
+        <button
+          type="button"
+          onClick={onOpenSeasonal}
           className="shrink-0 text-[12px] font-medium text-emerald-700 hover:text-emerald-900 whitespace-nowrap"
         >
           {t("openRateBook")}
-        </Link>
+        </button>
       </div>
 
       {message && (

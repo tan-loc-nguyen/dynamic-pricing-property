@@ -30,7 +30,6 @@ export default function RatePage() {
   const t = useTranslations("rate");
   const tc = useTranslations("common");
   const tv = useTranslations("vocab");
-  const { formatVND, formatAdjPct } = useFormat();
 
   const [startDate, setStartDate] = useState(todayISO);
   /** The end the OPERATOR asked for, or null to let the server pick one inside
@@ -161,54 +160,58 @@ export default function RatePage() {
       />
     </div>
   );
+}
 
-  function TileCard({ tile, onOpen }: { tile: RateTile; onOpen: () => void }) {
-    return (
-      <button
-        onClick={onOpen}
-        className="rounded-xl border border-ink-200 bg-white p-4 text-left transition-colors
-          hover:border-brand-300 hover:bg-brand-50/40 focus:outline-none
-          focus-visible:ring-2 focus-visible:ring-brand-500"
+function TileCard({ tile, onOpen }: { tile: RateTile; onOpen: () => void }) {
+  const t = useTranslations("rate");
+  const tv = useTranslations("vocab");
+  const { formatVND, formatAdjPct } = useFormat();
+
+  return (
+    <button
+      onClick={onOpen}
+      className="rounded-xl border border-ink-200 bg-white p-4 text-left transition-colors
+        hover:border-brand-300 hover:bg-brand-50/40 focus:outline-none
+        focus-visible:ring-2 focus-visible:ring-brand-500"
+    >
+      <div className="text-[13.5px] font-semibold text-ink-900">
+        {tv(`roomCategories.${tile.room_category}`)}
+      </div>
+
+      <div className="mt-3 text-[11px] uppercase tracking-wide text-ink-400">
+        {t("averageSuggested")}
+      </div>
+      <div className="tnum text-[24px] font-bold leading-tight text-brand-700">
+        {formatVND(tile.average_recommended_net_rate)}
+      </div>
+      <div
+        className={`tnum text-[12px] font-medium ${
+          tile.change_pct > 0.5
+            ? "text-emerald-600"
+            : tile.change_pct < -0.5
+              ? "text-amber-600"
+              : "text-ink-400"
+        }`}
       >
-        <div className="text-[13.5px] font-semibold text-ink-900">
-          {tv(`roomCategories.${tile.room_category}`)}
-        </div>
+        {formatAdjPct(tile.change_pct)}
+      </div>
 
-        <div className="mt-3 text-[11px] uppercase tracking-wide text-ink-400">
-          {t("averageSuggested")}
+      <div className="mt-3 border-t border-ink-100 pt-2.5 text-[11.5px] text-ink-600">
+        {/* Units with at least one free night in the range -- NOT unit-nights.
+            When bookings cannot be attributed to a unit the count is a
+            provable floor, and it says so rather than implying precision. */}
+        {tile.availability_is_exact
+          ? t("inventory", { units: tile.available_units, total: tile.units_total })
+          : t("inventoryAtLeast", {
+              units: tile.available_units,
+              total: tile.units_total,
+            })}
+      </div>
+      {tile.unpriced_nights > 0 && (
+        <div className="mt-1.5 text-[11px] text-amber-700">
+          {t("unpricedNights", { count: tile.unpriced_nights })}
         </div>
-        <div className="tnum text-[24px] font-bold leading-tight text-brand-700">
-          {formatVND(tile.average_recommended_net_rate)}
-        </div>
-        <div
-          className={`tnum text-[12px] font-medium ${
-            tile.change_pct > 0.5
-              ? "text-emerald-600"
-              : tile.change_pct < -0.5
-                ? "text-amber-600"
-                : "text-ink-400"
-          }`}
-        >
-          {formatAdjPct(tile.change_pct)}
-        </div>
-
-        <div className="mt-3 border-t border-ink-100 pt-2.5 text-[11.5px] text-ink-600">
-          {/* Units with at least one free night in the range -- NOT unit-nights.
-              When bookings cannot be attributed to a unit the count is a
-              provable floor, and it says so rather than implying precision. */}
-          {tile.availability_is_exact
-            ? t("inventory", { units: tile.available_units, total: tile.units_total })
-            : t("inventoryAtLeast", {
-                units: tile.available_units,
-                total: tile.units_total,
-              })}
-        </div>
-        {tile.unpriced_nights > 0 && (
-          <div className="mt-1.5 text-[11px] text-amber-700">
-            {t("unpricedNights", { count: tile.unpriced_nights })}
-          </div>
-        )}
-      </button>
-    );
-  }
+      )}
+    </button>
+  );
 }

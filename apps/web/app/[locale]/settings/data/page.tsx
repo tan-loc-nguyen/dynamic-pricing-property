@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
-import { Card, Chip, Spinner } from "@/components/ui";
+import { Card, Chip, PageHeader, Spinner } from "@/components/ui";
 import { DataSourcePanel } from "@/components/DataSourcePanel";
 import { RoomTypeMapPanel } from "@/components/RoomTypeMapPanel";
 import type { SystemStatus } from "@/lib/types";
@@ -51,10 +51,7 @@ export default function DataSettingsPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-4">
-        <div>
-          <h1 className="text-[19px] font-semibold text-ink-900">{t("title")}</h1>
-          <p className="text-[12px] text-ink-500">{t("subtitle")}</p>
-        </div>
+        <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
         <DataSourcePanel onChanged={reload} />
 

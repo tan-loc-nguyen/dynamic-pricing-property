@@ -1,12 +1,15 @@
 "use client";
 
 import * as Tabs from "@radix-ui/react-tabs";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { SeasonalPanel } from "@/components/customisation/SeasonalPanel";
 import { StrategyPanel } from "@/components/customisation/StrategyPanel";
 import { EventsPanel } from "@/components/market/EventsPanel";
+import { PageHeader } from "@/components/ui";
 
 const TABS = ["seasonal", "strategy", "events"] as const;
+type Tab = (typeof TABS)[number];
 
 /**
  * The three things an operator actually tunes.
@@ -18,15 +21,17 @@ const TABS = ["seasonal", "strategy", "events"] as const;
  */
 export default function CustomisationPage() {
   const t = useTranslations("customisation");
+  const [tab, setTab] = useState<Tab>("seasonal");
 
   return (
     <div className="flex h-full flex-col gap-3 px-7 py-6">
-      <div>
-        <h1 className="text-[19px] font-semibold text-ink-900">{t("title")}</h1>
-        <p className="text-[12px] text-ink-500">{t("subtitle")}</p>
-      </div>
+      <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
-      <Tabs.Root defaultValue="seasonal" className="flex min-h-0 flex-1 flex-col">
+      <Tabs.Root
+        value={tab}
+        onValueChange={(v) => setTab(v as Tab)}
+        className="flex min-h-0 flex-1 flex-col"
+      >
         <Tabs.List className="flex shrink-0 gap-1 border-b border-ink-200" aria-label={t("title")}>
           {TABS.map((key) => (
             <Tabs.Trigger
@@ -49,7 +54,7 @@ export default function CustomisationPage() {
             className="min-h-0 flex-1 overflow-y-auto pt-4 focus:outline-none"
           >
             {key === "seasonal" && <SeasonalPanel />}
-            {key === "strategy" && <StrategyPanel />}
+            {key === "strategy" && <StrategyPanel onOpenSeasonal={() => setTab("seasonal")} />}
             {key === "events" && <EventsPanel />}
           </Tabs.Content>
         ))}

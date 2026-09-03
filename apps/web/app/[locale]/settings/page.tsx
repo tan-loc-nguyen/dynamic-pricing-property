@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Card } from "@/components/ui";
+import { Card, PageHeader } from "@/components/ui";
 
 /**
  * Plumbing, and the only place an owner has to be deliberate to reach.
@@ -25,8 +25,7 @@ export default function SettingsPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-[19px] font-semibold text-ink-900">{t("title")}</h1>
-        <p className="text-[12px] text-ink-500">{t("subtitle")}</p>
+        <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
         <div className="mt-4 space-y-2">
           {SECTIONS.map((s) => (
