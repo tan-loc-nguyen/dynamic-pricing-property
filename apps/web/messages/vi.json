@@ -591,7 +591,16 @@
     "observedRange": "Giá ghi nhận",
     "confidence": "Độ tin cậy",
     "lastSeen": "Ghi nhận gần nhất",
-    "observationCount": "{count, number} lượt ghi nhận"
+    "observationCount": "{count, number} lượt ghi nhận",
+    "add": "Thêm cơ sở so sánh",
+    "name": "Tên",
+    "namePlaceholder": "ví dụ: Saigon Sky Apartments",
+    "location": "Vị trí",
+    "locationPlaceholder": "ví dụ: Quận 1, TP.HCM",
+    "categoryNone": "Không chọn hạng cụ thể",
+    "notesPlaceholder": "ví dụ: Cùng khu, quy mô tương tự",
+    "saveCompetitor": "Lưu cơ sở so sánh",
+    "saved": "Đã thêm cơ sở so sánh"
   },
   "settingsHub": {
     "title": "Cài đặt",
