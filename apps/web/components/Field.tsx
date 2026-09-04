@@ -21,9 +21,9 @@ export function Field({
           association for free, with no per-field id to plumb through. */}
       <FieldLabel className="w-full flex-col items-start gap-1.5">
         {label}
+        {hint && <FieldDescription>{hint}</FieldDescription>}
         {children}
       </FieldLabel>
-      {hint && <FieldDescription>{hint}</FieldDescription>}
     </ShadField>
   );
 }

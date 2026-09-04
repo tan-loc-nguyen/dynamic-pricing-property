@@ -29,4 +29,17 @@ describe("Field", () => {
     );
     expect(screen.getByText("Higher reacts faster to pace gaps")).toBeInTheDocument();
   });
+
+  // The old Field rendered label, then hint, then the control -- guidance text
+  // reads before you interact with the input, not after.
+  it("renders the hint before the control, not after", () => {
+    const { container } = render(
+      <Field label="Sensitivity" hint="Higher reacts faster to pace gaps">
+        <input data-testid="control" />
+      </Field>
+    );
+    const hint = container.querySelector('[data-slot="field-description"]');
+    const control = container.querySelector('[data-testid="control"]');
+    expect(hint!.compareDocumentPosition(control!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
