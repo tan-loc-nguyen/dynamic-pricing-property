@@ -1,6 +1,6 @@
 "use client";
 
-import * as Tabs from "@radix-ui/react-tabs";
+import { Tabs } from "radix-ui";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { SeasonalPanel } from "@/components/customisation/SeasonalPanel";

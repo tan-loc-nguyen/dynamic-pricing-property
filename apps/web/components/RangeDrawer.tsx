@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
+import { Dialog } from "radix-ui";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { useAdjustmentText } from "@/lib/adjustments";
