@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as Popover from "@radix-ui/react-popover";
+import { Popover } from "radix-ui";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import type { SystemStatus } from "@/lib/types";

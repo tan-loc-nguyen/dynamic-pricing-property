@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Card, Empty, PageHeader, Spinner, inputClass } from "@/components/ui";
+import { TrendingUp, TrendingDown, CircleAlert } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Empty } from "@/components/Empty";
+import { PageHeader } from "@/components/PageHeader";
+import { Spinner } from "@/components/Spinner";
 import { RangeDrawer, type RangeSelection } from "@/components/RangeDrawer";
 import { api } from "@/lib/api";
 import { addDaysISO, todayISO } from "@/lib/format";
@@ -78,9 +83,8 @@ export default function RatePage() {
         <div className="flex flex-wrap items-end gap-3">
           <label className="block">
             <div className="mb-1 text-[11px] font-medium text-ink-500">{t("from")}</div>
-            <input
+            <Input
               type="date"
-              className={inputClass}
               value={startDate}
               onChange={(e) => {
                 if (!e.target.value) return;
@@ -97,9 +101,8 @@ export default function RatePage() {
           </div>
           <label className="block">
             <div className="mb-1 text-[11px] font-medium text-ink-500">{t("to")}</div>
-            <input
+            <Input
               type="date"
-              className={inputClass}
               value={endInput}
               min={startDate}
               // Capped at the season boundary rather than validated after the
@@ -136,21 +139,11 @@ export default function RatePage() {
       ) : !data || data.tiles.length === 0 ? (
         <Empty title={t("empty")} hint={t("emptyHint")} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {data.tiles.map((tile) => (
-            <TileCard
-              key={tile.room_type_id}
-              tile={tile}
-              onOpen={() =>
-                setSelection({
-                  roomTypeId: tile.room_type_id,
-                  startDate: data.start_date,
-                  endDate: data.end_date,
-                })
-              }
-            />
-          ))}
-        </div>
+        <TileGrid data={data} onOpen={(tile) => setSelection({
+          roomTypeId: tile.room_type_id,
+          startDate: data.start_date,
+          endDate: data.end_date,
+        })} />
       )}
 
       <RangeDrawer
@@ -162,37 +155,86 @@ export default function RatePage() {
   );
 }
 
-function TileCard({ tile, onOpen }: { tile: RateTile; onOpen: () => void }) {
+/**
+ * The tile grid is a comparison surface — regular and calm, on purpose. The
+ * one exception is data-driven, not decorative: whichever tier has the most
+ * unpriced nights is the one that actually needs the operator's attention
+ * right now, so it leads the grid and carries more visual weight than its
+ * neighbors. Nothing is emphasized when every tier is fully priced.
+ */
+function TileGrid({
+  data,
+  onOpen,
+}: {
+  data: RateTiles;
+  onOpen: (tile: RateTile) => void;
+}) {
+  const mostUrgent = data.tiles.reduce<RateTile | null>((worst, tile) => {
+    if (tile.unpriced_nights <= 0) return worst;
+    if (!worst || tile.unpriced_nights > worst.unpriced_nights) return tile;
+    return worst;
+  }, null);
+
+  const rest = mostUrgent
+    ? data.tiles.filter((t) => t.room_type_id !== mostUrgent.room_type_id)
+    : data.tiles;
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {mostUrgent && (
+        <TileCard
+          tile={mostUrgent}
+          emphasized
+          onOpen={() => onOpen(mostUrgent)}
+        />
+      )}
+      {rest.map((tile) => (
+        <TileCard key={tile.room_type_id} tile={tile} onOpen={() => onOpen(tile)} />
+      ))}
+    </div>
+  );
+}
+
+function TileCard({
+  tile,
+  onOpen,
+  emphasized = false,
+}: {
+  tile: RateTile;
+  onOpen: () => void;
+  emphasized?: boolean;
+}) {
   const t = useTranslations("rate");
   const tv = useTranslations("vocab");
   const { formatVND, formatAdjPct } = useFormat();
+  const up = tile.change_pct > 0.5;
+  const down = tile.change_pct < -0.5;
 
   return (
     <button
       onClick={onOpen}
-      className="rounded-xl border border-ink-200 bg-white p-4 text-left transition-colors
-        hover:border-brand-300 hover:bg-brand-50/40 focus:outline-none
-        focus-visible:ring-2 focus-visible:ring-brand-500"
+      className={`rounded-xl border p-4 text-left transition-colors focus:outline-none
+        focus-visible:ring-2 focus-visible:ring-brand-500 ${
+          emphasized
+            ? "sm:col-span-2 border-amber-200 bg-amber-50/40 hover:bg-amber-50"
+            : "border-ink-200 bg-white hover:border-brand-300 hover:bg-brand-50/40"
+        }`}
     >
       <div className="text-[13.5px] font-semibold text-ink-900">
         {tv(`roomCategories.${tile.room_category}`)}
       </div>
 
-      <div className="mt-3 text-[11px] uppercase tracking-wide text-ink-400">
-        {t("averageSuggested")}
-      </div>
+      <div className="mt-3 text-[11px] text-ink-400">{t("averageSuggested")}</div>
       <div className="tnum text-[24px] font-bold leading-tight text-brand-700">
         {formatVND(tile.average_recommended_net_rate)}
       </div>
       <div
-        className={`tnum text-[12px] font-medium ${
-          tile.change_pct > 0.5
-            ? "text-emerald-600"
-            : tile.change_pct < -0.5
-              ? "text-amber-600"
-              : "text-ink-400"
+        className={`flex items-center gap-1 tnum text-[12px] font-medium ${
+          up ? "text-emerald-600" : down ? "text-amber-600" : "text-ink-400"
         }`}
       >
+        {up && <TrendingUp aria-hidden size={13} strokeWidth={2} />}
+        {down && <TrendingDown aria-hidden size={13} strokeWidth={2} />}
         {formatAdjPct(tile.change_pct)}
       </div>
 
@@ -208,7 +250,8 @@ function TileCard({ tile, onOpen }: { tile: RateTile; onOpen: () => void }) {
             })}
       </div>
       {tile.unpriced_nights > 0 && (
-        <div className="mt-1.5 text-[11px] text-amber-700">
+        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-amber-700">
+          <CircleAlert aria-hidden size={12} strokeWidth={2} />
           {t("unpricedNights", { count: tile.unpriced_nights })}
         </div>
       )}

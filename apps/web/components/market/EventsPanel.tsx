@@ -3,7 +3,15 @@
 import { useTranslations } from "next-intl";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Chip, Empty, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Chip } from "@/components/Chip";
+import { Empty } from "@/components/Empty";
+import { Field } from "@/components/Field";
+import { PageHeader } from "@/components/PageHeader";
+import { Spinner } from "@/components/Spinner";
+import { selectClass } from "@/lib/formControls";
 import { api } from "@/lib/api";
 import { todayISO } from "@/lib/format";
 import { useFormat } from "@/lib/useFormat";
@@ -98,8 +106,7 @@ export function EventsPanel() {
 
           <div className="mt-4 space-y-3">
             <Field label={t("name")}>
-              <input
-                className={inputClass}
+              <Input
                 placeholder={t("namePlaceholder")}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -107,17 +114,15 @@ export function EventsPanel() {
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label={t("starts")}>
-                <input
+                <Input
                   type="date"
-                  className={inputClass}
                   value={form.start_date}
                   onChange={(e) => setForm({ ...form, start_date: e.target.value })}
                 />
               </Field>
               <Field label={t("ends")}>
-                <input
+                <Input
                   type="date"
-                  className={inputClass}
                   value={form.end_date}
                   onChange={(e) => setForm({ ...form, end_date: e.target.value })}
                 />
@@ -126,7 +131,7 @@ export function EventsPanel() {
             <div className="grid grid-cols-2 gap-3">
               <Field label={t("impactLevel")}>
                 <select
-                  className={inputClass}
+                  className={selectClass}
                   value={form.impact_level}
                   onChange={(e) => setForm({ ...form, impact_level: e.target.value })}
                 >
@@ -139,7 +144,7 @@ export function EventsPanel() {
               </Field>
               <Field label={t("type")}>
                 <select
-                  className={inputClass}
+                  className={selectClass}
                   value={form.event_type}
                   onChange={(e) => setForm({ ...form, event_type: e.target.value })}
                 >
@@ -155,25 +160,23 @@ export function EventsPanel() {
               label={t("overridePct")}
               hint={t("overrideHint")}
             >
-              <input
+              <Input
                 type="number"
                 step={0.5}
-                className={inputClass}
                 placeholder={t("overridePlaceholder")}
                 value={form.adjustment_pct}
                 onChange={(e) => setForm({ ...form, adjustment_pct: e.target.value })}
               />
             </Field>
             <Field label={tc("notesOptional")}>
-              <input
-                className={inputClass}
+              <Input
                 placeholder={t("notesPlaceholder")}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </Field>
 
-            <Button variant="primary" onClick={submit} disabled={busy || !form.name}>
+            <Button variant="default" onClick={submit} disabled={busy || !form.name}>
               {t("saveEvent")}
             </Button>
 
@@ -185,7 +188,7 @@ export function EventsPanel() {
           </div>
         </Card>
 
-        <Card>
+        <Card size="flush">
           <div className="px-4 py-3 border-b border-ink-200 text-[13px] font-semibold text-ink-900">
             Events <span className="text-ink-400 font-normal">({events.length})</span>
           </div>

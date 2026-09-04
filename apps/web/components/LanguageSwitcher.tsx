@@ -19,9 +19,7 @@ export function LanguageSwitcher() {
 
   return (
     <div className="rounded-lg border border-ink-200 px-2.5 py-2">
-      <div className="text-[10.5px] font-medium uppercase tracking-wide text-ink-400 mb-1.5">
-        {t("language")}
-      </div>
+      <div className="text-[11px] font-medium text-ink-400 mb-1.5">{t("language")}</div>
       <div className="flex gap-1">
         {LOCALES.map((code) => (
           <button

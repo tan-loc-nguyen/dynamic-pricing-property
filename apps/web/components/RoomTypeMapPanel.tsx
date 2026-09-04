@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
-import { Button, Card } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 type Row = { id: string; name: string; category: string };
 
@@ -130,7 +131,7 @@ export function RoomTypeMapPanel() {
             ))}
           </ul>
           <div className="mt-3 flex items-center gap-3">
-            <Button onClick={save} disabled={busy}>
+            <Button variant="secondary" onClick={save} disabled={busy}>
               {t("mapSave")}
             </Button>
             {saved && !error && (

@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
+import { Dialog } from "radix-ui";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { useAdjustmentText } from "@/lib/adjustments";
 import { useFormat } from "@/lib/useFormat";
 import { MarketRange, OccupancyStrip, PaceChart, PriceContribution, RateBand } from "./viz";
-import { Button } from "./ui";
+import { Button } from "@/components/ui/button";
 import type { MarketObservation, RangeDetail } from "@/lib/types";
 
 /**
@@ -180,9 +181,7 @@ export function RangeDrawer({
                 <section>
                   <div className="flex items-end justify-between gap-4">
                     <div>
-                      <div className="text-[11px] uppercase tracking-wide text-ink-400">
-                        {t("recommendedNet")}
-                      </div>
+                      <div className="text-[11px] text-ink-400">{t("recommendedNet")}</div>
                       <div className="tnum text-[30px] font-bold leading-tight text-brand-700">
                         {formatVND(detail.average_recommended_net_rate)}
                       </div>
@@ -253,7 +252,21 @@ export function RangeDrawer({
                 {/* ----------------------------- C. how is it selling? */}
                 <section>
                   <h3 className="mb-1 text-[12px] font-semibold text-ink-800">{t("paceTitle")}</h3>
-                  <p className="mb-2 text-[12px] text-ink-600">
+                  <p
+                    className={`mb-2 flex items-center gap-1 text-[12px] ${
+                      detail.pace_gap === null
+                        ? "text-ink-600"
+                        : detail.pace_gap >= 0
+                          ? "text-emerald-700"
+                          : "text-amber-700"
+                    }`}
+                  >
+                    {detail.pace_gap !== null &&
+                      (detail.pace_gap >= 0 ? (
+                        <TrendingUp aria-hidden size={13} strokeWidth={2} />
+                      ) : (
+                        <TrendingDown aria-hidden size={13} strokeWidth={2} />
+                      ))}
                     {detail.pace_gap === null
                       ? t("paceUnknown")
                       : t("pacePlain", {
@@ -383,7 +396,7 @@ export function RangeDrawer({
                     </label>
                     <div className="flex gap-2">
                       <Button
-                        variant="primary"
+                        variant="default"
                         disabled={busy || !overrideRate}
                         onClick={() =>
                           act(() =>
@@ -399,7 +412,7 @@ export function RangeDrawer({
                       >
                         {tc("save")}
                       </Button>
-                      <Button onClick={() => setOverriding(false)} disabled={busy}>
+                      <Button variant="secondary" onClick={() => setOverriding(false)} disabled={busy}>
                         {tc("cancel")}
                       </Button>
                     </div>
@@ -411,7 +424,7 @@ export function RangeDrawer({
                 ) : (
                   <div className="flex gap-2">
                     <Button
-                      variant="primary"
+                      variant="default"
                       className="flex-1"
                       disabled={busy}
                       onClick={() =>
@@ -428,7 +441,7 @@ export function RangeDrawer({
                         rate: formatVND(detail.average_recommended_net_rate),
                       })}
                     </Button>
-                    <Button onClick={() => setOverriding(true)} disabled={busy}>
+                    <Button variant="secondary" onClick={() => setOverriding(true)} disabled={busy}>
                       {t("adjust")}
                     </Button>
                   </div>

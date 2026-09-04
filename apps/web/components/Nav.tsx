@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import { Tag, Compass, SlidersHorizontal, Settings as SettingsIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { DataSourceStatus } from "./DataSourceStatus";
 
@@ -17,9 +19,9 @@ import { DataSourceStatus } from "./DataSourceStatus";
  * shows work.
  */
 const PRIMARY = [
-  { href: "/rate", key: "rate" },
-  { href: "/market", key: "market" },
-  { href: "/customisation", key: "customisation" },
+  { href: "/rate", key: "rate", icon: Tag },
+  { href: "/market", key: "market", icon: Compass },
+  { href: "/customisation", key: "customisation", icon: SlidersHorizontal },
 ] as const;
 
 export function Nav() {
@@ -34,11 +36,13 @@ export function Nav() {
   return (
     <aside className="flex h-screen w-[212px] shrink-0 flex-col border-r border-ink-200 bg-white">
       <div className="flex items-center gap-2.5 px-4 py-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-[13px] font-bold text-white">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 font-serif text-[14px] font-medium text-white">
           D
         </div>
         <div className="min-w-0">
-          <div className="truncate text-[12.5px] font-semibold text-ink-900">{ta("shortName")}</div>
+          <div className="truncate font-serif text-[13.5px] font-medium text-ink-900">
+            {ta("shortName")}
+          </div>
           <div className="truncate text-[10.5px] text-ink-400">{ta("propertyName")}</div>
         </div>
       </div>
@@ -49,19 +53,21 @@ export function Nav() {
         {PRIMARY.map((item) => {
           const active = isActive(item.href);
           return (
-            <Link
-              key={item.href}
-              href={`/${locale}${item.href}`}
-              aria-current={active ? "page" : undefined}
-              className={`rounded-lg px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                active ? "bg-brand-50 text-brand-800" : "text-ink-700 hover:bg-ink-100"
-              }`}
-            >
-              <div className="text-[13px] font-medium">{t(`${item.key}.label`)}</div>
-              <div className={`text-[11px] ${active ? "text-brand-600" : "text-ink-400"}`}>
-                {t(`${item.key}.hint`)}
-              </div>
-            </Link>
+            <Tooltip key={item.href}>
+              <TooltipTrigger asChild>
+                <Link
+                  href={`/${locale}${item.href}`}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex items-center gap-2.5 rounded-lg px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                    active ? "bg-brand-50 text-brand-800" : "text-ink-700 hover:bg-ink-100"
+                  }`}
+                >
+                  <item.icon aria-hidden size={17} strokeWidth={1.5} className="shrink-0" />
+                  <span className="text-[13px] font-medium">{t(`${item.key}.label`)}</span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">{t(`${item.key}.hint`)}</TooltipContent>
+            </Tooltip>
           );
         })}
       </nav>
@@ -72,13 +78,11 @@ export function Nav() {
         <Link
           href={`/${locale}/settings`}
           aria-current={isActive("/settings") ? "page" : undefined}
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+          className={`flex items-center gap-2.5 rounded-lg px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
             isActive("/settings") ? "bg-brand-50 text-brand-800" : "text-ink-600 hover:bg-ink-100"
           }`}
         >
-          <span aria-hidden className="text-[13px]">
-            ⚙
-          </span>
+          <SettingsIcon aria-hidden size={17} strokeWidth={1.5} className="shrink-0" />
           <span className="text-[13px] font-medium">{t("settings.label")}</span>
         </Link>
         <DataSourceStatus />

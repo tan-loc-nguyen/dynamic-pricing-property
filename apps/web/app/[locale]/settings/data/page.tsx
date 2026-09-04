@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
-import { Card, Chip, PageHeader, Spinner } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/Chip";
+import { PageHeader } from "@/components/PageHeader";
+import { Spinner } from "@/components/Spinner";
 import { DataSourcePanel } from "@/components/DataSourcePanel";
 import { RoomTypeMapPanel } from "@/components/RoomTypeMapPanel";
 import type { SystemStatus } from "@/lib/types";
@@ -76,7 +79,7 @@ export default function DataSettingsPage() {
         )}
         <RoomTypeMapPanel />
 
-        <Card className="divide-y divide-ink-100">
+        <Card size="flush" className="divide-y divide-ink-100">
           {rows.map((r) => (
             <div key={r.label} className="flex items-center justify-between gap-3 px-4 py-3">
               <div>

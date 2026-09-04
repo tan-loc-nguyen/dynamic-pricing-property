@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Card, PageHeader } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/PageHeader";
 
 /**
  * Plumbing, and the only place an owner has to be deliberate to reach.

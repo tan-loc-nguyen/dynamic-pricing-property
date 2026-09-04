@@ -3,7 +3,12 @@
 import { useTranslations } from "next-intl";
 
 import { useCallback, useEffect, useState } from "react";
-import { Card, Empty, PageHeader, Spinner, StatusBadge, inputClass } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { Empty } from "@/components/Empty";
+import { PageHeader } from "@/components/PageHeader";
+import { Spinner } from "@/components/Spinner";
+import { StatusBadge } from "@/components/StatusBadge";
+import { selectClass } from "@/lib/formControls";
 import { api } from "@/lib/api";
 
 import { useFormat } from "@/lib/useFormat";
@@ -103,7 +108,7 @@ export default function HistoryPage() {
         <div className="flex flex-wrap items-end gap-2.5">
           <div className="w-48">
             <div className="text-[11px] font-medium text-ink-500 mb-1">{tf("decision")}</div>
-            <select className={inputClass} value={decision} onChange={(e) => setDecision(e.target.value)}>
+            <select className={selectClass} value={decision} onChange={(e) => setDecision(e.target.value)}>
               <option value="all">{tf("allDecisions")}</option>
               <option value="accepted">{tst("accepted")}</option>
               <option value="overridden">{tst("overridden")}</option>
@@ -112,7 +117,7 @@ export default function HistoryPage() {
           <div className="w-56">
             <div className="text-[11px] font-medium text-ink-500 mb-1">{tf("roomCategory")}</div>
             <select
-              className={inputClass}
+              className={selectClass}
               value={roomTypeId ?? ""}
               onChange={(e) => setRoomTypeId(e.target.value ? Number(e.target.value) : null)}
             >
@@ -125,7 +130,7 @@ export default function HistoryPage() {
         </div>
       </Card>
 
-      <Card>
+      <Card size="flush">
         {loading ? (
           <Spinner label={t("loading")} />
         ) : entries.length === 0 ? (
