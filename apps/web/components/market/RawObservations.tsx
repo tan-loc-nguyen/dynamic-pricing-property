@@ -196,7 +196,7 @@ export function RawObservations() {
         ))}
       </div>
 
-      <Card className="p-4 bg-amber-50 border border-amber-200">
+      <Card className="p-4 bg-amber-50 border-amber-200">
         <p className="text-[12px] text-amber-900 leading-relaxed">
           <span className="font-semibold">{t("uninterpretable")}</span> {t("uninterpretableBody")}
         </p>
@@ -262,7 +262,7 @@ export function RawObservations() {
             </div>
           </Card>
 
-          <Card className="py-0">
+          <Card size="flush">
             {competitors.length === 0 ? (
               <Empty title={t("noCompetitors")} />
             ) : (
@@ -440,7 +440,7 @@ export function RawObservations() {
             </div>
           </Card>
 
-          <Card className="py-0">
+          <Card size="flush">
             <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">
               <div className="text-[13px] font-semibold text-ink-900">
                 {t("observationsHeading")}{" "}

@@ -21,4 +21,14 @@ describe("StatusBadge", () => {
     renderWithIntl(<StatusBadge status="mystery" />);
     expect(screen.getByText("mystery")).toBeInTheDocument();
   });
+
+  // The old StatusBadge was a compact, free-height pill (text-[11px]); shadcn's
+  // Badge defaults to a fixed h-5/text-xs, which reads visibly larger in the
+  // decision tables StatusBadge is used in.
+  it("renders at the compact size, not shadcn Badge's default size", () => {
+    renderWithIntl(<StatusBadge status="pending" />);
+    const el = screen.getByText("Pending");
+    expect(el.className).toContain("text-[11px]");
+    expect(el.className).not.toMatch(/(^|\s)h-5(\s|$)/);
+  });
 });

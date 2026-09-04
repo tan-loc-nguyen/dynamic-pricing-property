@@ -581,7 +581,7 @@ export function StrategyPanel({ onOpenSeasonal }: { onOpenSeasonal: () => void }
             )}
           </Card>
 
-          <Card className="p-4 bg-amber-50 border border-amber-200">
+          <Card className="p-4 bg-amber-50 border-amber-200">
             <div className="text-[12px] font-semibold text-amber-900">{t("unvalidated")}</div>
             <p className="text-[11.5px] text-amber-800 mt-1 leading-snug">
               {t("unvalidatedBody")}

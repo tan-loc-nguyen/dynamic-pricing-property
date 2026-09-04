@@ -62,7 +62,7 @@ export default function DataSettingsPage() {
             treatment. These are the ones that mean "do not show this to a
             client yet", not "you have some configuration left to do". */}
         {(status?.pms?.warnings?.length ?? 0) > 0 && (
-          <Card className="border border-amber-300 bg-amber-50 p-4">
+          <Card className="border-amber-300 bg-amber-50 p-4">
             <h2 className="text-[12.5px] font-semibold text-amber-900">
               {tds("warningsTitle")}
             </h2>
@@ -79,7 +79,7 @@ export default function DataSettingsPage() {
         )}
         <RoomTypeMapPanel />
 
-        <Card className="divide-y divide-ink-100 py-0">
+        <Card size="flush" className="divide-y divide-ink-100">
           {rows.map((r) => (
             <div key={r.label} className="flex items-center justify-between gap-3 px-4 py-3">
               <div>
@@ -141,7 +141,7 @@ export default function DataSettingsPage() {
           <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-600">{t("shadowBody")}</p>
         </Card>
 
-        <Card className="border border-amber-200 bg-amber-50/50 p-4">
+        <Card className="border-amber-200 bg-amber-50/50 p-4">
           <h2 className="text-[12.5px] font-semibold text-amber-900">{t("unvalidatedTitle")}</h2>
           <p className="mt-1.5 text-[11.5px] leading-relaxed text-amber-800">
             {t("unvalidatedBody")}

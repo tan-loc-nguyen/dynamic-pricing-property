@@ -130,7 +130,7 @@ export default function HistoryPage() {
         </div>
       </Card>
 
-      <Card className="py-0">
+      <Card size="flush">
         {loading ? (
           <Spinner label={t("loading")} />
         ) : entries.length === 0 ? (

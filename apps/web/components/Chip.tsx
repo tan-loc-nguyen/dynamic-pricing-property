@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const TONE_CLASSES: Record<string, string> = {
   neutral: "bg-ink-100 text-ink-600",
@@ -19,7 +20,13 @@ export function Chip({
   title?: string;
 }) {
   return (
-    <Badge variant="secondary" title={title} data-tone={tone} className={TONE_CLASSES[tone]}>
+    <Badge
+      variant="secondary"
+      size="sm"
+      title={title}
+      data-tone={tone}
+      className={cn("rounded-md", TONE_CLASSES[tone])}
+    >
       {children}
     </Badge>
   );

@@ -24,6 +24,7 @@ export function StatusBadge({ status }: { status: string }) {
   return (
     <Badge
       variant="outline"
+      size="sm"
       data-status={status}
       className={STATUS_CLASSES[status] || "bg-ink-100 text-ink-600 border-ink-200"}
     >

@@ -188,7 +188,7 @@ export function EventsPanel() {
           </div>
         </Card>
 
-        <Card className="py-0">
+        <Card size="flush">
           <div className="px-4 py-3 border-b border-ink-200 text-[13px] font-semibold text-ink-900">
             Events <span className="text-ink-400 font-normal">({events.length})</span>
           </div>
