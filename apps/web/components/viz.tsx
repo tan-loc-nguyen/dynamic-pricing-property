@@ -47,7 +47,7 @@ export function RateBand({
   return (
     <div>
       <div className="relative h-9">
-        <div className="absolute top-4 left-0 right-0 h-1.5 rounded-full bg-ink-150" />
+        <div className="absolute top-4 left-0 right-0 h-1.5 rounded-full bg-ink-200" />
         {base !== null && (
           <div
             className="absolute top-3 h-3.5 w-px bg-ink-300"
@@ -141,17 +141,17 @@ export function PaceChart({
       <div className="h-32 -ml-2">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid strokeDasharray="2 4" stroke="#e8e9ee" vertical={false} />
+          <CartesianGrid strokeDasharray="2 4" stroke="var(--color-ink-200)" vertical={false} />
           <XAxis
             dataKey="dta"
             reversed
-            tick={{ fontSize: 10, fill: "#9aa0ac" }}
+            tick={{ fontSize: 10, fill: "var(--color-ink-400)" }}
             tickLine={false}
             axisLine={false}
             tickFormatter={(v) => `D-${v}`}
           />
           <YAxis
-            tick={{ fontSize: 10, fill: "#9aa0ac" }}
+            tick={{ fontSize: 10, fill: "var(--color-ink-400)" }}
             tickLine={false}
             axisLine={false}
             // 30 was too narrow and clipped "100%" down to "00%".
@@ -160,7 +160,7 @@ export function PaceChart({
             tickFormatter={(v) => `${v}%`}
           />
           <Tooltip
-            contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e8e9ee" }}
+            contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--color-ink-200)" }}
             labelFormatter={(v) => `D-${v}`}
             formatter={(value, name) => [
               `${value}%`,
@@ -170,18 +170,24 @@ export function PaceChart({
           <Line
             type="monotone"
             dataKey="expected"
-            stroke="#9aa0ac"
+            stroke="var(--color-ink-400)"
             strokeWidth={1.5}
             strokeDasharray="3 3"
             dot={false}
           />
-          <Line type="monotone" dataKey="actual" stroke="#4f46e5" strokeWidth={2} dot={false} />
+          <Line
+            type="monotone"
+            dataKey="actual"
+            stroke="var(--color-brand-600)"
+            strokeWidth={2}
+            dot={false}
+          />
           {here && (
             <ReferenceDot
               x={here.dta}
               y={here.actual}
               r={4}
-              fill="#4f46e5"
+              fill="var(--color-brand-600)"
               stroke="#fff"
               strokeWidth={2}
             />

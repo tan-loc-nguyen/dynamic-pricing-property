@@ -193,7 +193,7 @@ export function CompetitorList() {
                 </div>
 
                 <div className="min-w-[150px]">
-                  <div className="text-[10.5px] uppercase tracking-wide text-ink-400">
+                  <div className="text-[10.5px] text-ink-400">
                     {t("observedRange")}
                   </div>
                   <div className="tnum text-[12.5px] text-ink-800">
@@ -204,7 +204,7 @@ export function CompetitorList() {
                 </div>
 
                 <div className="min-w-[110px]">
-                  <div className="text-[10.5px] uppercase tracking-wide text-ink-400">
+                  <div className="text-[10.5px] text-ink-400">
                     {t("confidence")}
                   </div>
                   {best ? (
@@ -217,7 +217,7 @@ export function CompetitorList() {
                 </div>
 
                 <div className="min-w-[130px]">
-                  <div className="text-[10.5px] uppercase tracking-wide text-ink-400">
+                  <div className="text-[10.5px] text-ink-400">
                     {t("lastSeen")}
                   </div>
                   <div className="text-[12px] text-ink-600">

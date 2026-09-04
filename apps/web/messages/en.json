@@ -390,7 +390,7 @@
     "overridePlaceholder": "e.g. 12",
     "notesPlaceholder": "Why this matters for demand…",
     "saved": "Event saved. It will be folded in the next time prices are recalculated.",
-    "unvalidated": "Event impact sizes are UNVALIDATED",
+    "unvalidated": "Event impact sizes are unvalidated",
     "subtitleLong": "Known exceptional-demand dates. Events are curated by you, not scraped — a wrong event moves real money, so a human decides what counts.",
     "saveEvent": "Save event",
     "onlyExceptional": "Normal seasonality is already handled by the rate book — add only exceptional dates.",
@@ -499,7 +499,7 @@
     "paceDesc": "The primary demand signal: on-the-books occupancy versus what the booking curve expects for this lead time. Thresholds are gaps in fractions (0.20 = 20 percentage points).",
     "pickupDesc": "Booking acceleration over the recent window — deliberately a smaller lever than pace, because the two must not double-count the same demand.",
     "eventsDesc": "Applied only on dates you have flagged in the demand calendar. Normal seasonality is already in the rate book.",
-    "marketDesc": "Only observations at or above the confidence bar can move a rate. Generic web prices are LOW confidence and are shown but never applied.",
+    "marketDesc": "Only observations at or above the confidence bar can move a rate. Generic web prices are low confidence and are shown but never applied.",
     "saveFailed": "Save failed: {reason}",
     "resetFailed": "Reset failed: {reason}",
     "rateBookNoticeTitle": "Seasonal MIN / BASE / MAX rates are not on this page",
@@ -530,22 +530,6 @@
     "band_range_empty": "{signal, select, pace {Pace} recent_pickup {Pickup} other {{signal}}} band “{band}” can never apply: its range is empty.",
     "min_exceeds_max": "The minimum total adjustment ({minimum, number}%) is above the maximum ({maximum, number}%).",
     "could_not_check": "This configuration could not be fully checked: {detail}"
-  },
-  "confidenceReason": {
-    "no_price": "No usable price value.",
-    "comparable_net": "Comparable NET rate with full basis metadata.",
-    "known_basis": "Known price basis and comparable category.",
-    "not_comparable": "Not reliably comparable to a Luminous NET rate.",
-    "minorGaps": "Minor gaps: {gaps}.",
-    "gapsIntro": "Missing: {gaps}."
-  },
-  "confidenceGap": {
-    "no_room_category": "no comparable room category",
-    "basis_unknown": "price basis unknown (NET vs OTA sell)",
-    "tax_unknown": "tax treatment unknown",
-    "fee_unknown": "fee treatment unknown",
-    "los_unknown": "length of stay unknown",
-    "promotion_unknown": "promotion status unknown"
   },
   "calendar": {
     "ranges": {

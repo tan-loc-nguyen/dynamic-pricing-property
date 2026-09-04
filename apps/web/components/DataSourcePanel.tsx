@@ -92,7 +92,7 @@ export function DataSourcePanel({ onChanged }: { onChanged?: () => void } = {}) 
         {error && !busy && <span className="text-[11px] text-amber-700">{error}</span>}
         </div>
         <p className="mt-1 text-[11.5px] text-ink-500">{t("subtitle")}</p>
-        <p className="mt-2 text-[11px] uppercase tracking-wide text-ink-400">
+        <p className="mt-2 text-[11px] text-ink-400">
           {t("active")}: <span className="text-ink-700">{describe(info.active).label}</span>
         </p>
 

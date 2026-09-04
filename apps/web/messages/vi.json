@@ -390,7 +390,7 @@
     "overridePlaceholder": "ví dụ: 12",
     "notesPlaceholder": "Vì sao điều này ảnh hưởng đến nhu cầu…",
     "saved": "Đã lưu sự kiện. Sự kiện sẽ được tính vào lần tính giá tiếp theo.",
-    "unvalidated": "Mức tác động của sự kiện CHƯA ĐƯỢC XÁC THỰC",
+    "unvalidated": "Mức tác động của sự kiện chưa được xác thực",
     "subtitleLong": "Những ngày có nhu cầu đột biến đã biết trước. Sự kiện do bạn tự nhập chứ không thu thập tự động — một sự kiện sai sẽ ảnh hưởng đến tiền thật, nên con người phải là người quyết định.",
     "saveEvent": "Lưu sự kiện",
     "onlyExceptional": "Yếu tố mùa vụ thông thường đã nằm trong bảng giá — chỉ thêm những ngày thực sự bất thường.",
@@ -499,7 +499,7 @@
     "paceDesc": "Tín hiệu nhu cầu chính: công suất đã đặt so với mức mà đường cong đặt phòng kỳ vọng ở thời điểm này. Ngưỡng được nhập dưới dạng phân số (0,20 = 20 điểm phần trăm).",
     "pickupDesc": "Mức tăng tốc đặt phòng trong kỳ gần đây — cố ý để tác động nhỏ hơn tiến độ, vì hai tín hiệu này không được tính trùng cùng một nhu cầu.",
     "eventsDesc": "Chỉ áp dụng cho những ngày bạn đã đánh dấu trong lịch nhu cầu. Yếu tố mùa vụ thông thường đã nằm sẵn trong bảng giá.",
-    "marketDesc": "Chỉ những quan sát đạt từ ngưỡng tin cậy trở lên mới được phép làm thay đổi giá. Giá lấy chung từ web có độ tin cậy THẤP, được hiển thị nhưng không bao giờ áp dụng.",
+    "marketDesc": "Chỉ những quan sát đạt từ ngưỡng tin cậy trở lên mới được phép làm thay đổi giá. Giá lấy chung từ web có độ tin cậy thấp, được hiển thị nhưng không bao giờ áp dụng.",
     "saveFailed": "Lưu không thành công: {reason}",
     "resetFailed": "Khôi phục không thành công: {reason}",
     "rateBookNoticeTitle": "Giá SÀN / CƠ SỞ / TRẦN theo mùa không nằm ở trang này",
@@ -530,22 +530,6 @@
     "band_range_empty": "Khung {signal, select, pace {tiến độ} recent_pickup {lượng đặt} other {{signal}}} “{band}” sẽ không bao giờ được áp dụng: khoảng giá trị của nó rỗng.",
     "min_exceeds_max": "Tổng điều chỉnh tối thiểu ({minimum, number}%) đang lớn hơn mức tối đa ({maximum, number}%).",
     "could_not_check": "Không kiểm tra được đầy đủ cấu hình này: {detail}"
-  },
-  "confidenceReason": {
-    "no_price": "Không có giá trị giá dùng được.",
-    "comparable_net": "Giá NET so sánh được, có đầy đủ thông tin về cơ sở giá.",
-    "known_basis": "Đã biết cơ sở giá và hạng căn hộ tương đương.",
-    "not_comparable": "Không so sánh được một cách đáng tin với giá NET của Luminous.",
-    "minorGaps": "Còn thiếu một vài thông tin: {gaps}.",
-    "gapsIntro": "Thiếu: {gaps}."
-  },
-  "confidenceGap": {
-    "no_room_category": "không có hạng căn hộ tương đương",
-    "basis_unknown": "chưa rõ cơ sở giá (NET hay giá bán OTA)",
-    "tax_unknown": "chưa rõ đã gồm thuế hay chưa",
-    "fee_unknown": "chưa rõ đã gồm phí hay chưa",
-    "los_unknown": "chưa rõ số đêm lưu trú",
-    "promotion_unknown": "chưa rõ có khuyến mãi hay không"
   },
   "calendar": {
     "ranges": {

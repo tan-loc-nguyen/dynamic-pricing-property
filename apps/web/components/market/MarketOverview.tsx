@@ -179,7 +179,7 @@ export function MarketOverview() {
       {/* Data quality in plain words, not provider classes or scores. */}
       <div className="flex flex-wrap gap-2">
         <Card className="flex-1 min-w-[140px] px-3.5 py-2.5">
-          <div className="text-[10.5px] uppercase tracking-wide text-ink-400">
+          <div className="text-[11px] text-ink-400">
             {t("position")}
           </div>
           <div
@@ -195,7 +195,7 @@ export function MarketOverview() {
           </div>
         </Card>
         <Card className="flex-1 min-w-[140px] px-3.5 py-2.5">
-          <div className="text-[10.5px] uppercase tracking-wide text-ink-400">
+          <div className="text-[11px] text-ink-400">
             {t("coverage")}
           </div>
           <div className="mt-0.5 tnum text-[17px] font-semibold text-ink-900">
@@ -204,7 +204,7 @@ export function MarketOverview() {
           <div className="text-[10.5px] text-ink-400">{t("coverageHint")}</div>
         </Card>
         <Card className="flex-1 min-w-[140px] px-3.5 py-2.5">
-          <div className="text-[10.5px] uppercase tracking-wide text-ink-400">
+          <div className="text-[11px] text-ink-400">
             {t("lastUpdated")}
           </div>
           <div className="mt-0.5 text-[13px] text-ink-800">
@@ -240,16 +240,16 @@ export function MarketOverview() {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={series} margin={{ top: 6, right: 10, bottom: 0, left: 6 }}>
-              <CartesianGrid strokeDasharray="2 4" stroke="#e8e9ee" vertical={false} />
+              <CartesianGrid strokeDasharray="2 4" stroke="var(--color-ink-200)" vertical={false} />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 10, fill: "#9aa0ac" }}
+                tick={{ fontSize: 10, fill: "var(--color-ink-400)" }}
                 tickLine={false}
                 axisLine={false}
                 interval={Math.max(0, Math.floor(series.length / 10))}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: "#9aa0ac" }}
+                tick={{ fontSize: 10, fill: "var(--color-ink-400)" }}
                 tickLine={false}
                 axisLine={false}
                 width={62}
@@ -261,7 +261,7 @@ export function MarketOverview() {
                 tickFormatter={(v) => formatVND(v, { compact: true })}
               />
               <Tooltip
-                contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e8e9ee" }}
+                contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--color-ink-200)" }}
                 formatter={(value, name) => {
                   if (Array.isArray(value)) {
                     return [`${formatVND(value[0])} – ${formatVND(value[1])}`, t("legendBand")];
@@ -275,14 +275,14 @@ export function MarketOverview() {
               <Area
                 dataKey="band"
                 stroke="none"
-                fill="#7dd3fc"
+                fill="var(--color-sky-300)"
                 fillOpacity={0.35}
                 connectNulls={false}
                 isAnimationActive={false}
               />
               <Line
                 dataKey="median"
-                stroke="#0284c7"
+                stroke="var(--color-sky-600)"
                 strokeWidth={1.5}
                 strokeDasharray="3 3"
                 dot={false}
@@ -291,7 +291,7 @@ export function MarketOverview() {
               />
               <Line
                 dataKey="mine"
-                stroke="#4f46e5"
+                stroke="var(--color-brand-600)"
                 strokeWidth={2}
                 dot={false}
                 connectNulls={false}
@@ -303,13 +303,13 @@ export function MarketOverview() {
 
         <div className="mt-3 flex flex-wrap gap-4 text-[11px] text-ink-500">
           <span className="flex items-center gap-1.5">
-            <span className="h-0.5 w-4 rounded bg-[#4f46e5]" aria-hidden /> {t("legendMine")}
+            <span className="h-0.5 w-4 rounded bg-brand-600" aria-hidden /> {t("legendMine")}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-0.5 w-4 rounded bg-[#0284c7]" aria-hidden /> {t("legendMedian")}
+            <span className="h-0.5 w-4 rounded bg-sky-600" aria-hidden /> {t("legendMedian")}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-4 rounded bg-[#7dd3fc]/60" aria-hidden /> {t("legendBand")}
+            <span className="h-2 w-4 rounded bg-sky-300/60" aria-hidden /> {t("legendBand")}
           </span>
         </div>
 

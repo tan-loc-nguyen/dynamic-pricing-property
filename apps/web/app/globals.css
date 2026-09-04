@@ -5,27 +5,107 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-ink-50: #f6f7f9;
-  --color-ink-100: #eceef2;
-  --color-ink-200: #d5d9e2;
-  --color-ink-300: #b1b9c9;
-  --color-ink-400: #8792a9;
-  --color-ink-500: #68738d;
-  --color-ink-600: #525b73;
-  --color-ink-700: #434a5d;
-  --color-ink-800: #3a3f4e;
-  --color-ink-900: #1e2230;
-  --color-ink-950: #12141d;
+  /* Warm charcoal neutral (limestone-to-walnut) -- replaces the cool
+     navy-gray "ink" scale as part of the hospitality/quiet-luxury redesign.
+     Same slot, same shade numbers, new material.
+     Re-tuned from the first pass: ink-400 (the hint/label text used
+     throughout at 10-11px) measured 2.5:1 against the ink-50 page
+     background -- below even the 3:1 large-text minimum. Every step from
+     300 down is deliberately darkened so 400+ clears 4.5:1 (normal-text
+     AA) against both the page background and white cards; verified with
+     WCAG relative-luminance contrast, not by eye. */
+  --color-ink-50: #f6f4f1;
+  --color-ink-100: #ede9e3;
+  --color-ink-200: #dcd5cb;
+  --color-ink-300: #a9977e;
+  --color-ink-400: #7a6952;
+  --color-ink-500: #605340;
+  --color-ink-600: #4c4233;
+  --color-ink-700: #3d3529;
+  --color-ink-800: #2e281f;
+  --color-ink-900: #221d16;
+  --color-ink-950: #15120e;
 
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
+  /* Antique brass -- replaces indigo as the primary accent. A pricing tool
+     naming its accent after value isn't decoration, it's on-topic. */
+  --color-brand-50: #fbf6ea;
+  --color-brand-100: #f5ead1;
+  --color-brand-200: #e8d3a3;
+  --color-brand-300: #d6ba76;
+  --color-brand-400: #c9a552;
+  --color-brand-500: #ad8a3e;
+  --color-brand-600: #8b6d2f;
+  --color-brand-700: #6e5625;
+  --color-brand-800: #55421d;
+  --color-brand-900: #403217;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Forest -- replaces Tailwind's own emerald color wherever it's used directly
+     (positive/accepted/on-pace). Redefining the built-in scale means every
+     existing emerald class site picks this up with no per-file edit. */
+  --color-emerald-50: #f1f5ee;
+  --color-emerald-100: #e3ecda;
+  --color-emerald-200: #cfe0c2;
+  --color-emerald-300: #b0cd9c;
+  --color-emerald-400: #96ae83;
+  --color-emerald-500: #79955f;
+  --color-emerald-600: #5b7553;
+  --color-emerald-700: #4a6142;
+  --color-emerald-800: #3a4d34;
+  --color-emerald-900: #2c3b28;
+
+  /* Clay -- replaces amber (warning/unvalidated/pending). A distinct hue
+     from brass so a warning never reads as "just the accent color". */
+  --color-amber-50: #faf0e9;
+  --color-amber-100: #f4dfcb;
+  --color-amber-200: #eac49e;
+  --color-amber-300: #dda871;
+  --color-amber-400: #ce8b4c;
+  --color-amber-500: #c0763a;
+  --color-amber-600: #b5622e;
+  --color-amber-700: #8f4d25;
+  --color-amber-800: #6e3c1e;
+  --color-amber-900: #542f18;
+
+  /* Oxblood -- replaces rose (negative/error/destructive). */
+  --color-rose-50: #f9eeee;
+  --color-rose-100: #f1dbda;
+  --color-rose-200: #e0b4b2;
+  --color-rose-300: #cb8886;
+  --color-rose-400: #b15f5d;
+  --color-rose-500: #96413f;
+  --color-rose-600: #7a2e2e;
+  --color-rose-700: #5f2423;
+  --color-rose-800: #481c1b;
+  --color-rose-900: #361514;
+
+  /* Slate-blue -- replaces sky (market/info). The one deliberate cool
+     counterpoint in an otherwise warm palette, held for "someone else's
+     price", never "your own recommendation". */
+  --color-sky-50: #eef1f4;
+  --color-sky-100: #d9e0e7;
+  --color-sky-200: #b3c1ce;
+  --color-sky-300: #8ca1b5;
+  --color-sky-400: #66839c;
+  --color-sky-500: #4d6883;
+  --color-sky-600: #3e5266;
+  --color-sky-700: #324252;
+  --color-sky-800: #28343f;
+  --color-sky-900: #1f2830;
+
+  /* Plum -- replaces violet (StatusBadge "overridden"). */
+  --color-violet-50: #f5eef3;
+  --color-violet-100: #e7d5e3;
+  --color-violet-200: #d1afc8;
+  --color-violet-300: #b786a9;
+  --color-violet-400: #9c638c;
+  --color-violet-500: #824c72;
+  --color-violet-600: #6b3d5d;
+  --color-violet-700: #54304a;
+  --color-violet-800: #402439;
+  --color-violet-900: #2f1a2a;
+
+  --font-sans: var(--font-karla), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
 }
 
 html,
@@ -53,13 +133,27 @@ body {
 }
 .animate-slide-in { animation: slideIn 0.22s cubic-bezier(0.32, 0.72, 0, 1); }
 
+/* No prior guard existed for this. The Dialog/Popover/Tooltip/Tabs enter and
+   exit animations (from tw-animate-css) and the two keyframes above all
+   respect a user's reduced-motion preference by collapsing to effectively
+   instant, rather than being skipped -- so a transform-based entrance still
+   lands in its final state instead of never appearing. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-ink-200); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-300); background-clip: content-box; }
 
 @theme inline {
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-serif);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -101,38 +195,42 @@ body {
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Referencing the @theme color tokens directly (rather than a second
+     hand-copied set of hex values) so this can't drift from the ink/brand
+     ramps the way selectClass once drifted from Input -- one source of
+     truth per color. */
+  --background: var(--color-ink-50);
+  --foreground: var(--color-ink-900);
+  --card: #ffffff;
+  --card-foreground: var(--color-ink-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-ink-900);
+  --primary: var(--color-brand-600);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-ink-100);
+  --secondary-foreground: var(--color-ink-800);
+  --muted: var(--color-ink-100);
+  --muted-foreground: var(--color-ink-500);
+  --accent: var(--color-ink-100);
+  --accent-foreground: var(--color-ink-900);
+  --destructive: var(--color-rose-600);
+  --border: var(--color-ink-200);
+  --input: var(--color-ink-200);
+  --ring: var(--color-brand-500);
+  --chart-1: var(--color-brand-500);
+  --chart-2: var(--color-emerald-600);
+  --chart-3: var(--color-sky-600);
+  --chart-4: var(--color-amber-600);
+  --chart-5: var(--color-violet-600);
+  --radius: 0.5rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--color-ink-900);
+  --sidebar-primary: var(--color-brand-600);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--color-ink-100);
+  --sidebar-accent-foreground: var(--color-ink-900);
+  --sidebar-border: var(--color-ink-200);
+  --sidebar-ring: var(--color-brand-500);
 }
 
 .dark {

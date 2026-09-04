@@ -19,4 +19,9 @@ describe("Empty", () => {
       screen.getByText("Run a pricing update, or choose a different range.")
     ).toBeInTheDocument();
   });
+
+  it("renders an icon", () => {
+    const { container } = render(<Empty title="No data" />);
+    expect(container.querySelector("svg")).toBeInTheDocument();
+  });
 });
