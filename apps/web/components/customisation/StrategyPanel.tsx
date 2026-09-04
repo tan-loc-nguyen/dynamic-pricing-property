@@ -3,7 +3,14 @@
 import { useTranslations } from "next-intl";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Card, Chip, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Chip } from "@/components/Chip";
+import { Field } from "@/components/Field";
+import { PageHeader } from "@/components/PageHeader";
+import { Spinner } from "@/components/Spinner";
+import { selectClass } from "@/lib/formControls";
 import { api } from "@/lib/api";
 
 import { useFormat } from "@/lib/useFormat";
@@ -54,10 +61,10 @@ function NumberInput({
 }) {
   return (
     <div className="h-full overflow-y-auto relative">
-      <input
+      <Input
         type="number"
         step={step}
-        className={`${inputClass} tnum ${suffix ? "pr-7" : ""}`}
+        className={`tnum ${suffix ? "pr-7" : ""}`}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
       />
@@ -97,8 +104,7 @@ function BandEditor({
       </div>
       {bands.map((band, i) => (
         <div key={i} className="grid grid-cols-[1fr_130px_130px] gap-2 items-center">
-          <input
-            className={inputClass}
+          <Input
             // A shipped band is named by its KEY, so it reads in the operator's
             // language here exactly as it does in the preview beside it and in
             // the Rate Review table. Showing the raw config label left the two
@@ -117,10 +123,10 @@ function BandEditor({
               )
             }
           />
-          <input
+          <Input
             type="number"
             step={thresholdStep}
-            className={`${inputClass} tnum`}
+            className="tnum"
             value={band[thresholdKey] ?? ""}
             onChange={(e) =>
               // Empty must NOT collapse to 0 -- a 0 threshold silently strands every
@@ -135,10 +141,10 @@ function BandEditor({
             }
           />
           <div className="relative">
-            <input
+            <Input
               type="number"
               step={0.5}
-              className={`${inputClass} tnum pr-7`}
+              className="tnum pr-7"
               value={band.adjustment_pct ?? ""}
               onChange={(e) =>
                 onChange(
@@ -269,8 +275,8 @@ export function StrategyPanel({ onOpenSeasonal }: { onOpenSeasonal: () => void }
         subtitle={t("subtitle")}
         actions={
           <>
-            <Button onClick={reset} disabled={saving}>{t("reset")}</Button>
-            <Button variant="primary" onClick={save} disabled={saving || !dirty}>
+            <Button variant="secondary" onClick={reset} disabled={saving}>{t("reset")}</Button>
+            <Button variant="default" onClick={save} disabled={saving || !dirty}>
               {saving ? t("saving") : dirty ? t("save") : t("noChanges")}
             </Button>
           </>
@@ -370,7 +376,7 @@ export function StrategyPanel({ onOpenSeasonal }: { onOpenSeasonal: () => void }
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Field label={t("minConfidence")} hint={t("minConfidenceHint")}>
                 <select
-                  className={inputClass}
+                  className={selectClass}
                   value={draft.market.min_confidence}
                   onChange={(e) => update(["market", "min_confidence"], e.target.value)}
                 >
@@ -575,7 +581,7 @@ export function StrategyPanel({ onOpenSeasonal }: { onOpenSeasonal: () => void }
             )}
           </Card>
 
-          <Card className="p-4 bg-amber-50 border-amber-200">
+          <Card className="p-4 bg-amber-50 border border-amber-200">
             <div className="text-[12px] font-semibold text-amber-900">{t("unvalidated")}</div>
             <p className="text-[11.5px] text-amber-800 mt-1 leading-snug">
               {t("unvalidatedBody")}

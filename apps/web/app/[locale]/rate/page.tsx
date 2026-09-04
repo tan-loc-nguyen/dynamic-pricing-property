@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Card, Empty, PageHeader, Spinner, inputClass } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Empty } from "@/components/Empty";
+import { PageHeader } from "@/components/PageHeader";
+import { Spinner } from "@/components/Spinner";
 import { RangeDrawer, type RangeSelection } from "@/components/RangeDrawer";
 import { api } from "@/lib/api";
 import { addDaysISO, todayISO } from "@/lib/format";
@@ -78,9 +82,8 @@ export default function RatePage() {
         <div className="flex flex-wrap items-end gap-3">
           <label className="block">
             <div className="mb-1 text-[11px] font-medium text-ink-500">{t("from")}</div>
-            <input
+            <Input
               type="date"
-              className={inputClass}
               value={startDate}
               onChange={(e) => {
                 if (!e.target.value) return;
@@ -97,9 +100,8 @@ export default function RatePage() {
           </div>
           <label className="block">
             <div className="mb-1 text-[11px] font-medium text-ink-500">{t("to")}</div>
-            <input
+            <Input
               type="date"
-              className={inputClass}
               value={endInput}
               min={startDate}
               // Capped at the season boundary rather than validated after the

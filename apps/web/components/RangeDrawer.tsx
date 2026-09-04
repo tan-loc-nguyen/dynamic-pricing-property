@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { useAdjustmentText } from "@/lib/adjustments";
 import { useFormat } from "@/lib/useFormat";
 import { MarketRange, OccupancyStrip, PaceChart, PriceContribution, RateBand } from "./viz";
-import { Button } from "./ui";
+import { Button } from "@/components/ui/button";
 import type { MarketObservation, RangeDetail } from "@/lib/types";
 
 /**
@@ -383,7 +383,7 @@ export function RangeDrawer({
                     </label>
                     <div className="flex gap-2">
                       <Button
-                        variant="primary"
+                        variant="default"
                         disabled={busy || !overrideRate}
                         onClick={() =>
                           act(() =>
@@ -399,7 +399,7 @@ export function RangeDrawer({
                       >
                         {tc("save")}
                       </Button>
-                      <Button onClick={() => setOverriding(false)} disabled={busy}>
+                      <Button variant="secondary" onClick={() => setOverriding(false)} disabled={busy}>
                         {tc("cancel")}
                       </Button>
                     </div>
@@ -411,7 +411,7 @@ export function RangeDrawer({
                 ) : (
                   <div className="flex gap-2">
                     <Button
-                      variant="primary"
+                      variant="default"
                       className="flex-1"
                       disabled={busy}
                       onClick={() =>
@@ -428,7 +428,7 @@ export function RangeDrawer({
                         rate: formatVND(detail.average_recommended_net_rate),
                       })}
                     </Button>
-                    <Button onClick={() => setOverriding(true)} disabled={busy}>
+                    <Button variant="secondary" onClick={() => setOverriding(true)} disabled={busy}>
                       {t("adjust")}
                     </Button>
                   </div>

@@ -3,7 +3,15 @@
 import { useTranslations } from "next-intl";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Chip, Empty, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Chip } from "@/components/Chip";
+import { Empty } from "@/components/Empty";
+import { Field } from "@/components/Field";
+import { PageHeader } from "@/components/PageHeader";
+import { Spinner } from "@/components/Spinner";
+import { selectClass } from "@/lib/formControls";
 import { api } from "@/lib/api";
 import { confidenceTone, todayISO } from "@/lib/format";
 import { useFormat } from "@/lib/useFormat";
@@ -188,7 +196,7 @@ export function RawObservations() {
         ))}
       </div>
 
-      <Card className="p-4 bg-amber-50 border-amber-200">
+      <Card className="p-4 bg-amber-50 border border-amber-200">
         <p className="text-[12px] text-amber-900 leading-relaxed">
           <span className="font-semibold">{t("uninterpretable")}</span> {t("uninterpretableBody")}
         </p>
@@ -222,15 +230,13 @@ export function RawObservations() {
             </p>
             <div className="mt-4 space-y-3">
               <Field label={t("propertyName")}>
-                <input
-                  className={inputClass}
+                <Input
                   value={compForm.name}
                   onChange={(e) => setCompForm({ ...compForm, name: e.target.value })}
                 />
               </Field>
               <Field label={t("location")}>
-                <input
-                  className={inputClass}
+                <Input
                   placeholder={t("locationPlaceholder")}
                   value={compForm.location}
                   onChange={(e) => setCompForm({ ...compForm, location: e.target.value })}
@@ -238,7 +244,7 @@ export function RawObservations() {
               </Field>
               <Field label={t("comparableToHint")}>
                 <select
-                  className={inputClass}
+                  className={selectClass}
                   value={compForm.comparable_category}
                   onChange={(e) => setCompForm({ ...compForm, comparable_category: e.target.value })}
                 >
@@ -250,13 +256,13 @@ export function RawObservations() {
                   ))}
                 </select>
               </Field>
-              <Button variant="primary" onClick={addCompetitor} disabled={busy || !compForm.name}>
+              <Button variant="default" onClick={addCompetitor} disabled={busy || !compForm.name}>
                 Add to comp set
               </Button>
             </div>
           </Card>
 
-          <Card>
+          <Card className="py-0">
             {competitors.length === 0 ? (
               <Empty title={t("noCompetitors")} />
             ) : (
@@ -304,7 +310,7 @@ export function RawObservations() {
             <div className="mt-4 space-y-3">
               <Field label={tc("roomCategory")}>
                 <select
-                  className={inputClass}
+                  className={selectClass}
                   value={form.room_type_id}
                   onChange={(e) => setForm({ ...form, room_type_id: e.target.value })}
                 >
@@ -318,26 +324,23 @@ export function RawObservations() {
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label={tc("stayDate")}>
-                  <input
+                  <Input
                     type="date"
-                    className={inputClass}
                     value={form.stay_date}
                     onChange={(e) => setForm({ ...form, stay_date: e.target.value })}
                   />
                 </Field>
                 <Field label={t("observedPrice")}>
-                  <input
+                  <Input
                     type="number"
                     step={10000}
-                    className={inputClass}
                     value={form.observed_price}
                     onChange={(e) => setForm({ ...form, observed_price: e.target.value })}
                   />
                 </Field>
               </div>
               <Field label={t("competitor")}>
-                <input
-                  className={inputClass}
+                <Input
                   placeholder={t("propertyPlaceholder")}
                   value={form.competitor_name}
                   onChange={(e) => setForm({ ...form, competitor_name: e.target.value })}
@@ -353,7 +356,7 @@ export function RawObservations() {
               <div className="grid grid-cols-2 gap-3">
                 <Field label={t("priceBasis")}>
                   <select
-                    className={inputClass}
+                    className={selectClass}
                     value={form.price_basis}
                     onChange={(e) => setForm({ ...form, price_basis: e.target.value })}
                   >
@@ -362,7 +365,7 @@ export function RawObservations() {
                 </Field>
                 <Field label={t("promotion")}>
                   <select
-                    className={inputClass}
+                    className={selectClass}
                     value={form.promotion_status}
                     onChange={(e) => setForm({ ...form, promotion_status: e.target.value })}
                   >
@@ -371,7 +374,7 @@ export function RawObservations() {
                 </Field>
                 <Field label={t("taxes")}>
                   <select
-                    className={inputClass}
+                    className={selectClass}
                     value={form.tax_inclusion}
                     onChange={(e) => setForm({ ...form, tax_inclusion: e.target.value })}
                   >
@@ -380,7 +383,7 @@ export function RawObservations() {
                 </Field>
                 <Field label={t("fees")}>
                   <select
-                    className={inputClass}
+                    className={selectClass}
                     value={form.fee_inclusion}
                     onChange={(e) => setForm({ ...form, fee_inclusion: e.target.value })}
                   >
@@ -388,17 +391,15 @@ export function RawObservations() {
                   </select>
                 </Field>
                 <Field label={t("lengthOfStay")}>
-                  <input
+                  <Input
                     type="number"
-                    className={inputClass}
                     value={form.length_of_stay}
                     onChange={(e) => setForm({ ...form, length_of_stay: e.target.value })}
                   />
                 </Field>
                 <Field label={t("guests")}>
-                  <input
+                  <Input
                     type="number"
-                    className={inputClass}
                     value={form.guests}
                     onChange={(e) => setForm({ ...form, guests: e.target.value })}
                   />
@@ -406,8 +407,7 @@ export function RawObservations() {
               </div>
 
               <Field label={tc("notesOptional")}>
-                <input
-                  className={inputClass}
+                <Input
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 />
@@ -415,13 +415,13 @@ export function RawObservations() {
 
               <div className="flex items-center gap-2 pt-1">
                 <Button
-                  variant="primary"
+                  variant="default"
                   onClick={submit}
                   disabled={busy || !form.competitor_name || !form.observed_price}
                 >
                   {t("saveObservation")}
                 </Button>
-                <Button onClick={runCollector} disabled={busy}>
+                <Button variant="secondary" onClick={runCollector} disabled={busy}>
                   {t("tryPublicCollector")}
                 </Button>
               </div>
@@ -440,14 +440,14 @@ export function RawObservations() {
             </div>
           </Card>
 
-          <Card>
+          <Card className="py-0">
             <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">
               <div className="text-[13px] font-semibold text-ink-900">
                 {t("observationsHeading")}{" "}
                 <span className="text-ink-400 font-normal">({observations.length})</span>
               </div>
               <select
-                className={`${inputClass} w-44`}
+                className={`${selectClass} w-44`}
                 value={confidenceFilter}
                 onChange={(e) => setConfidenceFilter(e.target.value)}
               >

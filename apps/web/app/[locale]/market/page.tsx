@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { MarketOverview } from "@/components/market/MarketOverview";
-import { PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/PageHeader";
 import { api } from "@/lib/api";
 import { useFormat } from "@/lib/useFormat";
 import type { CollectorReport } from "@/lib/types";

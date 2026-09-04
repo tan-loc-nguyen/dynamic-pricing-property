@@ -17,7 +17,8 @@ import { addDaysISO, todayISO } from "@/lib/dates";
 import { RANGES, daysFor, granularityFor } from "@/lib/ranges";
 import { buildColumns, bucketKeyFor } from "@/lib/buckets";
 import { useFormat } from "@/lib/useFormat";
-import { Card, Spinner } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { Spinner } from "@/components/Spinner";
 import type { FormatLocale } from "@/lib/format";
 import type { MarketObservation, Recommendation } from "@/lib/types";
 

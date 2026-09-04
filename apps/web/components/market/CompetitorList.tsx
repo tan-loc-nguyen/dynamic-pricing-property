@@ -4,7 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { useFormat } from "@/lib/useFormat";
-import { Button, Card, Chip, Empty, Field, Spinner, inputClass } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Chip } from "@/components/Chip";
+import { Empty } from "@/components/Empty";
+import { Field } from "@/components/Field";
+import { Spinner } from "@/components/Spinner";
+import { selectClass } from "@/lib/formControls";
 import type { Competitor, MarketObservation } from "@/lib/types";
 
 /**
@@ -115,16 +122,14 @@ export function CompetitorList() {
         <h2 className="text-[14px] font-semibold text-ink-900">{t("add")}</h2>
         <div className="mt-4 space-y-3">
           <Field label={t("name")}>
-            <input
-              className={inputClass}
+            <Input
               placeholder={t("namePlaceholder")}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </Field>
           <Field label={t("location")}>
-            <input
-              className={inputClass}
+            <Input
               placeholder={t("locationPlaceholder")}
               value={form.location}
               onChange={(e) => setForm({ ...form, location: e.target.value })}
@@ -132,7 +137,7 @@ export function CompetitorList() {
           </Field>
           <Field label={tc("roomCategory")}>
             <select
-              className={inputClass}
+              className={selectClass}
               value={form.comparable_category}
               onChange={(e) => setForm({ ...form, comparable_category: e.target.value })}
             >
@@ -145,15 +150,14 @@ export function CompetitorList() {
             </select>
           </Field>
           <Field label={tc("notesOptional")}>
-            <input
-              className={inputClass}
+            <Input
               placeholder={t("notesPlaceholder")}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
           </Field>
 
-          <Button variant="primary" onClick={submit} disabled={busy || !form.name}>
+          <Button variant="default" onClick={submit} disabled={busy || !form.name}>
             {t("saveCompetitor")}
           </Button>
 

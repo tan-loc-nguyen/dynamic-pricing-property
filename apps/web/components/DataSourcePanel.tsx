@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
-import { Card, Chip } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/Chip";
 import type { PmsSource, PmsSourceInfo } from "@/lib/types";
 
 /**
@@ -40,7 +41,7 @@ export function DataSourcePanel({ onChanged }: { onChanged?: () => void } = {}) 
 
   if (!info) {
     return error ? (
-      <Card className="border-amber-200 bg-amber-50 p-4">
+      <Card className="border border-amber-200 bg-amber-50 p-4">
         <p className="text-[11.5px] text-amber-900">{error}</p>
       </Card>
     ) : null;

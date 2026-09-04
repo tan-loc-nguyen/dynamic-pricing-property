@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { SeasonalPanel } from "@/components/customisation/SeasonalPanel";
 import { StrategyPanel } from "@/components/customisation/StrategyPanel";
 import { EventsPanel } from "@/components/market/EventsPanel";
-import { PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/PageHeader";
 
 const TABS = ["seasonal", "strategy", "events"] as const;
 type Tab = (typeof TABS)[number];

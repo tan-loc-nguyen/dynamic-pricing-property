@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Button, Card, Chip, Spinner, inputClass } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Chip } from "@/components/Chip";
+import { Spinner } from "@/components/Spinner";
+import { selectClass } from "@/lib/formControls";
 import { api } from "@/lib/api";
 import type { RateBand, SeasonDef } from "@/lib/types";
 
@@ -209,14 +214,14 @@ export function SeasonalPanel() {
           <Chip tone={editedCount ? "warn" : "up"}>
             {editedCount ? t("editedCount", { count: editedCount }) : t("clientValidated")}
           </Chip>
-          <Button onClick={resetBook} disabled={!editedCount} title={editedCount ? t("resetEnabled", { count: bands.length }) : t("resetDisabled")}>
+          <Button variant="secondary" onClick={resetBook} disabled={!editedCount} title={editedCount ? t("resetEnabled", { count: bands.length }) : t("resetDisabled")}>
             {t("reset")}
           </Button>
         </div>
         <label className="flex items-center gap-2 text-[11.5px] text-ink-600">
           {t("granularity")}
           <select
-            className={inputClass}
+            className={selectClass}
             value={granularity}
             onChange={(e) => setGranularity(e.target.value as "month" | "quarter")}
           >
@@ -258,7 +263,7 @@ export function SeasonalPanel() {
               <label className="flex items-center gap-1.5 text-[11.5px] text-ink-600">
                 {t("startsIn")}
                 <select
-                  className={inputClass}
+                  className={selectClass}
                   value={season.months[0]}
                   onChange={(e) => moveStart(index, Number(e.target.value))}
                 >
@@ -269,7 +274,7 @@ export function SeasonalPanel() {
                   ))}
                 </select>
               </label>
-              <Button onClick={() => removeSeason(season.key)}>{t("removeSeason")}</Button>
+              <Button variant="secondary" onClick={() => removeSeason(season.key)}>{t("removeSeason")}</Button>
             </div>
           </div>
 
@@ -301,9 +306,9 @@ export function SeasonalPanel() {
                     </td>
                     {(["min", "base", "max"] as const).map((field) => (
                       <td key={field} className="py-2 pl-3">
-                        <input
+                        <Input
                           inputMode="numeric"
-                          className={`${inputClass} tnum text-right`}
+                          className="tnum text-right"
                           placeholder={field === "max" ? t("noCeiling") : t("required")}
                           value={draft[field]}
                           onChange={(e) =>
@@ -316,7 +321,7 @@ export function SeasonalPanel() {
                       </td>
                     ))}
                     <td className="py-2 pl-3 text-right">
-                      <Button onClick={() => saveBand(band)}>{tc("save")}</Button>
+                      <Button variant="secondary" onClick={() => saveBand(band)}>{tc("save")}</Button>
                     </td>
                   </tr>
                 );
