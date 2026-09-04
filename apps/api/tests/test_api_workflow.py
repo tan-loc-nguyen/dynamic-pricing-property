@@ -30,10 +30,11 @@ def client():
 # NOTE ON ORDERING: these tests share one module-scoped client and database, and
 # several are destructive -- saving a config with regenerate=true replaces the
 # whole run, so any recommendation id captured before it is stale afterwards.
-# Every test therefore fetches the rows it needs at its own start rather than
-# relying on ids from an earlier test, and any test that replaces a run restores
-# the configuration before returning. Do not introduce a test that captures ids
-# and then regenerates.
+# /api/rate/accept, /api/rate/override and the /api/events writes regenerate
+# too, for the same reason. Every test therefore fetches the rows it needs at
+# its own start rather than relying on ids from an earlier test, and any test
+# that replaces a run restores the configuration before returning. Do not
+# introduce a test that captures ids and then regenerates.
 
 
 # ------------------------------------------------------------------- system
@@ -366,11 +367,23 @@ def test_events_can_be_managed_manually(client):
     assert created.status_code == 201
     event_id = created.json()["id"]
 
-    client.post("/api/recommendations/generate")
+    # Regression: creating an event used to need a manual
+    # /api/recommendations/generate before it showed up anywhere. An operator
+    # who added an event and checked the Rate page saw no change --
+    # indistinguishable from the save having failed. No generate call here on
+    # purpose: the endpoint must do it itself now.
     recs = client.get("/api/recommendations?start_date=2026-10-10&end_date=2026-10-12").json()
     assert recs and all(r["is_event"] for r in recs)
 
     assert client.delete(f"/api/events/{event_id}").status_code == 204
+
+    # Same regression, the other direction: a deleted event must stop pricing
+    # dates it no longer covers immediately, not just whenever something else
+    # next regenerates.
+    recs_after_delete = client.get(
+        "/api/recommendations?start_date=2026-10-10&end_date=2026-10-12"
+    ).json()
+    assert recs_after_delete and not any(r["is_event"] for r in recs_after_delete)
 
 
 def test_event_rejects_inverted_dates(client):
@@ -1089,6 +1102,61 @@ def test_a_bulk_accept_is_one_group_in_the_log(client):
     assert {r["final_net_rate"] for r in grouped} == {
         client.get("/api/rate/range", params=params).json()["average_recommended_net_rate"]
     }
+
+
+def test_accepting_a_range_updates_the_current_rate_with_no_manual_regenerate(client):
+    """Regression: accept wrote StayDateInventory.current_net_rate, but every
+    read path (tiles, drawer, this endpoint) served the last
+    PricingRecommendation run instead, which nothing re-triggered. An accepted
+    price looked unchanged afterwards -- indistinguishable from the request
+    having silently failed.
+    """
+    start, end = _a_range_inside_one_season()
+    params = {
+        "room_type_id": _a_room_type_id(client),
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+    }
+    before = client.get("/api/rate/range", params=params).json()
+
+    client.post("/api/rate/accept", json=params)
+
+    after = client.get("/api/rate/range", params=params).json()
+    assert after["average_current_net_rate"] == before["average_recommended_net_rate"]
+
+
+def test_overriding_a_range_updates_the_current_rate_with_no_manual_regenerate(client):
+    start, end = _a_range_inside_one_season()
+    params = {
+        "room_type_id": _a_room_type_id(client),
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+    }
+
+    response = client.post(
+        "/api/rate/override",
+        json={**params, "final_net_rate": 2_222_000, "reason_code": "owner_constraint"},
+    )
+    assert response.status_code == 200
+
+    after = client.get("/api/rate/range", params=params).json()
+    assert after["average_current_net_rate"] == 2_222_000
+
+
+def test_a_range_override_of_zero_is_rejected(client):
+    """Regression: final_net_rate had no floor, so 0 (and presumably negative
+    numbers) persisted as a real decision with nothing to catch it.
+    """
+    start, end = _a_range_inside_one_season()
+    params = {
+        "room_type_id": _a_room_type_id(client),
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "final_net_rate": 0,
+        "reason_code": "owner_constraint",
+    }
+    response = client.post("/api/rate/override", json=params)
+    assert response.status_code == 422
 
 
 def test_the_range_carries_the_pace_reading_and_its_curve_points(client):

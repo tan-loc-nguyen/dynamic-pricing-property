@@ -418,7 +418,7 @@ export function StrategyPanel({ onOpenSeasonal }: { onOpenSeasonal: () => void }
             </label>
             <div className={`grid grid-cols-4 sm:grid-cols-7 gap-2 ${draft.day_of_week.enabled ? "" : "opacity-40 pointer-events-none"}`}>
               {DAYS.map((day) => (
-                <Field key={day} label={day.slice(0, 3).replace(/^./, (c) => c.toUpperCase())}>
+                <Field key={day} label={tv(`days.${day}`)}>
                   <NumberInput
                     suffix="%"
                     value={draft.day_of_week.adjustment_pct[day]}

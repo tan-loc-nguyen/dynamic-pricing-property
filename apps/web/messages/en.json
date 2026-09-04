@@ -591,7 +591,16 @@
     "observedRange": "Prices seen",
     "confidence": "Confidence",
     "lastSeen": "Last seen",
-    "observationCount": "{count, number} observations"
+    "observationCount": "{count, number} observations",
+    "add": "Add a competitor",
+    "name": "Name",
+    "namePlaceholder": "e.g. Saigon Sky Apartments",
+    "location": "Location",
+    "locationPlaceholder": "e.g. District 1, HCMC",
+    "categoryNone": "No specific category",
+    "notesPlaceholder": "e.g. Same building line, similar size",
+    "saveCompetitor": "Save competitor",
+    "saved": "Competitor added"
   },
   "settingsHub": {
     "title": "Settings",
