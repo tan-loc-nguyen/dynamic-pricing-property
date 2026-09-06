@@ -4,7 +4,7 @@ import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Fraunces, Karla } from "next/font/google";
 import "../globals.css";
-import { Nav } from "@/components/Nav";
+import { NavShell } from "@/components/NavShell";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { routing } from "@/i18n/routing";
 
@@ -56,10 +56,7 @@ export default async function LocaleLayout({
                 A long table used to grow the document, and the sidebar — a flex
                 sibling — grew with it, so its footer notices ended up thousands of
                 pixels below the fold. Each pane scrolls inside its own box now. */}
-            <div className="flex h-screen overflow-hidden">
-              <Nav />
-              <main className="flex-1 min-w-0 overflow-hidden p-4">{children}</main>
-            </div>
+            <NavShell>{children}</NavShell>
           </TooltipProvider>
         </NextIntlClientProvider>
       </body>

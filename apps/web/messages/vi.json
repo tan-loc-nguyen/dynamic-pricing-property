@@ -22,7 +22,10 @@
     "customisation": {
       "label": "Tùy chỉnh",
       "hint": "Mùa, chiến lược, sự kiện"
-    }
+    },
+    "collapse": "Thu gọn",
+    "expand": "Mở rộng",
+    "switchTo": "Chuyển sang {language}"
   },
   "adjustments": {
     "rate_band": {

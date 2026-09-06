@@ -22,7 +22,10 @@
     "customisation": {
       "label": "Customisation",
       "hint": "Seasons, strategy, events"
-    }
+    },
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "switchTo": "Switch to {language}"
   },
   "adjustments": {
     "rate_band": {

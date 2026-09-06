@@ -14,7 +14,7 @@ import type { SystemStatus } from "@/lib/types";
  * the first day, competing with the work. The facts still matter, so they moved
  * into something that states the situation in a line and explains on demand.
  */
-export function DataSourceStatus() {
+export function DataSourceStatus({ collapsed = false }: { collapsed?: boolean }) {
   const t = useTranslations("dataStatus");
   const [status, setStatus] = useState<SystemStatus | null>(null);
 
@@ -31,11 +31,18 @@ export function DataSourceStatus() {
     <Popover.Root>
       <Popover.Trigger asChild>
         <button
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[11.5px] text-ink-600
-            hover:bg-ink-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          aria-label={demo ? t("demoData") : t("connected")}
+          className={`flex w-full items-center rounded-lg py-2 text-left text-[11.5px] text-ink-600
+            hover:bg-ink-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+              collapsed ? "justify-center px-0" : "gap-2 px-3"
+            }`}
         >
           <span className={`h-2 w-2 shrink-0 rounded-full ${tone}`} aria-hidden />
-          <span className="truncate">{demo ? t("demoData") : t("connected")}</span>
+          {/* Collapsed, the dot carries the whole message. Its colour is the
+              state; the sentence is one click away in the popover. */}
+          {!collapsed && (
+            <span className="truncate">{demo ? t("demoData") : t("connected")}</span>
+          )}
         </button>
       </Popover.Trigger>
       <Popover.Portal>
