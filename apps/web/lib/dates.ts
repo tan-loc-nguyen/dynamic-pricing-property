@@ -39,12 +39,7 @@ export function nightsBetween(startISO: string, endISO: string): number {
   return differenceInCalendarDays(parseStayDate(endISO), parseStayDate(startISO));
 }
 
-/** Every date from start to end inclusive — the calendar's column axis. */
-export function dateRange(startISO: string, endISO: string): string[] {
-  const total = nightsBetween(startISO, endISO);
-  if (total < 0) return [];
-  return Array.from({ length: total + 1 }, (_, i) => addDaysISO(startISO, i));
-}
+
 
 export function isToday(iso: string): boolean {
   return isSameDay(parseStayDate(iso), new Date());
@@ -65,9 +60,4 @@ export function columnHeader(iso: string, locale: FormatLocale): { weekday: stri
     weekday: format(d, "EEEEEE", opts).toUpperCase(),
     day: locale === "vi" ? format(d, "d/M") : format(d, "d MMM", opts),
   };
-}
-
-/** "Tháng 8 2026" / "August 2026" — the span label above the columns. */
-export function monthLabel(iso: string, locale: FormatLocale): string {
-  return format(parseStayDate(iso), "LLLL yyyy", { locale: dfnsLocale(locale) });
 }

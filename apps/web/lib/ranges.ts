@@ -15,7 +15,7 @@ export const RANGES = [
   { key: "sixMonths", days: 182 },
 ] as const;
 
-export type RangeKey = (typeof RANGES)[number]["key"];
+
 
 /** Longest span that still reads night-by-night. Beyond it, weeks. */
 export const DAY_RESOLUTION_LIMIT = 35;

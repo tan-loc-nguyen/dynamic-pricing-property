@@ -243,11 +243,7 @@ export function RangeDrawer({
                       observations={observations}
                     />
                   ) : (
-                    <RangeScopeBody
-                      detail={detail}
-                      market={market}
-                      observations={observations}
-                    />
+                    <RangeScopeBody detail={detail} market={market} />
                   )}
                 </div>
               </Tabs.Root>

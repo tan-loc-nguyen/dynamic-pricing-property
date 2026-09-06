@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useFormat } from "@/lib/useFormat";
 import { MarketRange, OccupancyStrip, PaceChart, RateBand } from "../viz";
-import type { MarketObservation, RangeDetail } from "@/lib/types";
+import type { RangeDetail } from "@/lib/types";
 
 /** The market band, low/high/median/count, computed once in the shell. */
 export interface MarketBand {
@@ -19,7 +19,6 @@ export function RangeScopeBody({
 }: {
   detail: RangeDetail;
   market: MarketBand | null;
-  observations: MarketObservation[];
 }) {
   const t = useTranslations("drawer");
   const tds = useTranslations("dataSource");
