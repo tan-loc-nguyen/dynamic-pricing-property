@@ -1454,6 +1454,13 @@ def test_a_priced_night_explains_itself_the_same_way_the_range_does(client):
         assert {"code", "label", "label_key", "delta", "params",
                 "is_neutral", "is_ignored", "nights_covered"} <= set(row)
         assert row["nights_covered"] == 1
+        # ALSO inside params, which is the copy the ICU message reads. The
+        # sentence branches on it, and adjustments.ts drops a whole sentence
+        # when ICU refuses one -- so losing this injection would silently blank
+        # every pace and pickup explanation rather than fail anything. The
+        # placeholder guard in test_localisation.py assumes this holds, so it
+        # has to be asserted somewhere that would actually notice.
+        assert row["params"]["nights_covered"] == row["nights_covered"]
 
 
 def test_the_night_delta_is_measured_against_the_range_average(client):
