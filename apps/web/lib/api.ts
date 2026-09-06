@@ -129,10 +129,24 @@ export const api = {
     request<RateTiles>(`/api/rate/tiles${toQuery({ start_date, end_date, nights })}`),
   rateRange: (room_type_id: number, start_date: string, end_date: string) =>
     request<RangeDetail>(`/api/rate/range${toQuery({ room_type_id, start_date, end_date })}`),
-  acceptRange: (room_type_id: number, start_date: string, end_date: string, note?: string) =>
+  acceptRange: (
+    room_type_id: number,
+    start_date: string,
+    end_date: string,
+    // Preserving hand-tuned nights is the default; the operator is warned in
+    // the drawer and opts out explicitly (D40).
+    preserve_overrides = true,
+    note?: string,
+  ) =>
     request<BulkDecisionResult>("/api/rate/accept", {
       method: "POST",
-      body: JSON.stringify({ room_type_id, start_date, end_date, note: note || null }),
+      body: JSON.stringify({
+        room_type_id,
+        start_date,
+        end_date,
+        preserve_overrides,
+        note: note || null,
+      }),
     }),
   overrideRange: (
     room_type_id: number,

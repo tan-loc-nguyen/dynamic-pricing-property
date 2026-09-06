@@ -86,6 +86,9 @@ export interface ExplainedStep {
   params: Record<string, unknown>;
   is_neutral: boolean;
   is_ignored: boolean;
+  /** How many PRICED nights this row was averaged from. 1 for a per-night row.
+   *  The ICU message branches on it, so it also appears inside `params`. */
+  nights_covered: number;
 }
 
 export interface Adjustment extends ExplainedStep {
@@ -268,16 +271,32 @@ export interface RateTiles {
   tiles: RateTile[];
 }
 
-/** One night inside a range — the per-night strip and the pace curve. */
+/** One night inside a range — the per-night strip, the pace curve, and the
+ *  whole of the drawer's night scope. Self-sufficient on purpose: night mode
+ *  issues no second request, so switching nights never shows a spinner. */
 export interface RangeNight {
   stay_date: string;
   units_sold: number;
   units_total: number;
   recommended_net_rate: number;
+  current_net_rate: number;
+  base_net_rate: number;
   priced: boolean;
   days_to_arrival: number | null;
   expected_occupancy: number | null;
   occupancy: number | null;
+  band: { min: number | null; base: number | null; max: number | null };
+  rate_provenance: RangeProvenance;
+  /** Set when an operator has already decided this night. "overridden" is the
+   *  hand-tuned state a bulk accept preserves by default. */
+  decision: "accepted" | "overridden" | null;
+  /** Which band edge the engine's price was pulled back to. An AVERAGE is
+   *  never clamped, so this exists per night only. */
+  clamped: "min" | "max" | null;
+  /** How far accepting the range average would move this night, in percent.
+   *  Served rather than derived here (D10). */
+  delta_vs_average_pct: number;
+  adjustments: ExplainedStep[];
 }
 
 /** What the drawer renders for a range. */
@@ -314,6 +333,8 @@ export interface BulkDecisionResult {
   decisions_written: number;
   nights: number;
   skipped_unpriced: number;
+  /** Nights an operator had priced by hand that this action left alone. */
+  skipped_overridden: number;
 }
 
 export interface RecommendationDetail extends Recommendation {
