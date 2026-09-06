@@ -1,0 +1,139 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { renderWithIntl } from "../test-utils";
+import { RangeDrawer } from "./RangeDrawerShell";
+import type { RangeDetail, RangeNight } from "@/lib/types";
+
+const nightAt = (day: number, over: Partial<RangeNight> = {}): RangeNight => ({
+  stay_date: `2026-09-0${day}`,
+  units_sold: 4,
+  units_total: 8,
+  recommended_net_rate: 2_000_000 + day * 10_000,
+  current_net_rate: 2_100_000,
+  base_net_rate: 2_000_000,
+  priced: true,
+  days_to_arrival: day,
+  expected_occupancy: 0.6,
+  occupancy: 0.5,
+  band: { min: 1_800_000, base: 2_000_000, max: 2_300_000 },
+  rate_provenance: "published",
+  decision: null,
+  clamped: null,
+  delta_vs_average_pct: day,
+  adjustments: [
+    {
+      code: "pace",
+      label: "Pace",
+      label_key: "adjustments.pace.behind",
+      delta: -10_000,
+      params: { nights_covered: 1 },
+      is_neutral: false,
+      is_ignored: false,
+      nights_covered: 1,
+    },
+  ],
+  ...over,
+});
+
+const detail = (over: Partial<RangeDetail> = {}): RangeDetail =>
+  ({
+    room_type_id: 2,
+    room_type_name: "2BR Premium",
+    room_category: "2br_premium",
+    room_category_label: "2BR Premium",
+    start_date: "2026-09-01",
+    end_date: "2026-09-03",
+    nights: 3,
+    season: { key: "low_2", label: "Low 2", start: "2026-09-01", end: "2026-10-31" },
+    base_net_rate: 2_000_000,
+    average_recommended_net_rate: 2_020_000,
+    average_current_net_rate: 2_100_000,
+    band: { min: 1_800_000, base: 2_000_000, max: 2_300_000 },
+    adjustments: [],
+    nightly: [nightAt(1), nightAt(2), nightAt(3)],
+    pace_gap: -0.1,
+    units_sold: 12,
+    units_total: 8,
+    available_units: 4,
+    availability_is_exact: true,
+    unpriced_nights: 0,
+    rate_provenance: "published",
+    ...over,
+  }) as RangeDetail;
+
+const acceptRange = vi.fn().mockResolvedValue({});
+const overrideRange = vi.fn().mockResolvedValue({});
+let payload: RangeDetail;
+
+vi.mock("@/lib/api", () => ({
+  api: {
+    status: () => Promise.resolve({ override_reasons: [{ code: "my_judgment" }] }),
+    rateRange: () => Promise.resolve(payload),
+    observations: () => Promise.resolve([]),
+    acceptRange: (...a: unknown[]) => acceptRange(...a),
+    overrideRange: (...a: unknown[]) => overrideRange(...a),
+  },
+}));
+
+const selection = { roomTypeId: 2, startDate: "2026-09-01", endDate: "2026-09-03" };
+
+describe("RangeDrawer", () => {
+  beforeEach(() => {
+    payload = detail();
+    acceptRange.mockClear();
+    overrideRange.mockClear();
+  });
+
+  it("opens on the range scope and accepts every night", async () => {
+    renderWithIntl(
+      <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
+    );
+    const button = await screen.findByRole("button", { name: /3 nights/i });
+    await userEvent.click(button);
+    expect(acceptRange).toHaveBeenCalledWith(2, "2026-09-01", "2026-09-03", true);
+  });
+
+  it("hides the scope switch when the range is a single night", async () => {
+    payload = detail({ nights: 1, end_date: "2026-09-01", nightly: [nightAt(1)] });
+    renderWithIntl(
+      <RangeDrawer
+        selection={{ ...selection, endDate: "2026-09-01" }}
+        onClose={() => {}}
+        onChanged={() => {}}
+      />,
+    );
+    await screen.findByText("2BR Premium");
+    expect(screen.queryByRole("tab", { name: /night by night/i })).toBeNull();
+  });
+
+  // The strip's buttons are the only elements carrying aria-pressed, which
+  // makes them addressable without depending on how a date is formatted.
+  const stripButtons = (c: HTMLElement) =>
+    Array.from(c.querySelectorAll<HTMLElement>("[aria-pressed]"));
+
+  it("accepts only the selected night in the night scope", async () => {
+    const { container } = renderWithIntl(
+      <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
+    );
+    await userEvent.click(await screen.findByRole("tab", { name: /night by night/i }));
+    await userEvent.click(stripButtons(container)[1]);
+    await userEvent.click(
+      await screen.findByRole("button", { name: /accept .* for/i }),
+    );
+    expect(acceptRange).toHaveBeenCalledWith(2, "2026-09-02", "2026-09-02", true);
+  });
+
+  it("withdraws the accept action on an unpriced night", async () => {
+    payload = detail({
+      nightly: [nightAt(1), nightAt(2, { priced: false }), nightAt(3)],
+      unpriced_nights: 1,
+    });
+    const { container } = renderWithIntl(
+      <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
+    );
+    await userEvent.click(await screen.findByRole("tab", { name: /night by night/i }));
+    await userEvent.click(stripButtons(container)[1]);
+    expect(screen.queryByRole("button", { name: /accept .* for/i })).toBeNull();
+  });
+});
