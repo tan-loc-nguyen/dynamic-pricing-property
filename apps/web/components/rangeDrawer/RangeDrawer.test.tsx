@@ -136,4 +136,38 @@ describe("RangeDrawer", () => {
     await userEvent.click(stripButtons(container)[1]);
     expect(screen.queryByRole("button", { name: /accept .* for/i })).toBeNull();
   });
+
+  it("warns before a bulk accept would replace a hand-tuned night", async () => {
+    payload = detail({
+      nightly: [nightAt(1), nightAt(2, { decision: "overridden" }), nightAt(3)],
+    });
+    renderWithIntl(
+      <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
+    );
+    expect(await screen.findByText(/priced by hand will be kept/i)).toBeTruthy();
+    // The button names what it will actually write, not what was selected.
+    expect(screen.getByRole("button", { name: /2 nights/i })).toBeTruthy();
+  });
+
+  it("lets the operator overwrite hand-tuned nights on purpose", async () => {
+    payload = detail({
+      nightly: [nightAt(1), nightAt(2, { decision: "overridden" }), nightAt(3)],
+    });
+    renderWithIntl(
+      <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: /overwrite them too/i }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /3 nights/i }));
+    expect(acceptRange).toHaveBeenCalledWith(2, "2026-09-01", "2026-09-03", false);
+  });
+
+  it("does not warn when nothing was priced by hand", async () => {
+    renderWithIntl(
+      <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
+    );
+    await screen.findByText("2BR Premium");
+    expect(screen.queryByText(/priced by hand/i)).toBeNull();
+  });
 });

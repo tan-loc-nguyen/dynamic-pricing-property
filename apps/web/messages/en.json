@@ -342,6 +342,10 @@
     "stripHandTuned": "priced by hand",
     "stripDeltaCaption": "How each night compares with the average",
     "someUnpriced": "{count, plural, one {# night in this range could not be priced and will be skipped} other {# nights in this range could not be priced and will be skipped}}.",
+    "handTunedKept": "{count, plural, one {# night you priced by hand will be kept} other {# nights you priced by hand will be kept}}",
+    "handTunedOverwrite": "Overwrite them too",
+    "handTunedOverwriting": "Hand-priced nights will be overwritten",
+    "handTunedKeep": "Keep them",
     "provenanceMixed": "The nights in this range got their current rate from different places, so this figure mixes published and reconstructed prices."
   },
   "rateBook": {

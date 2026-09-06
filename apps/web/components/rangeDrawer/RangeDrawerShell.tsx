@@ -50,6 +50,7 @@ export function RangeDrawer({
   const [reasonCodes, setReasonCodes] = useState<string[]>(["my_judgment"]);
   const [scope, setScope] = useState<"range" | "night">("range");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [overwriteHandTuned, setOverwriteHandTuned] = useState(false);
 
   useEffect(() => {
     api
@@ -72,6 +73,7 @@ export function RangeDrawer({
     setError(null);
     setScope("range");
     setSelectedDate(null);
+    setOverwriteHandTuned(false);
     let alive = true;
     api
       .rateRange(selection.roomTypeId, selection.startDate, selection.endDate)
@@ -250,6 +252,8 @@ export function RangeDrawer({
                 reasonCode={reasonCode}
                 setReasonCode={setReasonCode}
                 reasonCodes={reasonCodes}
+                overwriteHandTuned={overwriteHandTuned}
+                setOverwriteHandTuned={setOverwriteHandTuned}
                 act={act}
               />
             </>
@@ -281,6 +285,8 @@ function FooterActions({
   reasonCode,
   setReasonCode,
   reasonCodes,
+  overwriteHandTuned,
+  setOverwriteHandTuned,
   act,
 }: {
   detail: RangeDetail;
@@ -296,6 +302,8 @@ function FooterActions({
   reasonCode: string;
   setReasonCode: (v: string) => void;
   reasonCodes: string[];
+  overwriteHandTuned: boolean;
+  setOverwriteHandTuned: (fn: (v: boolean) => boolean) => void;
   act: (fn: () => Promise<unknown>) => Promise<void>;
 }) {
   const t = useTranslations("drawer");
@@ -316,8 +324,17 @@ function FooterActions({
   // at all, so a button naming the selected span would promise more than the
   // server delivers. Phase 8 subtracts preserved hand-tuned nights from this
   // same figure.
+  const handTuned = (detail?.nightly ?? []).filter((n) => n.decision === "overridden");
+
+  // What the button will ACTUALLY write. An accept that preserves hand-tuned
+  // nights covers fewer nights than the operator selected, and a button that
+  // names the selection rather than the outcome is the same class of quiet
+  // partial success as an unpriced night written as zero.
   const nightsToWrite =
-    scope === "night" ? 1 : detail.nights - detail.unpriced_nights;
+    scope === "night"
+      ? 1
+      : detail.nights - detail.unpriced_nights -
+        (overwriteHandTuned ? 0 : handTuned.length);
 
   // On an unpriced night in the night scope, the engine calculated nothing to
   // accept -- the range's `allUnpriced` withdrawal, applied to the one night.
@@ -337,6 +354,24 @@ function FooterActions({
       {scope === "range" && !allUnpriced && detail.unpriced_nights > 0 && (
         <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11.5px] text-amber-800">
           {t("someUnpriced", { count: detail.unpriced_nights })}
+        </div>
+      )}
+      {scope === "range" && handTuned.length > 0 && (
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border
+          border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11.5px] text-amber-800">
+          <span>
+            {overwriteHandTuned
+              ? t("handTunedOverwriting")
+              : t("handTunedKept", { count: handTuned.length })}
+          </span>
+          <button
+            type="button"
+            onClick={() => setOverwriteHandTuned((v) => !v)}
+            className="shrink-0 font-medium underline focus:outline-none
+              focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            {overwriteHandTuned ? t("handTunedKeep") : t("handTunedOverwrite")}
+          </button>
         </div>
       )}
       {overriding ? (
@@ -403,7 +438,12 @@ function FooterActions({
             disabled={busy}
             onClick={() =>
               act(() =>
-                api.acceptRange(detail.room_type_id, target.start, target.end, true),
+                api.acceptRange(
+                  detail.room_type_id,
+                  target.start,
+                  target.end,
+                  scope === "night" ? true : !overwriteHandTuned,
+                ),
               )
             }
           >
