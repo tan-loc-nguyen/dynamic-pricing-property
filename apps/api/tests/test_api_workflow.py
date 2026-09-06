@@ -21,6 +21,13 @@ from fastapi.testclient import TestClient  # noqa: E402
 from dynamic_pricing.main import app  # noqa: E402
 
 
+from datetime import date as _date
+
+
+def _today() -> str:
+    return _date.today().isoformat()
+
+
 @pytest.fixture(scope="module")
 def client():
     with TestClient(app) as c:
@@ -1376,3 +1383,24 @@ def test_asking_for_a_week_from_a_seasons_last_day_shortens_the_range(client):
     body = response.json()
     assert body["end_date"] == season_end, "the range must stop at the season boundary"
     assert body["nights"] == 1
+
+
+def test_range_adjustments_report_their_night_coverage(client):
+    """The drawer badges a row with the nights it covers, so the payload has
+    to carry the count -- and it can never exceed the priced nights."""
+    tiles = client.get(
+        "/api/rate/tiles", params={"start_date": _today(), "nights": 7}
+    ).json()
+    tile = tiles["tiles"][0]
+    detail = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": tile["room_type_id"],
+            "start_date": tiles["start_date"],
+            "end_date": tiles["end_date"],
+        },
+    ).json()
+    priced = detail["nights"] - detail["unpriced_nights"]
+    assert detail["adjustments"], "a priced range always explains itself"
+    for row in detail["adjustments"]:
+        assert 1 <= row["nights_covered"] <= priced

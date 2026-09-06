@@ -41,6 +41,13 @@ class Contribution:
     #: placeholders nothing fills -- ICU then refuses the whole message and the
     #: operator gets no explanation at all.
     params: dict = field(default_factory=dict)
+    #: How many PRICED nights this row was averaged from. Grouping is by
+    #: (code, label_key), so one factor can produce several rows -- and a row
+    #: that covers two of seven nights reads as though it described the whole
+    #: range unless it says otherwise. Defaults to 1 so a per-night row, which
+    #: is built straight from the database and never averaged, is correct
+    #: without being touched.
+    nights_covered: int = 1
 
 
 @dataclass(frozen=True)
@@ -189,6 +196,7 @@ def aggregate_range(nights: list[NightlyPrice], *, rounding_increment: int) -> R
                 is_neutral=sample.is_neutral,
                 is_ignored=sample.is_ignored,
                 params=_average_params([c.params for c in rows]),
+                nights_covered=len(rows),
             )
         )
 
@@ -221,6 +229,7 @@ def aggregate_range(nights: list[NightlyPrice], *, rounding_increment: int) -> R
                     label="Rounding",
                     label_key="adjustments.rounding",
                     delta=drift,
+                    nights_covered=len(priced),
                 )
             )
 

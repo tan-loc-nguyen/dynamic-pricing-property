@@ -203,6 +203,12 @@ def rate_range(
                 # unfilled -- ICU refuses the whole message, so the operator
                 # got no explanation, and the renderer crashed reading them.
                 "params": a.params,
+                # How many nights this row was averaged from. A row covering
+                # two of seven nights is indistinguishable from one covering
+                # all seven without it, which is exactly how the averaged
+                # breakdown came to read as though every line described the
+                # whole range.
+                "nights_covered": a.nights_covered,
             }
             for a in aggregate.adjustments
         ],
