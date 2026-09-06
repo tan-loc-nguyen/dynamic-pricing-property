@@ -452,3 +452,38 @@ def test_every_async_handler_that_calls_the_api_handles_its_own_failure():
         "these handlers await an API call with no catch, so a failure is silent and "
         "the operator cannot tell it from a dead button: " + ", ".join(offenders)
     )
+
+
+# --------------------------------------------------------------------------
+# An input's range and the rule it mirrors are two copies of one fact
+# --------------------------------------------------------------------------
+def test_the_lookback_input_offers_exactly_the_range_the_backend_enforces():
+    """The min/max on the input is an affordance; the rule lives in Python (D10).
+
+    Two copies of the same numbers drift, and this drift is invisible in the
+    worst way: the input would happily offer a window the save then rejects,
+    and the operator would read a validation error about a value the UI told
+    them was allowed.
+    """
+    import re
+
+    from dynamic_pricing.pricing.defaults import (
+        PICKUP_LOOKBACK_MAX_DAYS,
+        PICKUP_LOOKBACK_MIN_DAYS,
+    )
+
+    source = (
+        WEB_ROOT / "components" / "customisation" / "StrategyPanel.tsx"
+    ).read_text(encoding="utf-8")
+    match = re.search(r'lookbackDays[\s\S]{0,400}?</Field>', source)
+    assert match, "the lookback field is no longer recognisable in StrategyPanel.tsx"
+
+    field = match.group(0)
+    assert f"min={{{PICKUP_LOOKBACK_MIN_DAYS}}}" in field, (
+        f"the lookback input does not offer min={PICKUP_LOOKBACK_MIN_DAYS}, which is "
+        f"the floor validate_config enforces"
+    )
+    assert f"max={{{PICKUP_LOOKBACK_MAX_DAYS}}}" in field, (
+        f"the lookback input does not offer max={PICKUP_LOOKBACK_MAX_DAYS}, which is "
+        f"the ceiling validate_config enforces"
+    )

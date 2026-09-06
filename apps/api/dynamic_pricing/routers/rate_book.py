@@ -82,10 +82,13 @@ def edit_band(
     """
     from ..services.recommendations import PricingRunFailed, generate_recommendations
 
-    if not (body.min_net_rate <= body.base_net_rate <= body.max_net_rate):
-        raise HTTPException(
-            status_code=422, detail="Rate band must satisfy MIN <= BASE <= MAX."
-        )
+    if body.min_net_rate > body.base_net_rate:
+        raise HTTPException(status_code=422, detail="Rate band must satisfy MIN <= BASE.")
+    # MAX is optional (ASSUMPTIONS U9): absent, the season imposes no ceiling and
+    # the dynamic bound is the only limit. Chaining it into the comparison above
+    # compared a float with None and turned a legitimate save into a 500.
+    if body.max_net_rate is not None and body.base_net_rate > body.max_net_rate:
+        raise HTTPException(status_code=422, detail="Rate band must satisfy BASE <= MAX.")
     row = update_band(
         session,
         band_id,

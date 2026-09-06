@@ -129,10 +129,10 @@ band — is the product's entire purpose.
 
 | | |
 |---|---|
-| **Current value** | delta < −1.0 → −3% · < −0.25 → −1.5% · ≤ +0.5 → 0% · ≤ +2 → +2% · > +2 → +4% (7-day window, 1.0 unit/week expected) |
+| **Current value** | delta < −1.0 → −3% · < −0.25 → −1.5% · ≤ +0.5 → 0% · ≤ +2 → +2% · > +2 → +4% (7-day window, 1.0 unit expected over that window). The window is operator-tunable between 7 and 14 days, and the expectation is compared as typed rather than rescaled — D39. |
 | **Status** | `UNVALIDATED` |
 | **Why deliberately small** | Pace and pickup must not double-count the same demand: pace is the level, pickup is the acceleration. |
-| **Ask the operator** | *"Over what window do you judge whether bookings are coming in well? What counts as a normal week's pickup for one apartment?"* |
+| **Ask the operator** | *"Over what window do you judge whether bookings are coming in well — a week, two? And over that window, how many bookings for one apartment is normal?"* |
 
 ## U4 — Event impact sizes
 

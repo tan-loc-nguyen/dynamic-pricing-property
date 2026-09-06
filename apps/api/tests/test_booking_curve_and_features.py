@@ -176,6 +176,33 @@ def test_recent_pickup_counts_only_the_lookback_window(session):
     assert ctx.pickup_delta == pytest.approx(1.0)
 
 
+def test_the_expected_pickup_is_the_number_the_operator_typed(session):
+    """`Chênh = Thực tế − Kì vọng (mình set)`.
+
+    The expectation compared against the pickup bands is the value in the
+    config, full stop. It used to be rescaled by lookback_days/7, so an operator
+    who typed 1 and widened the window to 14 days was silently compared against
+    2 while the field they had just filled in still read 1.
+    """
+    rt = session.query(RoomType).first()
+    stay = TODAY + timedelta(days=20)
+    inv = add_inventory(session, stay)
+    for i, booked in enumerate([TODAY - timedelta(days=1), TODAY - timedelta(days=9)]):
+        session.add(
+            Booking(external_id=f"B{i}", room_type_id=rt.id, stay_date=stay, booked_at=booked)
+        )
+    session.commit()
+
+    config = default_config()
+    config["recent_pickup"]["lookback_days"] = 14
+    config["recent_pickup"]["expected_pickup_per_window"] = 1.0
+
+    ctx = build(session, inv, config)
+    assert ctx.recent_pickup == 2, "both bookings fall inside a 14-day window"
+    assert ctx.expected_pickup == pytest.approx(1.0), "as typed — not rescaled to 2.0"
+    assert ctx.pickup_delta == pytest.approx(1.0)
+
+
 def test_pickup_missing_when_room_type_has_no_bookings(session):
     ctx = build(session, add_inventory(session, TODAY + timedelta(days=20)))
     assert ctx.is_missing("recent_pickup")

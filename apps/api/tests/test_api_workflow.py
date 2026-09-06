@@ -117,6 +117,51 @@ def test_rate_band_rejects_inverted_bounds(client):
     assert response.status_code == 422
 
 
+def test_a_band_saves_with_no_ceiling_at_all(client):
+    """An absent MAX is legitimate (ASSUMPTIONS U9): the season imposes no
+    ceiling of its own and the dynamic bound is the only limit.
+
+    The guard chained `min <= base <= max` straight into a None, so Python
+    compared a float with None and the operator's save came back as a server
+    error -- while the schema, the column, the engine's clamp and the input that
+    sends null all handled the absence correctly.
+    """
+    band = next(
+        b for b in client.get("/api/rate-book").json() if b["max_net_rate"] is not None
+    )
+    saved = client.put(
+        f"/api/rate-book/{band['id']}?regenerate=false",
+        json={
+            "min_net_rate": band["min_net_rate"],
+            "base_net_rate": band["base_net_rate"],
+            "max_net_rate": None,
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["max_net_rate"] is None
+
+    # ...and the absence survives the round trip rather than coming back as 0,
+    # which would clamp every recommendation for that season down to nothing.
+    reread = next(b for b in client.get("/api/rate-book").json() if b["id"] == band["id"])
+    assert reread["max_net_rate"] is None
+
+    client.post("/api/rate-book/reset?regenerate=false")
+
+
+def test_a_band_with_no_ceiling_still_rejects_a_min_above_its_base(client):
+    """Dropping the ceiling must not drop the floor check with it."""
+    band = client.get("/api/rate-book").json()[0]
+    response = client.put(
+        f"/api/rate-book/{band['id']}?regenerate=false",
+        json={
+            "min_net_rate": band["base_net_rate"] + 100_000,
+            "base_net_rate": band["base_net_rate"],
+            "max_net_rate": None,
+        },
+    )
+    assert response.status_code == 422
+
+
 # ----------------------------------------------------------- recommendations
 def test_recommendations_are_room_type_by_stay_date(client):
     recs = client.get("/api/recommendations?limit=2000").json()

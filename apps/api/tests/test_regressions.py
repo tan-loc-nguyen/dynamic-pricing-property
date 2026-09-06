@@ -157,7 +157,7 @@ def test_a_gated_factor_failure_is_caught_even_though_rows_still_succeed():
 def test_pickup_stalled_band_is_reachable_at_the_floor():
     """recent_pickup cannot go below 0, so the smallest delta sits ON the threshold."""
     config = default_config()["recent_pickup"]
-    floor = 0 - config["expected_pickup_per_week"] * (config["lookback_days"] / 7.0)
+    floor = 0 - config["expected_pickup_per_window"]
     band = _band_for(floor, config["bands"], "max_delta", inclusive=True)
     assert band["label"] == "Pickup stalled"
 
@@ -270,7 +270,7 @@ def test_every_configured_band_is_reachable():
     config = default_config()
 
     pickup = config["recent_pickup"]
-    floor = -pickup["expected_pickup_per_week"] * (pickup["lookback_days"] / 7.0)
+    floor = -pickup["expected_pickup_per_window"]
     pickup_hits = {
         _band_for(v, pickup["bands"], "max_delta", inclusive=True)["label"]
         for v in [floor, floor / 2, -0.25, 0.0, 0.5, 2.0, 50.0]
@@ -761,3 +761,30 @@ def test_a_run_produced_by_a_different_engine_version_is_regenerated(session):
 
     # ...and it must not regenerate when the versions already agree.
     assert refresh_stale_run(session, today=today) is False
+
+
+# --- the pickup window has to be a window ---------------------------------
+@pytest.mark.parametrize("days,accepted", [(6, False), (7, True), (14, True), (15, False)])
+def test_the_pickup_window_is_bounded_to_a_week_or_two(days, accepted):
+    """Below a week a single weekend swings the signal; above two weeks it stops
+    being "recent" and starts measuring the same demand pace already measures,
+    which is the double-count the two signals exist to avoid.
+
+    Enforced in Python, not just as an input attribute: the input is an
+    affordance, and an affordance is not a rule.
+    """
+    from dynamic_pricing.pricing.defaults import ConfigurationInvalid, prepare_config
+
+    if accepted:
+        prepared = prepare_config({"recent_pickup": {"lookback_days": days}})
+        assert prepared["recent_pickup"]["lookback_days"] == days
+        return
+
+    with pytest.raises(ConfigurationInvalid) as caught:
+        prepare_config({"recent_pickup": {"lookback_days": days}})
+    problems = caught.value.problems
+    assert "out_of_range" in [p["code"] for p in problems]
+    offending = next(p for p in problems if p["code"] == "out_of_range")
+    assert offending["path"] == "recent_pickup.lookback_days"
+    assert offending["params"]["minimum"] == 7
+    assert offending["params"]["maximum"] == 14
