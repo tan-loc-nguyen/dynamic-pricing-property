@@ -748,19 +748,18 @@ def test_confidence_is_reported_as_codes_not_prose():
     assert set(gaps) <= set(CONFIDENCE_GAP_CODES)
 
 
-@pytest.mark.parametrize("locale", LOCALES)
-def test_every_confidence_code_has_a_translation(locale):
-    from dynamic_pricing.providers.market.base import (
-        CONFIDENCE_GAP_CODES,
-        CONFIDENCE_REASON_CODES,
-    )
-
-    flat = _flatten(_messages(locale))
-    missing = [f"confidenceReason.{c}" for c in CONFIDENCE_REASON_CODES
-               if f"confidenceReason.{c}" not in flat]
-    missing += [f"confidenceGap.{c}" for c in CONFIDENCE_GAP_CODES
-                if f"confidenceGap.{c}" not in flat]
-    assert not missing, f"{locale}.json is missing: {missing}"
+# A confidence-code translation guard used to live here. It was removed with
+# the surface it guarded: `components/market/RawObservations.tsx` was the only
+# renderer of `confidenceReason.*` / `confidenceGap.*`, and deleting it took
+# both namespaces with it. The guard outlived them and then asserted that
+# translations must exist for strings nothing could render -- which the
+# orphaned-key check above would have failed on the moment they were restored.
+#
+# The codes are still DERIVED and PERSISTED (`score_confidence`), and still
+# served on a market observation, so anything that starts rendering them needs
+# translations in both locales first. That note lives on the codes themselves
+# in `providers/market/base.py`, where someone about to render them will read
+# it, rather than in a test asserting a contract no caller has.
 
 
 # --------------------------------------------------------------------------
