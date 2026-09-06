@@ -480,7 +480,7 @@
     "upToGap": "Up to gap",
     "upToDelta": "Up to delta",
     "lookbackDays": "Lookback window (days)",
-    "expectedPickup": "Expected pickup per week (units)",
+    "expectedPickup": "Expected pickup over the window (units)",
     "sensitivity": "Sensitivity",
     "maxAdjustment": "Max adjustment",
     "minObservations": "Min observations",

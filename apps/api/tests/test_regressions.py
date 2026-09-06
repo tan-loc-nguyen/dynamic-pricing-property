@@ -157,7 +157,7 @@ def test_a_gated_factor_failure_is_caught_even_though_rows_still_succeed():
 def test_pickup_stalled_band_is_reachable_at_the_floor():
     """recent_pickup cannot go below 0, so the smallest delta sits ON the threshold."""
     config = default_config()["recent_pickup"]
-    floor = 0 - config["expected_pickup_per_week"] * (config["lookback_days"] / 7.0)
+    floor = 0 - config["expected_pickup_per_window"]
     band = _band_for(floor, config["bands"], "max_delta", inclusive=True)
     assert band["label"] == "Pickup stalled"
 
@@ -270,7 +270,7 @@ def test_every_configured_band_is_reachable():
     config = default_config()
 
     pickup = config["recent_pickup"]
-    floor = -pickup["expected_pickup_per_week"] * (pickup["lookback_days"] / 7.0)
+    floor = -pickup["expected_pickup_per_window"]
     pickup_hits = {
         _band_for(v, pickup["bands"], "max_delta", inclusive=True)["label"]
         for v in [floor, floor / 2, -0.25, 0.0, 0.5, 2.0, 50.0]

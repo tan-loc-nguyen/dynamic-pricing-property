@@ -79,12 +79,14 @@ class FeatureEngine:
 
         # NOTE: no `or default` here. Coercion guarantees a number, so `or`
         # is no longer defensive -- it is the only thing that could corrupt a
-        # legitimate 0. expected_pickup_per_week=0 means "expect no pickup",
+        # legitimate 0. expected_pickup_per_window=0 means "expect no pickup",
         # and silently reading it as 1.0 shifted pickup_delta by a full unit on
         # every row while the UI displayed the 0 the operator saved.
         pickup_cfg = self.config.get("recent_pickup", {}) or {}
         self.pickup_lookback_days = _num(pickup_cfg, "lookback_days", 7, int)
-        self.expected_pickup_per_week = _num(pickup_cfg, "expected_pickup_per_week", 1.0, float)
+        self.expected_pickup_per_window = _num(
+            pickup_cfg, "expected_pickup_per_window", 1.0, float
+        )
 
         market_cfg = self.config.get("market", {}) or {}
         self.market_max_age_days = _num(market_cfg, "observation_max_age_days", 14, int)
@@ -219,7 +221,10 @@ class FeatureEngine:
             pace_gap = round(occupancy - expected_occupancy, 4)
 
         # --- recent pickup (acceleration, distinct from pace position) ----
-        expected_pickup = self.expected_pickup_per_week * (self.pickup_lookback_days / 7.0)
+        # The expectation is compared as typed (D39). Rescaling it by the window
+        # meant the number the operator entered was not the number the bands were
+        # measured against.
+        expected_pickup = self.expected_pickup_per_window
         recent_pickup = self._pickup.get((inventory.room_type_id, inventory.stay_date))
         pickup_delta = None
         if recent_pickup is None:

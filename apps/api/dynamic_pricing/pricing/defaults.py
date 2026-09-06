@@ -24,7 +24,9 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-CONFIG_SCHEMA_VERSION = 2
+# 3: recent_pickup.expected_pickup_per_week became expected_pickup_per_window,
+#    compared as typed rather than rescaled by the window length (D39).
+CONFIG_SCHEMA_VERSION = 3
 
 DEMO_DEFAULTS: dict[str, Any] = {
     "schema_version": CONFIG_SCHEMA_VERSION,
@@ -71,7 +73,11 @@ DEMO_DEFAULTS: dict[str, Any] = {
     "recent_pickup": {
         "enabled": True,
         "lookback_days": 7,
-        "expected_pickup_per_week": 1.0,
+        # Compared AS TYPED (D39): whatever number is here is what the window's
+        # booking count is measured against, whatever the window's length. It is
+        # NOT a per-week figure the engine rescales -- that made the compared
+        # expectation differ from the one the operator filled in.
+        "expected_pickup_per_window": 1.0,
         "bands": [
             {"key": "stalled", "label": "Pickup stalled", "max_delta": -1.0, "adjustment_pct": -3.0},
             {"key": "slowing", "label": "Pickup slowing", "max_delta": -0.25, "adjustment_pct": -1.5},
@@ -246,7 +252,7 @@ NUMERIC_LEAVES: list[tuple[str, type]] = [
     ("pace.bands[].max_gap", float),
     ("pace.bands[].adjustment_pct", float),
     ("recent_pickup.lookback_days", int),
-    ("recent_pickup.expected_pickup_per_week", float),
+    ("recent_pickup.expected_pickup_per_window", float),
     ("recent_pickup.bands[].max_delta", float),
     ("recent_pickup.bands[].adjustment_pct", float),
     ("event.impact_adjustment_pct.*", float),
@@ -529,9 +535,7 @@ def validate_config(config: dict[str, Any]) -> list[dict]:
 
     pickup = config.get("recent_pickup", {})
     if pickup.get("enabled", True):
-        expected = float(pickup.get("expected_pickup_per_week", 1.0) or 1.0) * (
-            float(pickup.get("lookback_days", 7) or 7) / 7.0
-        )
+        expected = float(pickup.get("expected_pickup_per_window", 1.0) or 1.0)
         # recent_pickup cannot be negative, so -expected is the true floor.
         problems += _band_problems(
             pickup.get("bands", []), "max_delta", "recent_pickup", -expected, float("inf"), True

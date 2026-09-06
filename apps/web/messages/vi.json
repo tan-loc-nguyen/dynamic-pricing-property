@@ -480,7 +480,7 @@
     "upToGap": "Chênh lệch tối đa",
     "upToDelta": "Mức chênh tối đa",
     "lookbackDays": "Cửa sổ theo dõi (ngày)",
-    "expectedPickup": "Lượng đặt kỳ vọng mỗi tuần (căn)",
+    "expectedPickup": "Lượng đặt kỳ vọng trong cửa sổ theo dõi (căn)",
     "sensitivity": "Độ nhạy",
     "maxAdjustment": "Điều chỉnh tối đa",
     "minObservations": "Số quan sát tối thiểu",

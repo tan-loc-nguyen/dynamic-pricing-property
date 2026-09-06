@@ -337,8 +337,8 @@ export function StrategyPanel({ onOpenSeasonal }: { onOpenSeasonal: () => void }
               <Field label={t("expectedPickup")}>
                 <NumberInput
                   step={0.1}
-                  value={draft.recent_pickup.expected_pickup_per_week}
-                  onChange={(v) => update(["recent_pickup", "expected_pickup_per_week"], v)}
+                  value={draft.recent_pickup.expected_pickup_per_window}
+                  onChange={(v) => update(["recent_pickup", "expected_pickup_per_window"], v)}
                 />
               </Field>
             </div>
