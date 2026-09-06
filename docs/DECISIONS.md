@@ -846,3 +846,70 @@ pickup message, and nothing asks for it yet.
 
 **Still unvalidated.** Every number here — the expectation, the bands, and the
 7–14 bound itself — remains an engineering guess. See ASSUMPTIONS U3.
+
+---
+
+## D40 — A bulk accept preserves hand-priced nights, and says so first
+
+**The change.** `POST /api/rate/accept` now skips nights whose recommendation
+is already `overridden`, and reports them as `skipped_overridden`. The drawer
+names the count before the operator clicks and offers to overwrite them
+anyway. This amends D36, which had a bulk accept replace every decision
+without prompting.
+
+**Why it changed.** D36's rule was right while the range was the only unit of
+work: the operator asked for a bulk action and got one. The drawer now has a
+per-night scope, so an operator can accept a week and then tune one night —
+and the next bulk accept would silently destroy exactly the judgment the new
+scope exists to capture. D36 anticipated this: "Protecting a prior manual
+override stays a small change: the `decision` field already distinguishes
+accepted from overridden." It was.
+
+**Why preserve is the default at the API and overwrite is the default in the
+service.** `apply_to_range(preserve_overrides=False)` keeps every existing
+caller behaving as before; `RangeDecisionIn.preserve_overrides = True` makes
+the operator-facing action the safe one. An override always writes what the
+operator typed and never preserves.
+
+**What it cost.** The accept button no longer names the number of nights the
+operator selected — it names the number it will write. A button whose count
+disagrees with the selection needs the notice above it to explain why, which
+is the same pattern already used for unpriced nights.
+
+---
+
+## D41 — The drawer has two scopes over one payload
+
+**The change.** The Rate drawer switches between the whole range and a single
+night. `GET /api/rate/range` grew to serve each night's adjustments, band,
+provenance, clamp state and distance from the range average, so the night
+scope renders from the same fetch with no second request.
+
+**Why one payload.** Switching scope or night is a view change, not a
+navigation. A spinner between nights would make comparing them — the entire
+reason the scope exists — feel like a page load.
+
+**Why no new endpoint.** A single day is a range of length one (D35), and
+because the engine has already rounded each night to the increment,
+`aggregate_range` over one night is the identity. Accepting one night is
+`apply_to_range(start=X, end=X)`. One code path, as D35 intended.
+
+**What the night scope shows that the range cannot.** The band's clamp
+indicator. `RateBand` has always accepted `clamped`, and the range scope has
+always passed `null` — correctly, since an average is not itself clamped. The
+per-night scope is the first caller with a true answer to give it.
+
+**What it drops.** The build-up curve. `PaceChart` plots the range; on a
+screen whose whole job is one night, with the per-night strip directly beneath
+it, it was describing something the reader was not looking at.
+
+**The breakdown fix that came with it.** The averaged explanation grouped by
+`(code, label_key)`, so `pace` rendered as up to five contradictory rows with
+nothing saying which nights each covered, and `_average_params` printed
+averaged integers as "4.5 days to arrival" and "2.333 bookings". Rows now
+carry `nights_covered` and each is badged with it, so five pace rows reading
+1 + 1 + 2 + 1 + 2 against a seven-night range visibly account for every night;
+the sentences branch on that count in ICU and drop the figures that cannot be
+averaged. The rows were never collapsed to one per factor: a range that is two
+nights empty and two nights full would then render identically to one that is
+evenly on pace, which is the disagreement D36's strip exists to expose.
