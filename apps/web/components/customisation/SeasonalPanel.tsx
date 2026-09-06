@@ -76,11 +76,17 @@ export function SeasonalPanel() {
     {},
   );
   const [loading, setLoading] = useState(true);
+  /** The key of a season added this session, so it can be focused once the
+   *  reload that follows the save has put it on screen. */
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (first = false) => {
+    // Only the FIRST load may replace the panel with a spinner. A refetch that
+    // unmounts the list throws the reader back to the top of the page in the
+    // middle of an edit, which is exactly what adding a season used to do.
+    if (first) setLoading(true);
     setError(null);
     try {
       const [s, b] = await Promise.all([api.seasons(), api.rateBook()]);
@@ -108,8 +114,29 @@ export function SeasonalPanel() {
   }, [tc]);
 
   useEffect(() => {
-    load();
+    load(true);
   }, [load]);
+
+  /** Callback ref on the freshly added season's first rate field.
+   *
+   *  A ref rather than an effect: the field does not exist until the reload
+   *  that follows the save has rendered it, and this fires exactly then. The
+   *  value is selected, not just focused, because a new season's rates are
+   *  carried over from the one it split -- a starting point to type over,
+   *  not an answer. */
+  const focusNewSeason = useCallback((node: HTMLInputElement | null) => {
+    if (!node) return;
+    node.focus();
+    node.select();
+    node.scrollIntoView({ block: "center", behavior: "smooth" });
+    setPendingFocus(null);
+  }, []);
+
+  /** True for the first rate field of the season added this session. */
+  const isFocusTarget = (seasonKey: string, band: RateBand, field: string) =>
+    seasonKey === pendingFocus &&
+    field === "min" &&
+    (bandsBySeason[seasonKey] ?? [])[0]?.id === band.id;
 
   const bandsBySeason = useMemo(() => {
     const out: Record<string, RateBand[]> = {};
@@ -155,7 +182,12 @@ export function SeasonalPanel() {
     // Split at the midpoint of the longest season, so the new one always has
     // months to take. Adding a floating range instead would open a gap.
     const at = longest.months[Math.floor(longest.months.length / 2)];
-    const next = [...seasons, { key: `season_${Date.now().toString(36)}`, label: t("newSeason"), months: [at] }];
+    const key = `season_${Date.now().toString(36)}`;
+    const next = [...seasons, { key, label: t("newSeason"), months: [at] }];
+    // Focused once the save's reload has rendered it: a season called "New
+    // season" is the one thing the operator certainly wants to change, and
+    // hunting for it in a list that just re-rendered is the whole complaint.
+    setPendingFocus(key);
     saveCalendar(repartition(next, next.map((s) => s.months[0])));
   };
 
@@ -308,6 +340,11 @@ export function SeasonalPanel() {
                       <td key={field} className="py-2 pl-3">
                         <Input
                           inputMode="numeric"
+                          ref={
+                            isFocusTarget(season.key, band, field)
+                              ? focusNewSeason
+                              : undefined
+                          }
                           className="tnum text-right"
                           placeholder={field === "max" ? t("noCeiling") : t("required")}
                           value={draft[field]}

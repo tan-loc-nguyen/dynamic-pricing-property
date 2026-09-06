@@ -401,6 +401,9 @@ export interface SystemStatus {
     note: string;
   };
   demo_mode: boolean;
+  /** Whether developer-facing settings are shown. Served, not compiled in:
+   *  one static bundle ships to every install. */
+  dev_mode: boolean;
   /** What the last sync could not vouch for. */
   last_sync_findings: { warnings?: string[]; discrepancies?: string[]; skipped?: number };
   last_run_id: string | null;

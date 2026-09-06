@@ -1575,3 +1575,125 @@ def test_accepting_one_night_writes_only_that_night(client):
     assert result["net_rate"] == target["recommended_net_rate"], (
         "accepting one night writes that night's own price, not an average"
     )
+
+
+# ----------------------------------------------------------------- seasons
+def test_a_new_season_is_seeded_with_rate_bands(client):
+    """A season with no bands prices nothing.
+
+    Every recommendation anchors on a validated band, so a season the operator
+    adds and cannot fill is one the engine silently falls back for on every
+    date it covers. Adding a season therefore has to bring a band per room
+    category with it, carried over from the season it was split out of.
+    """
+    original = client.get("/api/seasons").json()["seasons"]
+    try:
+        # Split the longest season at its midpoint, exactly as the panel does:
+        # add a start month and re-walk the year from every start, so the
+        # partition stays contiguous and gapless by construction.
+        longest = max(original, key=lambda s: len(s["months"]))
+        at = longest["months"][len(longest["months"]) // 2]
+        keyed = {s["months"][0]: s for s in original}
+        keyed[at] = {"key": "season_seeded", "label": "New season"}
+        starts = sorted(keyed)
+        proposed = []
+        for i, start in enumerate(starts):
+            nxt = starts[(i + 1) % len(starts)]
+            months, m = [], start
+            while True:
+                months.append(m)
+                m = (m % 12) + 1
+                if m == nxt or len(months) >= 12:
+                    break
+            proposed.append(
+                {"key": keyed[start]["key"], "label": keyed[start]["label"], "months": months}
+            )
+        saved = client.put("/api/seasons", json={"seasons": proposed})
+        assert saved.status_code == 200, saved.text
+
+        bands = client.get("/api/rate-book").json()
+        seeded = [b for b in bands if b["season_key"] == "season_seeded"]
+        donor = [b for b in bands if b["season_key"] == longest["key"]]
+
+        assert seeded, "a new season arrived with no bands at all"
+        assert {b["room_category"] for b in seeded} == {b["room_category"] for b in donor}, (
+            "every room category the property sells needs a band in the new season"
+        )
+        # These numbers were invented by the split, not supplied by the client.
+        # Marking them CLIENT_VALIDATED would put a guess in the one table the
+        # whole product treats as fact.
+        assert all(b["source"] == "OPERATOR_EDITED" for b in seeded)
+
+        by_category = {b["room_category"]: b for b in donor}
+        for band in seeded:
+            source_band = by_category[band["room_category"]]
+            assert band["min_net_rate"] == source_band["min_net_rate"]
+            assert band["base_net_rate"] == source_band["base_net_rate"]
+            assert band["max_net_rate"] == source_band["max_net_rate"]
+    finally:
+        client.put("/api/seasons", json={"seasons": original})
+
+
+def test_seeding_leaves_an_existing_season_alone(client):
+    """Only a season with NO bands is seeded. Re-saving the calendar must not
+    overwrite bands the operator has already tuned."""
+    original = client.get("/api/seasons").json()["seasons"]
+    before = {
+        (b["season_key"], b["room_category"]): b["base_net_rate"]
+        for b in client.get("/api/rate-book").json()
+    }
+    client.put("/api/seasons", json={"seasons": original})
+    after = {
+        (b["season_key"], b["room_category"]): b["base_net_rate"]
+        for b in client.get("/api/rate-book").json()
+    }
+    assert before == after
+
+
+def test_status_reports_whether_developer_tools_are_on(client):
+    """The desktop build ships ONE bundle to everyone, so a build-time flag
+    would freeze this answer at package time. The server decides, and the UI
+    asks -- which also means it can be flipped without a rebuild."""
+    body = client.get("/api/status").json()
+    assert "dev_mode" in body
+    assert isinstance(body["dev_mode"], bool)
+    # DP_DEV_MODE is unset in the test environment, so the safe answer is off:
+    # a section hidden by default cannot be exposed by forgetting to set it.
+    assert body["dev_mode"] is False
+
+
+def test_removing_a_season_takes_its_bands_with_it(client):
+    """Bands outlive their season otherwise.
+
+    Seeding a new season gave every added season bands, which made this
+    reachable: remove the season and its rows linger, counted in the band
+    total and belonging to nothing. Client bands are recoverable either way --
+    resetting the rate book restores them from the validated table.
+    """
+    original = client.get("/api/seasons").json()["seasons"]
+    try:
+        longest = max(original, key=lambda s: len(s["months"]))
+        at = longest["months"][len(longest["months"]) // 2]
+        keyed = {s["months"][0]: s for s in original}
+        keyed[at] = {"key": "season_temp", "label": "Temp"}
+        starts = sorted(keyed)
+        proposed = []
+        for i, start in enumerate(starts):
+            nxt = starts[(i + 1) % len(starts)]
+            months, m = [], start
+            while True:
+                months.append(m)
+                m = (m % 12) + 1
+                if m == nxt or len(months) >= 12:
+                    break
+            proposed.append(
+                {"key": keyed[start]["key"], "label": keyed[start]["label"], "months": months}
+            )
+        client.put("/api/seasons", json={"seasons": proposed})
+        assert any(b["season_key"] == "season_temp" for b in client.get("/api/rate-book").json())
+
+        client.put("/api/seasons", json={"seasons": original})
+        left = [b for b in client.get("/api/rate-book").json() if b["season_key"] == "season_temp"]
+        assert left == [], "a removed season left its bands behind"
+    finally:
+        client.put("/api/seasons", json={"seasons": original})

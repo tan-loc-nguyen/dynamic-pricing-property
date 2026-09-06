@@ -238,6 +238,7 @@ def status(session: Session = Depends(get_session)):
         # that is the direction that actually costs something, because a
         # missing chip is what stops an operator double-checking.
         demo_mode=active_source == "mock",
+        dev_mode=settings.dev_mode,
         last_run_id=latest_run_id(session),
         last_sync_findings=get_last_sync_findings(session),
     )

@@ -106,6 +106,40 @@ describe("RangeDrawer", () => {
     expect(acceptRange).toHaveBeenCalledWith(2, "2026-09-01", "2026-09-03", true);
   });
 
+  it("does not explain the price in the range scope", async () => {
+    // The averaged breakdown fragmented one factor into a row per label
+    // variant -- five pace rows for seven nights. The explanation lives in
+    // the night scope, where every row describes exactly one night.
+    renderWithIntl(
+      <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
+    );
+    await screen.findByText("2BR Premium");
+    expect(screen.queryByText("Why the price moved")).toBeNull();
+    expect(screen.queryByText(/show the reasoning/i)).toBeNull();
+  });
+
+  it("explains the price in the night scope", async () => {
+    renderWithIntl(
+      <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
+    );
+    await userEvent.click(await screen.findByRole("tab", { name: /night by night/i }));
+    expect(screen.getByText("Why the price moved")).toBeTruthy();
+    expect(screen.getByText(/show the reasoning/i)).toBeTruthy();
+  });
+
+  it("draws the booking curve in both scopes", async () => {
+    renderWithIntl(
+      <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
+    );
+    // Range: peers only, so the caption must not promise a marker.
+    expect(await screen.findByText(/each point is a different night/i)).toBeTruthy();
+    expect(screen.queryByText(/with the dot marking this one/i)).toBeNull();
+
+    await userEvent.click(screen.getByRole("tab", { name: /night by night/i }));
+    // Night: the selected night is marked, which the caption may now promise.
+    expect(screen.getByText(/with the dot marking this one/i)).toBeTruthy();
+  });
+
   it("hides the scope switch when the range is a single night", async () => {
     payload = detail({ nights: 1, end_date: "2026-09-01", nightly: [nightAt(1)] });
     renderWithIntl(

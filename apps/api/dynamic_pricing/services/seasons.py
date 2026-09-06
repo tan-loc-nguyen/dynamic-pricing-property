@@ -14,7 +14,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Season
+from ..models import Season, SeasonalRateBand
 from ..pricing.rate_book import SEASONS, season_bounds_in
 from ..pricing.seasons import PartitionError, validate_partition
 
@@ -65,8 +65,89 @@ def save_seasons(session: Session, seasons: list[dict]) -> list[dict]:
     for key, row in existing.items():
         if key not in keep:
             session.delete(row)
+            # Bands belong to their season. Left behind they are counted in
+            # the rate book, rendered by nothing, and re-adopted by any future
+            # season that happens to reuse the key. Client-validated values are
+            # recoverable regardless -- resetting the rate book restores them
+            # from the validated table.
+            for band in session.scalars(
+                select(SeasonalRateBand).where(SeasonalRateBand.season_key == key)
+            ).all():
+                session.delete(band)
     session.commit()
+    _seed_bands_for_new_seasons(session, seasons)
     return season_calendar(session)
+
+
+def _seed_bands_for_new_seasons(session: Session, seasons: list[dict]) -> int:
+    """Give a season the operator just added a band per room category.
+
+    Every recommendation anchors on a validated band and is clamped to it, so a
+    season with no bands is one the engine quietly falls back for on every date
+    it covers -- and the operator has no way to notice, because the panel
+    simply renders an empty table.
+
+    Bands are copied from the season that PRECEDES the new one in calendar
+    order, which is the season it was split out of: the panel splits the
+    longest run at its midpoint, so the new start always lands inside its
+    donor's months and sorts immediately after it.
+
+    They are marked OPERATOR_EDITED, never CLIENT_VALIDATED. The numbers are a
+    carry-over the engineering side invented, and the rate book is the one
+    table this product treats as business fact -- putting a guess in it under
+    the client's name is the mistake the whole provenance split exists to
+    prevent.
+    """
+    ordered = [str(s["key"]) for s in seasons]
+    having_bands = {
+        key for (key,) in session.execute(select(SeasonalRateBand.season_key).distinct()).all()
+    }
+    missing = [key for key in ordered if key not in having_bands]
+    if not missing:
+        return 0
+
+    labels = {str(s["key"]): str(s.get("label") or s["key"]) for s in seasons}
+    months = {str(s["key"]): [int(m) for m in s["months"]] for s in seasons}
+    seeded = 0
+    for key in missing:
+        donor_key = _donor_for(ordered, key, having_bands)
+        if donor_key is None:
+            # Nothing to copy from at all — a first-run empty book. The seed
+            # path owns that case; inventing numbers here would be worse.
+            continue
+        for donor in session.scalars(
+            select(SeasonalRateBand).where(SeasonalRateBand.season_key == donor_key)
+        ).all():
+            session.add(
+                SeasonalRateBand(
+                    season_key=key,
+                    season_label=labels.get(key, key),
+                    months=months.get(key, []),
+                    room_category=donor.room_category,
+                    min_net_rate=donor.min_net_rate,
+                    base_net_rate=donor.base_net_rate,
+                    max_net_rate=donor.max_net_rate,
+                    currency=donor.currency,
+                    rate_basis=donor.rate_basis,
+                    source="OPERATOR_EDITED",
+                    note=f"Carried over from {donor_key} when the season was added.",
+                )
+            )
+            seeded += 1
+        having_bands.add(key)
+    if seeded:
+        session.commit()
+    return seeded
+
+
+def _donor_for(ordered: list[str], key: str, having_bands: set[str]) -> str | None:
+    """The nearest season before ``key`` that actually has bands, wrapping."""
+    start = ordered.index(key)
+    for step in range(1, len(ordered)):
+        candidate = ordered[(start - step) % len(ordered)]
+        if candidate in having_bands:
+            return candidate
+    return None
 
 
 def season_on(session: Session, day: date) -> dict:

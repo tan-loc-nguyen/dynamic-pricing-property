@@ -1,9 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useAdjustmentText } from "@/lib/adjustments";
 import { useFormat } from "@/lib/useFormat";
-import { MarketRange, OccupancyStrip, PriceContribution, RateBand } from "../viz";
+import { MarketRange, OccupancyStrip, PaceChart, RateBand } from "../viz";
 import type { MarketObservation, RangeDetail } from "@/lib/types";
 
 /** The market band, low/high/median/count, computed once in the shell. */
@@ -25,7 +24,6 @@ export function RangeScopeBody({
   const t = useTranslations("drawer");
   const tds = useTranslations("dataSource");
   const { formatVND, formatAdjPct } = useFormat();
-  const adjustmentText = useAdjustmentText();
 
   const leadTimes = (detail?.nightly ?? [])
     .map((n) => n.days_to_arrival)
@@ -112,12 +110,11 @@ export function RangeScopeBody({
       </section>
 
       {/* ----------------------------- C. how full is it? */}
-      {/* Facts only. Whether that is good or bad -- ahead of pace, behind,
-          by how much -- is answered directly below in "why the price moved",
-          one row per pace band with its own sentence. Saying it in both
-          places meant saying it twice in two different vocabularies, and the
-          version here was the one nobody could read: "selling 7 points slower
-          than expected for this far out". */}
+      {/* Facts and the curve, no verdict. This used to open with "selling 7
+          points slower than expected for this far out" -- a sentence in a
+          vocabulary nobody outside revenue management reads, saying what the
+          curve below it already shows. The numbers state where the range
+          stands; the chart states whether that is normal. */}
       <section>
         <h3 className="mb-1 text-[12px] font-semibold text-ink-800">{t("paceTitle")}</h3>
         <div className="space-y-0.5 text-[11.5px] text-ink-600">
@@ -138,36 +135,22 @@ export function RangeScopeBody({
             </p>
           )}
         </div>
+        {/* Actual against the booking curve the engine already computed. No
+            `current`: every night in a range sits at its own lead time, so
+            there is no single "you are here" to mark. */}
+        <div className="mt-3">
+          <PaceChart peers={detail.nightly} />
+        </div>
         <div className="mt-3">
           <OccupancyStrip nights={detail.nightly} showDeltas />
         </div>
       </section>
 
-      {/* ------------------------------ D. why did it move? */}
-      <section>
-        <h3 className="mb-2 text-[12px] font-semibold text-ink-800">{t("whyTitle")}</h3>
-        <PriceContribution
-          adjustments={detail.adjustments}
-          render={adjustmentText}
-          totalNights={detail.nights}
-        />
-        <details className="mt-3 group">
-          <summary className="cursor-pointer text-[11.5px] text-brand-600 hover:underline">
-            {t("showReasoning")}
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {detail.adjustments.map((a, i) => {
-              const { label, reason } = adjustmentText(a);
-              if (!reason) return null;
-              return (
-                <li key={i} className="text-[11.5px] leading-relaxed text-ink-600">
-                  <span className="font-medium text-ink-800">{label}.</span> {reason}
-                </li>
-              );
-            })}
-          </ul>
-        </details>
-      </section>
+      {/* There is no breakdown here. Averaging groups by (code, label_key),
+          and `pace` alone has eight label variants -- so seven nights arrived
+          as five contradictory pace rows that had to be badged with their own
+          night counts just to be readable. One night explains itself cleanly;
+          a range does not, so the explanation lives in the night scope. */}
 
       {/* ------------------------------- market context */}
       <section>

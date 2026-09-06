@@ -232,7 +232,6 @@
     "loading": "Đang tải…",
     "save": "Lưu",
     "cancel": "Huỷ",
-    "delete": "Xoá",
     "source": "Nguồn",
     "notesOptional": "Ghi chú (không bắt buộc)",
     "roomCategory": "Hạng căn hộ",
@@ -327,7 +326,6 @@
     "marketNone": "Chưa có giá thị trường tương đương cho đêm này.",
     "rangeNights": "{from} → {to} · {nights, plural, other {# đêm}}",
     "stripCaption": "Mức lấp đầy hiện tại của từng đêm trong khoảng này.",
-    "nightsCovered": "{count, plural, other {# đêm}}",
     "stripHandTuned": "đã chỉnh tay",
     "stripDeltaCaption": "Mỗi đêm so vối giá trung bình",
     "someUnpriced": "{count, plural, other {# đêm trong khoảng này không định giá được và sẽ được bỏ qua}}.",
@@ -342,7 +340,13 @@
     "roomNightsSold": "Đã bán {sold, number} trên {total, number} đêm phòng",
     "guestsArriveInRange": "Khách nhận phòng sau {min, number} đến {max, number} ngày",
     "guestsArriveInOne": "{days, plural, =0 {Khách nhận phòng hôm nay} other {Khách nhận phòng sau # ngày}}",
-    "scopeTabsLabel": "Phạm vi định giá"
+    "scopeTabsLabel": "Phạm vi định giá",
+    "curveCaption": "Mỗi điểm là một đêm khác nhau tại số ngày còn lại đó.",
+    "curveCaptionNight": "Mỗi điểm là một đêm khác nhau tại số ngày còn lại đó, chấm tròn là đêm đang xem.",
+    "nightPaceTitle": "Đêm này đang bán thế nào",
+    "paceExpected": "Kỳ vọng",
+    "paceActual": "Thực tế",
+    "paceNoCurve": "Không đủ ngày trong khoảng này để vẽ đường cong đặt phòng."
   },
   "rateBook": {
     "clientValidated": "Khách hàng đã xác thực",
@@ -532,28 +536,9 @@
     "rangeLabel": "Khoảng thời gian biểu đồ",
     "gapsExplainedWeeks": "Đã ghi nhận giá tương đương cho {covered, number}/{total, number} tuần. Vùng giá chỉ được vẽ ở nơi có đủ dữ liệu để có ý nghĩa."
   },
-  "compSet": {
-    "loading": "Đang tải nhóm đối thủ…",
-    "empty": "Chưa có cơ sở nào để so sánh",
-    "emptyHint": "Thêm những nơi bạn thực sự cạnh tranh — một danh sách ngắn và có chủ đích tốt hơn một danh sách dài.",
-    "observedRange": "Giá ghi nhận",
-    "confidence": "Độ tin cậy",
-    "lastSeen": "Ghi nhận gần nhất",
-    "observationCount": "{count, number} lượt ghi nhận",
-    "add": "Thêm cơ sở so sánh",
-    "name": "Tên",
-    "namePlaceholder": "ví dụ: Saigon Sky Apartments",
-    "location": "Vị trí",
-    "locationPlaceholder": "ví dụ: Quận 1, TP.HCM",
-    "categoryNone": "Không chọn hạng cụ thể",
-    "notesPlaceholder": "ví dụ: Cùng khu, quy mô tương tự",
-    "saveCompetitor": "Lưu cơ sở so sánh",
-    "saved": "Đã thêm cơ sở so sánh"
-  },
   "settingsHub": {
     "title": "Cài đặt",
     "subtitle": "Những thứ bạn thiết lập một lần và hiếm khi phải đụng lại.",
-    "validated": "Khách hàng đã xác thực",
     "experimental": "Thử nghiệm",
     "rateBook": {
       "title": "Khung giá theo mùa",
@@ -570,10 +555,6 @@
     "activity": {
       "title": "Nhật ký hoạt động",
       "hint": "Mọi mức giá bạn đã chấp nhận hoặc thay đổi, kèm mức hệ thống từng đề xuất."
-    },
-    "marketSources": {
-      "title": "Nguồn thị trường",
-      "hint": "Những cơ sở mà báo cáo thị trường dùng để so sánh với bạn."
     }
   },
   "dataSettings": {

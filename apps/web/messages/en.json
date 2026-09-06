@@ -232,7 +232,6 @@
     "loading": "Loading…",
     "save": "Save",
     "cancel": "Cancel",
-    "delete": "Delete",
     "source": "Source",
     "notesOptional": "Notes (optional)",
     "roomCategory": "Room category",
@@ -327,7 +326,6 @@
     "marketNone": "No comparable market prices for this night yet.",
     "rangeNights": "{from} → {to} · {nights, plural, one {# night} other {# nights}}",
     "stripCaption": "How full each night in this range already is.",
-    "nightsCovered": "{count, plural, one {# night} other {# nights}}",
     "stripHandTuned": "priced by hand",
     "stripDeltaCaption": "How each night compares with the average",
     "someUnpriced": "{count, plural, one {# night in this range could not be priced and will be skipped} other {# nights in this range could not be priced and will be skipped}}.",
@@ -342,7 +340,13 @@
     "roomNightsSold": "{sold, number} of {total, number} room-nights sold",
     "guestsArriveInRange": "Guests arrive in {min, number} to {max, number} days",
     "guestsArriveInOne": "{days, plural, =0 {Guests arrive today} one {Guests arrive in # day} other {Guests arrive in # days}}",
-    "scopeTabsLabel": "What to price"
+    "scopeTabsLabel": "What to price",
+    "curveCaption": "Each point is a different night at that lead time.",
+    "curveCaptionNight": "Each point is a different night at that lead time, with the dot marking this one.",
+    "nightPaceTitle": "How this night is selling",
+    "paceExpected": "Expected",
+    "paceActual": "Actual",
+    "paceNoCurve": "Not enough dates in this period to draw the booking curve."
   },
   "rateBook": {
     "clientValidated": "Client-validated",
@@ -532,28 +536,9 @@
     "rangeLabel": "Chart range",
     "gapsExplainedWeeks": "Comparable prices were found for {covered, number} of {total, number} weeks. The band is drawn only where there were enough to be meaningful."
   },
-  "compSet": {
-    "loading": "Loading comp set…",
-    "empty": "No comparable properties yet",
-    "emptyHint": "Add the places you actually compete with — a short, deliberate list beats a long one.",
-    "observedRange": "Prices seen",
-    "confidence": "Confidence",
-    "lastSeen": "Last seen",
-    "observationCount": "{count, number} observations",
-    "add": "Add a competitor",
-    "name": "Name",
-    "namePlaceholder": "e.g. Saigon Sky Apartments",
-    "location": "Location",
-    "locationPlaceholder": "e.g. District 1, HCMC",
-    "categoryNone": "No specific category",
-    "notesPlaceholder": "e.g. Same building line, similar size",
-    "saveCompetitor": "Save competitor",
-    "saved": "Competitor added"
-  },
   "settingsHub": {
     "title": "Settings",
     "subtitle": "Everything you set once and rarely touch again.",
-    "validated": "Client-validated",
     "experimental": "Experimental",
     "rateBook": {
       "title": "Seasonal rate range",
@@ -570,10 +555,6 @@
     "activity": {
       "title": "Activity log",
       "hint": "Every price you accepted or changed, and what the system had suggested."
-    },
-    "marketSources": {
-      "title": "Market sources",
-      "hint": "Which properties the market report compares you against."
     }
   },
   "dataSettings": {

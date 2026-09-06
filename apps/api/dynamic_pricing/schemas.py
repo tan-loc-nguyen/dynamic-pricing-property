@@ -486,6 +486,9 @@ class SystemStatusOut(BaseModel):
     vocabularies: dict[str, Any]
     outcome_readiness: dict[str, Any]
     demo_mode: bool
+    #: Whether developer-facing settings are shown. Served rather than baked in
+    #: at build time: one static bundle is shipped to every install.
+    dev_mode: bool = False
     last_run_id: str | None = None
     #: What the last sync could not fully vouch for. Persisted and exposed here
     #: because a finding returned only in a POST response body reaches nobody.

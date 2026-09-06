@@ -237,7 +237,11 @@ export function RangeDrawer({
 
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
                   {scope === "night" && night ? (
-                    <NightScopeBody night={night} observations={observations} />
+                    <NightScopeBody
+                      night={night}
+                      nightly={detail.nightly}
+                      observations={observations}
+                    />
                   ) : (
                     <RangeScopeBody
                       detail={detail}

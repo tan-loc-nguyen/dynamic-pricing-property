@@ -1,6 +1,17 @@
 "use client";
 
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceDot,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useFormat } from "@/lib/useFormat";
 import type { ExplainedStep } from "@/lib/types";
 
@@ -65,6 +76,136 @@ export function RateBand({
   );
 }
 
+/* ------------------------------------------------------------------ pace */
+
+/**
+ * Actual on-the-books occupancy against what the curve expects, by lead time.
+ *
+ * The curve is not fetched from anywhere — it IS `expected_occupancy` as a
+ * function of `days_to_arrival`, which every recommendation already carries.
+ * Plotting the room type's own rows recovers the shape honestly; nothing is
+ * modelled here that the engine did not already compute.
+ */
+/** The three fields the curve actually reads.
+ *
+ *  Widened from `Recommendation` so a RANGE's nights can be plotted by the
+ *  same chart: each night has its own lead time, so averaging occupancy
+ *  against days-to-arrival across a range is the same shape of question. */
+export interface PacePoint {
+  days_to_arrival: number | null;
+  expected_occupancy: number | null;
+  occupancy: number | null;
+}
+
+export function PaceChart({
+  peers,
+  current,
+}: {
+  peers: PacePoint[];
+  /** Omitted for a range: there is no single "you are here" lead time when
+   *  every night in the selection sits at a different one. */
+  current?: PacePoint | null;
+}) {
+  const t = useTranslations("drawer");
+
+  const data = useMemo(() => {
+    const byDta = new Map<number, { dta: number; expected: number; actual: number }>();
+    for (const r of peers) {
+      if (r.days_to_arrival === null || r.expected_occupancy === null) continue;
+      byDta.set(r.days_to_arrival, {
+        dta: r.days_to_arrival,
+        expected: Math.round((r.expected_occupancy ?? 0) * 100),
+        actual: Math.round((r.occupancy ?? 0) * 100),
+      });
+    }
+    // Far out on the LEFT, arrival on the right, so the line is read the way
+    // time runs. Sorted descending and plotted in order -- `reversed` on the
+    // axis as well flipped it back and put arrival on the left.
+    return [...byDta.values()].sort((a, b) => b.dta - a.dta);
+  }, [peers]);
+
+  if (data.length < 3) {
+    return <div className="text-[11.5px] text-ink-400">{t("paceNoCurve")}</div>;
+  }
+
+  const here =
+    current && current.days_to_arrival !== null
+      ? data.find((d) => d.dta === current.days_to_arrival)
+      : undefined;
+
+  return (
+    <>
+      {/* Each point is a DIFFERENT night at its own lead time, not this night
+          filling up over time. That is the right comparison against a booking
+          curve, and it is also exactly what an operator would misread in a
+          drawer about one specific date — so the caption says which.
+
+          It says which VERSION, too: the caption used to promise "the dot
+          marking this one" in both scopes, while a range passes no `current`
+          and draws no dot at all. */}
+      <p className="mb-1 text-[10.5px] text-ink-400">
+        {here ? t("curveCaptionNight") : t("curveCaption")}
+      </p>
+      <div className="h-32 -ml-2">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="2 4" stroke="var(--color-ink-200)" vertical={false} />
+          <XAxis
+            dataKey="dta"
+            tick={{ fontSize: 10, fill: "var(--color-ink-400)" }}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v) => `D-${v}`}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: "var(--color-ink-400)" }}
+            tickLine={false}
+            axisLine={false}
+            // 30 was too narrow and clipped "100%" down to "00%".
+            width={34}
+            domain={[0, 100]}
+            tickFormatter={(v) => `${v}%`}
+          />
+          <Tooltip
+            contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--color-ink-200)" }}
+            labelFormatter={(v) => `D-${v}`}
+            formatter={(value, name) => [
+              `${value}%`,
+              name === "expected" ? t("paceExpected") : t("paceActual"),
+            ]}
+          />
+          <Line
+            type="monotone"
+            dataKey="expected"
+            stroke="var(--color-ink-400)"
+            strokeWidth={1.5}
+            strokeDasharray="3 3"
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="actual"
+            stroke="var(--color-brand-600)"
+            strokeWidth={2}
+            dot={false}
+          />
+          {here && (
+            <ReferenceDot
+              x={here.dta}
+              y={here.actual}
+              r={4}
+              fill="var(--color-brand-600)"
+              stroke="#fff"
+              strokeWidth={2}
+            />
+          )}
+        </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </>
+  );
+}
+
 /* ---------------------------------------------------------- contribution */
 
 /**
@@ -78,18 +219,10 @@ export function RateBand({
 export function PriceContribution({
   adjustments,
   render,
-  totalNights,
 }: {
   adjustments: ExplainedStep[];
   render: (a: ExplainedStep) => { label: string; reason: string };
-  /** Nights in the scope being explained. Every row is badged with its own
-   *  count, so none has to be inferred from the absence of one and the counts
-   *  visibly add up across the rows a single factor was split into. Suppressed
-   *  entirely for a single night, where every row would read "1 night" — which
-   *  is the panel's heading, not information. */
-  totalNights?: number;
 }) {
-  const t = useTranslations("drawer");
   const { formatSignedVND } = useFormat();
   const widest = Math.max(...adjustments.map((a) => Math.abs(a.delta)), 1);
 
@@ -102,19 +235,12 @@ export function PriceContribution({
         const flat = Math.abs(a.delta) < 1;
         return (
           <li key={i} className="grid grid-cols-[1fr_64px_88px] items-center gap-2">
-            <span className="flex min-w-0 items-baseline gap-1.5">
-              <span
-                className={`truncate text-[11.5px] ${
-                  a.is_ignored ? "text-ink-400" : "text-ink-700"
-                }`}
-              >
-                {label}
-              </span>
-              {totalNights !== undefined && totalNights > 1 && (
-                <span className="shrink-0 text-[10px] text-ink-400">
-                  {t("nightsCovered", { count: a.nights_covered })}
-                </span>
-              )}
+            <span
+              className={`truncate text-[11.5px] ${
+                a.is_ignored ? "text-ink-400" : "text-ink-700"
+              }`}
+            >
+              {label}
             </span>
             {/* Centre line: gains grow right, reductions grow left. */}
             <div className="relative h-2.5" aria-hidden>

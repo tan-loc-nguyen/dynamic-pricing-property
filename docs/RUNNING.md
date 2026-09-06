@@ -71,7 +71,7 @@ Not "the servers started" — that is not the same as working. Open
 3. The left nav reads **Rate · Market · Customisation**, with the language
    switch and Settings pinned to the bottom.
 
-`make test` should report **550 passed**. If it does not, stop there — a
+`make test` should report **554 passed**. If it does not, stop there — a
 failing suite means the demo data is not trustworthy either.
 
 ---

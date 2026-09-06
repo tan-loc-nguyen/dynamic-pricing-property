@@ -32,7 +32,7 @@ Open **<http://localhost:3000>**.
 | API docs | http://127.0.0.1:8000/docs |
 
 Prerequisites are Python 3.10+ and Node 18+; `make check` says what is missing,
-and `AUTO_INSTALL=1 make setup` installs it. `make test` runs 550 tests;
+and `AUTO_INSTALL=1 make setup` installs it. `make test` runs 554 tests;
 the frontend has its own suite, run separately with `cd apps/web && npm test`.
 
 `make demo` rebuilds the demo database every time, on purpose — a database left
@@ -339,7 +339,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 550 tests
+make test    # 554 tests
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15

@@ -34,6 +34,14 @@ class Settings:
         default_db = data_dir / "dynamic_pricing.db"
         self.database_url: str = os.getenv("DATABASE_URL", f"sqlite:///{default_db}")
 
+        # Developer surfaces the operator has no use for -- provider wiring,
+        # raw connection state. OFF unless asked for: the desktop build ships
+        # one bundle to everyone, so forgetting to set this must hide the
+        # section, never expose it.
+        self.dev_mode: bool = os.getenv("DP_DEV_MODE", "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+
         self.api_host: str = os.getenv("API_HOST", "127.0.0.1")
         self.api_port: int = int(os.getenv("API_PORT", "8000"))
         self.cors_origins: list[str] = [

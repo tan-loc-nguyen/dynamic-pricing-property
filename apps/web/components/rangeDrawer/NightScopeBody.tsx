@@ -4,14 +4,19 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useAdjustmentText } from "@/lib/adjustments";
 import { useFormat } from "@/lib/useFormat";
-import { MarketRange, PriceContribution, RateBand } from "../viz";
+import { MarketRange, PaceChart, PriceContribution, RateBand } from "../viz";
 import type { MarketObservation, RangeNight } from "@/lib/types";
 
 export function NightScopeBody({
   night,
+  nightly,
   observations,
 }: {
   night: RangeNight;
+  /** Every night in the range, so the curve can place this one among its
+   *  peers. The array rather than the whole payload: this scope reads nothing
+   *  else off it, and a narrower prop is a narrower thing to break. */
+  nightly: RangeNight[];
   observations: MarketObservation[];
 }) {
   const t = useTranslations("drawer");
@@ -90,19 +95,21 @@ export function NightScopeBody({
         />
       </section>
 
-      {/* There is no pace section here. It carried the whole range's occupancy
-          strip under a heading that promised one night's, showed no figure
-          about the selected night at all, and repeated the picker directly
-          above it. What a night is worth, and why, is the breakdown below. */}
+      {/* ----------------------------- C. how is it selling? */}
+      {/* The curve's own comparison, finally pointed at something. It has
+          always accepted a `current` to mark, and until now every caller
+          passed none -- so the caption promised a dot in a chart that never
+          drew one. Here the selected night is that dot, against the other
+          nights at their own lead times. */}
+      <section>
+        <h3 className="mb-1 text-[12px] font-semibold text-ink-800">{t("nightPaceTitle")}</h3>
+        <PaceChart peers={nightly} current={night} />
+      </section>
 
       {/* ------------------------------ D. why did it move? */}
       <section>
         <h3 className="mb-2 text-[12px] font-semibold text-ink-800">{t("whyTitle")}</h3>
-        <PriceContribution
-          adjustments={night.adjustments}
-          render={adjustmentText}
-          totalNights={1}
-        />
+        <PriceContribution adjustments={night.adjustments} render={adjustmentText} />
         <details className="mt-3 group">
           <summary className="cursor-pointer text-[11.5px] text-brand-600 hover:underline">
             {t("showReasoning")}

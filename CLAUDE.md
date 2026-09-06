@@ -27,7 +27,7 @@ make demo           # reseed + run — the one command for a fresh machine
 make dev            # run API (:8000) and web (:3000) together
 make api            # backend only
 make web            # frontend only
-make test           # backend pytest suite (550 tests) — does NOT run frontend tests
+make test           # backend pytest suite (554 tests) — does NOT run frontend tests
 make lint           # ruff on the backend + ICU/message-consistency check on the frontend
 make reseed         # rebuild the demo DB from scratch (needed after a schema change)
 make check          # verify prerequisites without installing

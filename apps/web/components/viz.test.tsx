@@ -83,39 +83,33 @@ const step = (over: Partial<ExplainedStep> = {}): ExplainedStep => ({
 describe("PriceContribution", () => {
   const render = (a: ExplainedStep) => ({ label: a.label, reason: "" });
 
-  it("badges a row that does not describe the whole range", () => {
+  it("lists every step, including the ones that changed nothing", () => {
+    // "measured, no effect" and "not measured" are different answers, so a
+    // zero-delta step is still a row rather than an omission.
     renderWithIntl(
       <PriceContribution
-        adjustments={[step({ nights_covered: 2, label: "Behind" })]}
+        adjustments={[
+          step({ label: "Seasonal base rate", delta: 0 }),
+          step({ label: "Market signal", delta: -87_000 }),
+        ]}
         render={render}
-        totalNights={7}
       />,
     );
-    expect(screen.getByText("2 nights")).toBeTruthy();
+    expect(screen.getByText("Seasonal base rate")).toBeTruthy();
+    expect(screen.getByText("Market signal")).toBeTruthy();
+    expect(screen.getByText("—")).toBeTruthy();
   });
 
-  it("badges a row that covers every night too", () => {
-    // Every row carries its own count so none has to be inferred from the
-    // absence of one, and so the counts visibly add up across the rows a
-    // single factor was split into.
+  it("does not badge rows with a night count", () => {
+    // Badges existed only because the RANGE breakdown split one factor across
+    // several rows. Only the night scope explains a price now, and every row
+    // there covers exactly the one night.
     renderWithIntl(
       <PriceContribution
-        adjustments={[step({ nights_covered: 7, label: "Market" })]}
+        adjustments={[step({ nights_covered: 1, label: "Behind" })]}
         render={render}
-        totalNights={7}
       />,
     );
-    expect(screen.getByText("7 nights")).toBeTruthy();
-  });
-
-  it("badges nothing when the scope is a single night", () => {
-    renderWithIntl(
-      <PriceContribution
-        adjustments={[step({ nights_covered: 1 })]}
-        render={render}
-        totalNights={1}
-      />,
-    );
-    expect(screen.queryByText(/night/)).toBeNull();
+    expect(screen.queryByText(/night/i)).toBeNull();
   });
 });
