@@ -32,23 +32,23 @@
     "pace": {
       "well_behind": {
         "label": "Well behind",
-        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+        "reason": "{nights_covered, plural, one {{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.} other {Across {nights_covered, number} nights, {occupancy, number, percent} sold on average against the {expected_occupancy, number, percent} the booking curve expects -- {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.}}"
       },
       "behind": {
         "label": "Behind",
-        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+        "reason": "{nights_covered, plural, one {{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.} other {Across {nights_covered, number} nights, {occupancy, number, percent} sold on average against the {expected_occupancy, number, percent} the booking curve expects -- {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.}}"
       },
       "on_pace": {
         "label": "On pace",
-        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+        "reason": "{nights_covered, plural, one {{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.} other {Across {nights_covered, number} nights, {occupancy, number, percent} sold on average against the {expected_occupancy, number, percent} the booking curve expects -- {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.}}"
       },
       "ahead": {
         "label": "Ahead",
-        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+        "reason": "{nights_covered, plural, one {{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.} other {Across {nights_covered, number} nights, {occupancy, number, percent} sold on average against the {expected_occupancy, number, percent} the booking curve expects -- {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.}}"
       },
       "well_ahead": {
         "label": "Well ahead",
-        "reason": "{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number} points {direction, select, ahead {ahead of} other {behind}} pace."
+        "reason": "{nights_covered, plural, one {{occupancy, number, percent} sold with {days_to_arrival, number} day(s) to arrival. The booking curve expects {expected_occupancy, number, percent} by now, so this date is {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.} other {Across {nights_covered, number} nights, {occupancy, number, percent} sold on average against the {expected_occupancy, number, percent} the booking curve expects -- {gap_pp, number, ::.#} points {direction, select, ahead {ahead of} other {behind}} pace.}}"
       },
       "unavailable": {
         "label": "Pace position",
@@ -66,23 +66,23 @@
     "recent_pickup": {
       "stalled": {
         "label": "Stalled",
-        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+        "reason": "{nights_covered, plural, one {{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number}).} other {An average of {recent_pickup, number, ::.#} bookings per night in the last {lookback_days, number} days, versus {expected_pickup, number, ::.#} expected ({delta, number, ::.#}).}}"
       },
       "slowing": {
         "label": "Slowing",
-        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+        "reason": "{nights_covered, plural, one {{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number}).} other {An average of {recent_pickup, number, ::.#} bookings per night in the last {lookback_days, number} days, versus {expected_pickup, number, ::.#} expected ({delta, number, ::.#}).}}"
       },
       "as_expected": {
         "label": "As expected",
-        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+        "reason": "{nights_covered, plural, one {{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number}).} other {An average of {recent_pickup, number, ::.#} bookings per night in the last {lookback_days, number} days, versus {expected_pickup, number, ::.#} expected ({delta, number, ::.#}).}}"
       },
       "accelerating": {
         "label": "Accelerating",
-        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+        "reason": "{nights_covered, plural, one {{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number}).} other {An average of {recent_pickup, number, ::.#} bookings per night in the last {lookback_days, number} days, versus {expected_pickup, number, ::.#} expected ({delta, number, ::.#}).}}"
       },
       "surging": {
         "label": "Surging",
-        "reason": "{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number})."
+        "reason": "{nights_covered, plural, one {{recent_pickup, number} booking(s) in the last {lookback_days, number} days versus {expected_pickup, number} expected ({delta, number}).} other {An average of {recent_pickup, number, ::.#} bookings per night in the last {lookback_days, number} days, versus {expected_pickup, number, ::.#} expected ({delta, number, ::.#}).}}"
       },
       "unavailable": {
         "label": "Recent pickup",
@@ -106,7 +106,7 @@
     "market": {
       "applied": {
         "label": "Market signal",
-        "reason": "Comparable rate {reference_net_rate, number} ₫ is {delta_pct, number}% {direction, select, above {above} other {below}} the comp-set baseline ({qualified_count, number} × {confidence, select, HIGH {high} MEDIUM {medium} LOW {low} other {unknown}}-confidence observation(s), sensitivity {sensitivity, number})."
+        "reason": "Comparable rate {reference_net_rate, number, ::.} ₫ is {delta_pct, number, ::.#}% {direction, select, above {above} other {below}} the comp-set baseline ({qualified_count, number} × {confidence, select, HIGH {high} MEDIUM {medium} LOW {low} other {unknown}}-confidence observation(s), sensitivity {sensitivity, number})."
       },
       "ignored_low_confidence": {
         "label": "Market signal (ignored — low confidence)",
