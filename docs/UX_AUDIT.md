@@ -36,6 +36,19 @@ binary. Anything requiring a Node server at runtime is disqualified outright.
 Since this may become a commercial product, none of the above were adopted.
 **Every dependency added is MIT.**
 
+> **Update — the "UI primitives" row above was later reversed.** shadcn/ui
+> was migrated onto the same underlying primitives (the unified `radix-ui`
+> package, confirmed byte-identical to the individual `@radix-ui/react-*`
+> packages this evaluation chose — not a reimplementation), rather than
+> staying with raw, hand-styled Radix. `components/ui.tsx` — the hand-rolled
+> file the "Reused" list below points to under `Chip`/`Button`/`Card` — no
+> longer exists: those names were preserved as domain wrapper components
+> (unchanged public API, by design), but their implementation is now built
+> on shadcn's generated primitives, not hand-rolled Tailwind classes. The
+> visual identity (palette, typography) was also redesigned separately from
+> this migration. See `apps/web/CLAUDE.md` for the current component
+> architecture and the reasoning for the reversal — still MIT throughout.
+
 ---
 
 ## 1. Problems in the previous interface

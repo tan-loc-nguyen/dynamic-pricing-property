@@ -32,7 +32,8 @@ Open **<http://localhost:3000>**.
 | API docs | http://127.0.0.1:8000/docs |
 
 Prerequisites are Python 3.10+ and Node 18+; `make check` says what is missing,
-and `AUTO_INSTALL=1 make setup` installs it. `make test` runs 527 tests.
+and `AUTO_INSTALL=1 make setup` installs it. `make test` runs 527 backend tests;
+the frontend has its own suite, run separately with `cd apps/web && npm test`.
 
 `make demo` rebuilds the demo database every time, on purpose — a database left
 over from before a schema change is the likeliest thing to stop a new machine,
@@ -338,7 +339,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 527 tests
+make test    # 527 backend tests (pricing engine, features, API)
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15
@@ -348,6 +349,13 @@ and negative pace adjustments, bounded totals with proportional scaling, MIN and
 MAX clamps, rounding that cannot break a clamp, low-confidence market ignored,
 high-confidence market applied, missing data neutrality, decision persistence,
 snapshot reproducibility, and a regression test for decision-history duplication.
+
+The frontend has its own suite (Vitest + React Testing Library), run
+separately since `make test` only covers the backend:
+
+```bash
+cd apps/web && npm test
+```
 
 ---
 
