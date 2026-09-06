@@ -32,7 +32,7 @@ Open **<http://localhost:3000>**.
 | API docs | http://127.0.0.1:8000/docs |
 
 Prerequisites are Python 3.10+ and Node 18+; `make check` says what is missing,
-and `AUTO_INSTALL=1 make setup` installs it. `make test` runs 527 tests.
+and `AUTO_INSTALL=1 make setup` installs it. `make test` runs 534 tests.
 
 `make demo` rebuilds the demo database every time, on purpose — a database left
 over from before a schema change is the likeliest thing to stop a new machine,
@@ -338,7 +338,7 @@ separately and only counts real ones as ready for evaluation.
 ## Testing
 
 ```bash
-make test    # 527 tests
+make test    # 534 tests
 ```
 
 Covers: every month → season mapping (including the January wrap), all 15

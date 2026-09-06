@@ -796,3 +796,53 @@ run report distinguishes three states — never ran, ran and found nothing, ran
 and found prices — because a refused collection reported as "0 prices found"
 would send the operator hunting for a broken competitor site when the collector
 was simply never switched on. D33, again.
+
+---
+
+## D39 — A configured expectation is compared exactly as typed, and the pickup window is bounded
+
+The recent-pickup signal compares the bookings created inside a window against
+an expectation the operator sets in Strategy. That expectation used to be
+entered *per week* and rescaled by the window — `per_week × lookback_days / 7`
+— so an operator who typed 1 and widened the window to 14 days was silently
+measured against 2, while the field they had just filled in still read 1.
+
+The signal is now measured against the number as typed:
+
+```
+pickup_delta = recent_pickup − expected_pickup_per_window
+```
+
+**Why.** The whole premise of this product is that an operator can add the
+breakdown up by hand. A multiplier they cannot see between the field they fill
+in and the number the bands compare against defeats that, and it is the same
+class of error D17 rules out for seasonality: a factor applied on top of a
+figure that already accounts for it. The convenience the rescaling bought —
+a unit that stays meaningful when the window changes — is worth very little in
+a tool with one property and a window that is set once.
+
+**The window is bounded to 7–14 days.** `lookback_days` previously accepted any
+integer. Under a week, one weekend's bookings swing the signal; over two weeks,
+it stops being "recent" and starts measuring the same demand that pace position
+already measures, which is the double-count the two signals are kept separate to
+avoid. The bound is enforced in `validate_config` and reported as a translated
+`out_of_range` problem, so an API caller cannot bypass it. The input's
+`min`/`max` mirrors it as an affordance only, and a test reads the range out of
+`StrategyPanel.tsx` and compares it against the Python constants — two copies of
+one fact drift, and this drift would show up as a validation error about a value
+the UI said was allowed.
+
+**Cost.** `CONFIG_SCHEMA_VERSION` went 2 → 3 and the config key was renamed
+`expected_pickup_per_week` → `expected_pickup_per_window`, with no legacy alias:
+migration is by reseed (D24), and there is no live-tenant data. The shipped
+default is unchanged in effect — 1.0 over a 7-day window is exactly what
+1.0/week × 7/7 already was — so no default-config price moved.
+
+**Rejected.** Keeping the per-week key and merely displaying the derived figure
+beside the field: cheaper, but it leaves the operator's typed value still not
+being the compared value. Expressing pickup as a rate so the bands become
+window-invariant: a real idea, but it redefines every band threshold and every
+pickup message, and nothing asks for it yet.
+
+**Still unvalidated.** Every number here — the expectation, the bands, and the
+7–14 bound itself — remains an engineering guess. See ASSUMPTIONS U3.
