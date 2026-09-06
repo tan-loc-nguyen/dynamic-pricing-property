@@ -6,7 +6,6 @@ import { useAdjustmentText } from "@/lib/adjustments";
 import { useFormat } from "@/lib/useFormat";
 import { MarketRange, OccupancyStrip, PriceContribution, RateBand } from "../viz";
 import type { MarketObservation, RangeDetail, RangeNight } from "@/lib/types";
-import type { MarketBand } from "./RangeScopeBody";
 
 export function NightScopeBody({
   detail,
@@ -16,7 +15,6 @@ export function NightScopeBody({
 }: {
   detail: RangeDetail;
   night: RangeNight;
-  market: MarketBand | null;
   observations: MarketObservation[];
   onSelect: (stayDate: string) => void;
 }) {

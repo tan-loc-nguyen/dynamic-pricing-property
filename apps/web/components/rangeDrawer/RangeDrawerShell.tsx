@@ -222,7 +222,6 @@ export function RangeDrawer({
                     <NightScopeBody
                       detail={detail}
                       night={night}
-                      market={market}
                       observations={observations}
                       onSelect={setSelectedDate}
                     />
