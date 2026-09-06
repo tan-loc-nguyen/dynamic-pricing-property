@@ -69,6 +69,14 @@ class NightlyPrice:
     expected_occupancy: float | None = None
     occupancy: float | None = None
     rate_provenance: str = "published"
+    #: The engine's price before the band clamped it, used to report which
+    #: edge a night was pulled back to. An AVERAGE is never clamped -- the
+    #: individual nights were -- so this is per-night only.
+    net_rate_before_clamp: float = 0.0
+    #: "accepted" / "overridden" from the recommendation's status, or None
+    #: while it is still pending. A hand-tuned night is what a bulk accept
+    #: must not silently replace.
+    decision: str | None = None
 
 
 @dataclass(frozen=True)
@@ -110,6 +118,26 @@ def count_units_with_a_free_night(
 
     booked_throughout = set.intersection(*(set(n.booked_units) for n in nights))
     return UnitAvailability(units=units_total - len(booked_throughout), is_exact=True)
+
+
+def clamp_side(
+    *, before: float, band_min: float, band_max: float | None
+) -> str | None:
+    """Which band edge the engine's price was pulled back to, if any.
+
+    Measured on the PRE-CLAMP price against the band, not on the recommended
+    rate: rounding moves the recommended rate by up to one increment, so a
+    night rounded down to exactly MAX would otherwise report a clamp that
+    never happened.
+
+    An empty MAX (ASSUMPTIONS U9) means the only ceiling is the dynamic bound,
+    so there is no top edge to hit.
+    """
+    if band_max is not None and before > band_max:
+        return "max"
+    if before < band_min:
+        return "min"
+    return None
 
 
 @dataclass(frozen=True)

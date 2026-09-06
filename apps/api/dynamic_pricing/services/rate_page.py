@@ -15,7 +15,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..constants import STATUS_ERROR
+from ..constants import STATUS_ACCEPTED, STATUS_ERROR, STATUS_OVERRIDDEN
 from ..models import (
     Booking,
     PricingRecommendation,
@@ -86,6 +86,10 @@ def _nightly_prices(rows: list[PricingRecommendation]) -> list[NightlyPrice]:
             expected_occupancy=(r.features or {}).get("expected_occupancy"),
             occupancy=(r.features or {}).get("occupancy"),
             rate_provenance=(r.features or {}).get("rate_provenance") or "published",
+            net_rate_before_clamp=r.net_rate_before_clamp,
+            decision=(
+                r.status if r.status in (STATUS_ACCEPTED, STATUS_OVERRIDDEN) else None
+            ),
             adjustments=tuple(
                 Contribution(
                     code=a.code,

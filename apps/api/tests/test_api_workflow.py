@@ -1404,3 +1404,79 @@ def test_range_adjustments_report_their_night_coverage(client):
     assert detail["adjustments"], "a priced range always explains itself"
     for row in detail["adjustments"]:
         assert 1 <= row["nights_covered"] <= priced
+
+
+def test_each_night_carries_everything_the_drawer_needs(client):
+    """Night mode renders from nightly[] and issues no second request, so the
+    array has to be self-sufficient."""
+    tiles = client.get(
+        "/api/rate/tiles", params={"start_date": _today(), "nights": 7}
+    ).json()
+    tile = tiles["tiles"][0]
+    detail = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": tile["room_type_id"],
+            "start_date": tiles["start_date"],
+            "end_date": tiles["end_date"],
+        },
+    ).json()
+    for n in detail["nightly"]:
+        assert {
+            "stay_date", "units_sold", "units_total", "recommended_net_rate",
+            "priced", "days_to_arrival", "expected_occupancy", "occupancy",
+            "current_net_rate", "base_net_rate", "band", "rate_provenance",
+            "decision", "clamped", "delta_vs_average_pct", "adjustments",
+        } <= set(n)
+        assert set(n["band"]) == {"min", "base", "max"}
+        assert n["clamped"] in {"min", "max", None}
+        assert n["decision"] in {"accepted", "overridden", None}
+
+
+def test_a_priced_night_explains_itself_the_same_way_the_range_does(client):
+    """Night mode reuses PriceContribution, so a night's adjustments have the
+    same shape as the range's -- and each covers exactly one night."""
+    tiles = client.get(
+        "/api/rate/tiles", params={"start_date": _today(), "nights": 7}
+    ).json()
+    tile = tiles["tiles"][0]
+    detail = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": tile["room_type_id"],
+            "start_date": tiles["start_date"],
+            "end_date": tiles["end_date"],
+        },
+    ).json()
+    priced = [n for n in detail["nightly"] if n["priced"]]
+    assert priced, "the demo range always has at least one priced night"
+    for row in priced[0]["adjustments"]:
+        assert {"code", "label", "label_key", "delta", "params",
+                "is_neutral", "is_ignored", "nights_covered"} <= set(row)
+        assert row["nights_covered"] == 1
+
+
+def test_the_night_delta_is_measured_against_the_range_average(client):
+    """The strip's percentage answers 'does accepting the average over- or
+    under-price this night?', so it is relative to the average -- and an
+    unpriced night, which is in no average, reports zero rather than a
+    fabricated gap."""
+    tiles = client.get(
+        "/api/rate/tiles", params={"start_date": _today(), "nights": 7}
+    ).json()
+    tile = tiles["tiles"][0]
+    detail = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": tile["room_type_id"],
+            "start_date": tiles["start_date"],
+            "end_date": tiles["end_date"],
+        },
+    ).json()
+    avg = detail["average_recommended_net_rate"]
+    for n in detail["nightly"]:
+        if not n["priced"]:
+            assert n["delta_vs_average_pct"] == 0.0
+            continue
+        expected = round((n["recommended_net_rate"] - avg) / avg * 100, 2)
+        assert n["delta_vs_average_pct"] == expected

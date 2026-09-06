@@ -305,6 +305,7 @@ def test_the_loader_carries_params_off_the_stored_adjustment():
         base_net_rate = current_net_rate = 2_000_000.0
         recommended_net_rate = 1_940_000.0
         band_min_net_rate, band_base_net_rate, band_max_net_rate = 1.8e6, 2e6, 2.3e6
+        net_rate_before_clamp = 1_940_000.0
         status = "pending"
         features: dict = {}
         adjustments = [FakeAdjustment()]
@@ -404,3 +405,23 @@ def test_a_synthesised_rounding_row_reports_the_whole_range():
     result = aggregate_range(nights, rounding_increment=10_000)
     rounding = next(c for c in result.adjustments if c.code == "rounding")
     assert rounding.nights_covered == 3
+
+
+def test_a_night_is_clamped_when_the_pre_clamp_price_left_the_band():
+    """Compared against the BAND, not against the recommended rate: rounding
+    moves the recommended rate by up to one increment, which would report a
+    clamp that never happened."""
+    from dynamic_pricing.services.rate_range import clamp_side
+
+    assert clamp_side(before=2_500_000, band_min=1_800_000, band_max=2_300_000) == "max"
+    assert clamp_side(before=1_500_000, band_min=1_800_000, band_max=2_300_000) == "min"
+    assert clamp_side(before=2_000_000, band_min=1_800_000, band_max=2_300_000) is None
+
+
+def test_an_open_ceiling_can_never_clamp_at_the_top():
+    """MAX is optional (ASSUMPTIONS U9). An empty ceiling means the only bound
+    is the dynamic one, so there is no band edge to hit."""
+    from dynamic_pricing.services.rate_range import clamp_side
+
+    assert clamp_side(before=9_000_000, band_min=1_800_000, band_max=None) is None
+    assert clamp_side(before=1_000_000, band_min=1_800_000, band_max=None) == "min"

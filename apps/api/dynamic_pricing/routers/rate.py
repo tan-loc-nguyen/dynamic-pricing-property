@@ -19,6 +19,7 @@ from ..services.configuration import get_active_configuration
 from ..constants import DECISION_ACCEPTED, DECISION_OVERRIDDEN, OVERRIDE_REASON_CODES
 from ..services.rate_decisions import apply_to_range
 from ..services.rate_page import RangeCrossesSeason, Tile, load_range, load_tiles
+from ..services.rate_range import clamp_side
 from ..services.recommendations import PricingRunFailed, generate_recommendations
 from ._shared import category_label
 
@@ -42,6 +43,26 @@ def _mean_pace_gap(nights: list) -> float | None:
 def _uniform_provenance(nights: list) -> str:
     seen = {n.rate_provenance for n in nights}
     return seen.pop() if len(seen) == 1 else "mixed"
+
+
+def _adjustment_payload(a) -> dict:
+    """One explainable step, in the shape both scopes of the drawer render.
+
+    D30: a message KEY plus the figures it interpolates, never a finished
+    sentence. `nights_covered` travels with every row -- including a per-night
+    row, where it is 1 -- because the ICU message branches on it, and a row
+    that arrives without it loses its whole sentence rather than one word.
+    """
+    return {
+        "code": a.code,
+        "label": a.label,
+        "label_key": a.label_key,
+        "delta": a.delta,
+        "is_neutral": a.is_neutral,
+        "is_ignored": a.is_ignored,
+        "params": {**a.params, "nights_covered": a.nights_covered},
+        "nights_covered": a.nights_covered,
+    }
 
 
 def _season_payload(session: Session, day: date) -> dict:
@@ -190,38 +211,52 @@ def rate_range(
             "base": first.band_base,
             "max": first.band_max,
         },
-        "adjustments": [
-            {
-                "code": a.code,
-                "label": a.label,
-                "label_key": a.label_key,
-                "delta": a.delta,
-                "is_neutral": a.is_neutral,
-                "is_ignored": a.is_ignored,
-                # D30: a message KEY plus the figures it interpolates, never a
-                # finished sentence. Omitting these left every placeholder
-                # unfilled -- ICU refuses the whole message, so the operator
-                # got no explanation, and the renderer crashed reading them.
-                "params": a.params,
-                # How many nights this row was averaged from. A row covering
-                # two of seven nights is indistinguishable from one covering
-                # all seven without it, which is exactly how the averaged
-                # breakdown came to read as though every line described the
-                # whole range.
-                "nights_covered": a.nights_covered,
-            }
-            for a in aggregate.adjustments
-        ],
+        "adjustments": [_adjustment_payload(a) for a in aggregate.adjustments],
         "nightly": [
             {
                 "stay_date": n.stay_date,
                 "units_sold": n.units_sold,
                 "units_total": n.units_total,
                 "recommended_net_rate": n.recommended_net_rate,
+                "current_net_rate": n.current_net_rate,
+                "base_net_rate": n.base_net_rate,
                 "priced": n.priced,
                 "days_to_arrival": n.days_to_arrival,
                 "expected_occupancy": n.expected_occupancy,
                 "occupancy": n.occupancy,
+                # One band per night. The range check guarantees they agree,
+                # but night mode reads its own rather than inheriting the
+                # range's, so a future multi-season range cannot mislabel it.
+                "band": {
+                    "min": n.band_min,
+                    "base": n.band_base,
+                    "max": n.band_max,
+                },
+                "rate_provenance": n.rate_provenance,
+                "decision": n.decision,
+                "clamped": (
+                    clamp_side(
+                        before=n.net_rate_before_clamp,
+                        band_min=n.band_min,
+                        band_max=n.band_max,
+                    )
+                    if n.priced
+                    else None
+                ),
+                # How far accepting the range average would move THIS night.
+                # Served rather than derived in the browser (D10), and zero for
+                # an unpriced night, which is in no average at all.
+                "delta_vs_average_pct": (
+                    round(
+                        (n.recommended_net_rate - aggregate.average_recommended_net_rate)
+                        / aggregate.average_recommended_net_rate
+                        * 100,
+                        2,
+                    )
+                    if n.priced and aggregate.average_recommended_net_rate
+                    else 0.0
+                ),
+                "adjustments": [_adjustment_payload(a) for a in n.adjustments],
             }
             for n in nights
         ],
