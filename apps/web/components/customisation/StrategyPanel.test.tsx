@@ -100,3 +100,37 @@ describe("StrategyPanel — the pickup window", () => {
     expect(input).toHaveAttribute("step", "1");
   });
 });
+
+describe("StrategyPanel — percentage inputs", () => {
+  it("steps a percentage by a whole point, in every section", async () => {
+    renderWithIntl(<StrategyPanel onOpenSeasonal={() => {}} />);
+
+    expect(await screen.findByLabelText("Monday", { exact: false })).toHaveAttribute("step", "1");
+    expect(screen.getByLabelText("Low impact", { exact: false })).toHaveAttribute("step", "1");
+    expect(screen.getByLabelText("Max total adjustment", { exact: false })).toHaveAttribute("step", "1");
+    expect(screen.getByLabelText("Max adjustment", { exact: false })).toHaveAttribute("step", "1");
+  });
+
+  it("leaves no half-point stepper anywhere in the panel", async () => {
+    const { container } = renderWithIntl(<StrategyPanel onOpenSeasonal={() => {}} />);
+    await screen.findByLabelText("Lookback window (days)");
+
+    // Covers the band adjustment inputs too, which carry no label of their own.
+    expect(container.querySelectorAll('input[step="0.5"]')).toHaveLength(0);
+  });
+
+  it("leaves the inputs that are not percentages alone", async () => {
+    renderWithIntl(<StrategyPanel onOpenSeasonal={() => {}} />);
+
+    expect(await screen.findByLabelText("Sensitivity", { exact: false })).toHaveAttribute(
+      "step",
+      "0.05",
+    );
+    expect(screen.getByLabelText("Min observations")).toHaveAttribute("step", "1");
+    expect(screen.getByLabelText("Rounding increment (VND)")).toHaveAttribute("step", "1000");
+    expect(screen.getByLabelText("Expected pickup over the window (units)")).toHaveAttribute(
+      "step",
+      "0.1",
+    );
+  });
+});

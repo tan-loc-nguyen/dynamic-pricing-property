@@ -51,7 +51,7 @@ function Section({
 function NumberInput({
   value,
   onChange,
-  step = 0.5,
+  step = 1,
   min,
   max,
   suffix,
@@ -149,7 +149,7 @@ function BandEditor({
           <div className="relative">
             <Input
               type="number"
-              step={0.5}
+              step={1}
               className="tnum pr-7"
               value={band.adjustment_pct ?? ""}
               onChange={(e) =>
