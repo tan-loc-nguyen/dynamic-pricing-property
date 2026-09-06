@@ -152,6 +152,15 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--color-ink-200); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-300); background-clip: content-box; }
 
+/* A short horizontal scroller — the drawer's night picker — is only about
+   70px tall, so the 10px bar above spends a seventh of the control on a
+   scrollbar that moves it by half a chip. `scrollbar-width` covers current
+   Firefox, Chrome and Safari; the webkit rule catches the older WebKit the
+   desktop bundle may be served through. */
+.scrollbar-slim { scrollbar-width: thin; }
+.scrollbar-slim::-webkit-scrollbar { height: 6px; }
+.scrollbar-slim::-webkit-scrollbar-thumb { border-width: 1px; }
+
 @theme inline {
   --font-heading: var(--font-serif);
   --color-sidebar-ring: var(--sidebar-ring);

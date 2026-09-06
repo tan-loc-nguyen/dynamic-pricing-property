@@ -11,6 +11,7 @@ panel exists to build.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -304,6 +305,7 @@ def test_the_loader_carries_params_off_the_stored_adjustment():
         base_net_rate = current_net_rate = 2_000_000.0
         recommended_net_rate = 1_940_000.0
         band_min_net_rate, band_base_net_rate, band_max_net_rate = 1.8e6, 2e6, 2.3e6
+        net_rate_before_clamp = 1_940_000.0
         status = "pending"
         features: dict = {}
         adjustments = [FakeAdjustment()]
@@ -336,3 +338,90 @@ def test_folding_the_rounding_drift_does_not_discard_its_params():
     rounding = next(c for c in agg.adjustments if c.code == "rounding")
 
     assert rounding.params == {"increment": 10_000}
+
+
+def test_each_averaged_row_reports_how_many_nights_it_covers():
+    """A row that describes 2 of 7 nights must say so.
+
+    Grouping is by (code, label_key), so one factor can produce several rows.
+    Without a night count the operator reads any one of them as describing the
+    whole range -- which is the defect this field exists to fix.
+    """
+    nights = [
+        night(1, recommended=2_000_000, contributions=(("pace", 0),)),
+        night(2, recommended=2_000_000, contributions=(("pace", 0),)),
+        night(3, recommended=2_000_000, contributions=(("pace", 0),)),
+    ]
+    # Give night 3 a different label_key for the same code, so the group splits.
+    nights[2] = replace(
+        nights[2],
+        adjustments=(
+            Contribution(
+                code="pace",
+                label_key="adjustments.pace.well_behind",
+                label="pace",
+                delta=0.0,
+            ),
+        ),
+    )
+    result = aggregate_range(nights, rounding_increment=0)
+    covered = {c.label_key: c.nights_covered for c in result.adjustments}
+    assert covered["adjustments.pace"] == 2
+    assert covered["adjustments.pace.well_behind"] == 1
+
+
+def test_an_unpriced_night_is_not_counted_in_any_row():
+    """Unpriced nights are excluded from every average, so they cannot be
+    counted as covered by a row they never contributed to."""
+    nights = [
+        night(1, recommended=2_000_000, contributions=(("pace", 0),)),
+        night(2, recommended=0, contributions=(), priced=False),
+    ]
+    result = aggregate_range(nights, rounding_increment=0)
+    pace = next(c for c in result.adjustments if c.code == "pace")
+    assert pace.nights_covered == 1
+    assert result.unpriced_nights == 1
+
+
+def test_a_single_night_row_covers_one_night():
+    """The identity case. Night mode accepts one night as a range of length
+    one, so this must not report the whole range."""
+    result = aggregate_range(
+        [night(1, recommended=2_000_000, contributions=(("pace", 0),))],
+        rounding_increment=0,
+    )
+    assert all(c.nights_covered == 1 for c in result.adjustments)
+
+
+def test_a_synthesised_rounding_row_reports_the_whole_range():
+    """When no night carried a rounding line, aggregate_range invents one to
+    absorb the drift from rounding the average. That row describes every
+    priced night, not one of them -- a default of 1 would be a lie."""
+    nights = [
+        night(1, recommended=2_000_000, contributions=(("pace", 33_333),)),
+        night(2, recommended=2_000_000, contributions=(("pace", 33_333),)),
+        night(3, recommended=2_000_000, contributions=(("pace", 33_333),)),
+    ]
+    result = aggregate_range(nights, rounding_increment=10_000)
+    rounding = next(c for c in result.adjustments if c.code == "rounding")
+    assert rounding.nights_covered == 3
+
+
+def test_a_night_is_clamped_when_the_pre_clamp_price_left_the_band():
+    """Compared against the BAND, not against the recommended rate: rounding
+    moves the recommended rate by up to one increment, which would report a
+    clamp that never happened."""
+    from dynamic_pricing.services.rate_range import clamp_side
+
+    assert clamp_side(before=2_500_000, band_min=1_800_000, band_max=2_300_000) == "max"
+    assert clamp_side(before=1_500_000, band_min=1_800_000, band_max=2_300_000) == "min"
+    assert clamp_side(before=2_000_000, band_min=1_800_000, band_max=2_300_000) is None
+
+
+def test_an_open_ceiling_can_never_clamp_at_the_top():
+    """MAX is optional (ASSUMPTIONS U9). An empty ceiling means the only bound
+    is the dynamic one, so there is no band edge to hit."""
+    from dynamic_pricing.services.rate_range import clamp_side
+
+    assert clamp_side(before=9_000_000, band_min=1_800_000, band_max=None) is None
+    assert clamp_side(before=1_000_000, band_min=1_800_000, band_max=None) == "min"

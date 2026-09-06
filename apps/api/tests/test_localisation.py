@@ -372,6 +372,12 @@ def _emitted_params(engine, config):
             if not adj.label_key:
                 continue
             names = set(adj.params)
+            # `_adjustment_payload` (routers/rate.py) merges `nights_covered`
+            # into params for EVERY row from a Contribution field that always
+            # exists (default 1), so the frontend can always fill it. The
+            # engine carries it as a field, not inside params, so mirror the
+            # router's serialization here rather than reading params alone.
+            names.add("nights_covered")
             for code, enriched in ENRICHED_PARAMS.items():
                 # The frontend only enriches when the value is a STRING
                 # (`typeof x === "string"`), so a null code supplies nothing --
@@ -748,19 +754,18 @@ def test_confidence_is_reported_as_codes_not_prose():
     assert set(gaps) <= set(CONFIDENCE_GAP_CODES)
 
 
-@pytest.mark.parametrize("locale", LOCALES)
-def test_every_confidence_code_has_a_translation(locale):
-    from dynamic_pricing.providers.market.base import (
-        CONFIDENCE_GAP_CODES,
-        CONFIDENCE_REASON_CODES,
-    )
-
-    flat = _flatten(_messages(locale))
-    missing = [f"confidenceReason.{c}" for c in CONFIDENCE_REASON_CODES
-               if f"confidenceReason.{c}" not in flat]
-    missing += [f"confidenceGap.{c}" for c in CONFIDENCE_GAP_CODES
-                if f"confidenceGap.{c}" not in flat]
-    assert not missing, f"{locale}.json is missing: {missing}"
+# A confidence-code translation guard used to live here. It was removed with
+# the surface it guarded: `components/market/RawObservations.tsx` was the only
+# renderer of `confidenceReason.*` / `confidenceGap.*`, and deleting it took
+# both namespaces with it. The guard outlived them and then asserted that
+# translations must exist for strings nothing could render -- which the
+# orphaned-key check above would have failed on the moment they were restored.
+#
+# The codes are still DERIVED and PERSISTED (`score_confidence`), and still
+# served on a market observation, so anything that starts rendering them needs
+# translations in both locales first. That note lives on the codes themselves
+# in `providers/market/base.py`, where someone about to render them will read
+# it, rather than in a test asserting a contract no caller has.
 
 
 # --------------------------------------------------------------------------
@@ -863,3 +868,46 @@ def test_the_typescript_union_lists_exactly_the_provenance_values_python_emits()
         f"lib/types.ts declares {sorted(declared)} but the backend emits "
         f"{sorted(RATE_PROVENANCE_VALUES)}"
     )
+
+
+def test_a_multi_night_explanation_never_claims_a_fractional_lead_time():
+    """Averaging integers across a group prints impossible values -- half a
+    day to arrival, 2.333 bookings. ICU only requires the arguments the
+    SELECTED branch uses, so the multi-night branch drops lead time rather
+    than rounding one lie into another.
+    """
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "web" / "messages"
+    for locale in ("en", "vi"):
+        messages = json.loads((root / f"{locale}.json").read_text(encoding="utf-8"))
+        pace = messages["adjustments"]["pace"]
+        for key, node in pace.items():
+            reason = node["reason"]
+            if "days_to_arrival" not in reason:
+                continue
+            assert "nights_covered" in reason, (
+                f"{locale}: adjustments.pace.{key}.reason cites a lead time but "
+                f"does not branch on how many nights it covers"
+            )
+            head, _, tail = reason.partition("other {")
+            assert "days_to_arrival" not in tail, (
+                f"{locale}: adjustments.pace.{key}.reason still cites a single "
+                f"night's lead time in its multi-night branch"
+            )
+
+
+def test_a_dong_amount_is_never_rendered_with_decimals():
+    """An averaged reference rate arrives as 2465714.2857. Rendered raw it
+    reads '2.465.714,286 ₫', which is not a price anyone can charge."""
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "web" / "messages"
+    for locale in ("en", "vi"):
+        messages = json.loads((root / f"{locale}.json").read_text(encoding="utf-8"))
+        reason = messages["adjustments"]["market"]["applied"]["reason"]
+        assert "{reference_net_rate, number, ::." in reason, (
+            f"{locale}: the comparable rate needs a whole-dong skeleton"
+        )

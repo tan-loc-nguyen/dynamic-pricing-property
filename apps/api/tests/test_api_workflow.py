@@ -21,6 +21,13 @@ from fastapi.testclient import TestClient  # noqa: E402
 from dynamic_pricing.main import app  # noqa: E402
 
 
+from datetime import date as _date
+
+
+def _today() -> str:
+    return _date.today().isoformat()
+
+
 @pytest.fixture(scope="module")
 def client():
     with TestClient(app) as c:
@@ -1376,3 +1383,195 @@ def test_asking_for_a_week_from_a_seasons_last_day_shortens_the_range(client):
     body = response.json()
     assert body["end_date"] == season_end, "the range must stop at the season boundary"
     assert body["nights"] == 1
+
+
+def test_range_adjustments_report_their_night_coverage(client):
+    """The drawer badges a row with the nights it covers, so the payload has
+    to carry the count -- and it can never exceed the priced nights."""
+    tiles = client.get(
+        "/api/rate/tiles", params={"start_date": _today(), "nights": 7}
+    ).json()
+    tile = tiles["tiles"][0]
+    detail = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": tile["room_type_id"],
+            "start_date": tiles["start_date"],
+            "end_date": tiles["end_date"],
+        },
+    ).json()
+    priced = detail["nights"] - detail["unpriced_nights"]
+    assert detail["adjustments"], "a priced range always explains itself"
+    for row in detail["adjustments"]:
+        assert 1 <= row["nights_covered"] <= priced
+
+
+def test_each_night_carries_everything_the_drawer_needs(client):
+    """Night mode renders from nightly[] and issues no second request, so the
+    array has to be self-sufficient."""
+    tiles = client.get(
+        "/api/rate/tiles", params={"start_date": _today(), "nights": 7}
+    ).json()
+    tile = tiles["tiles"][0]
+    detail = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": tile["room_type_id"],
+            "start_date": tiles["start_date"],
+            "end_date": tiles["end_date"],
+        },
+    ).json()
+    for n in detail["nightly"]:
+        assert {
+            "stay_date", "units_sold", "units_total", "recommended_net_rate",
+            "priced", "days_to_arrival", "expected_occupancy", "occupancy",
+            "current_net_rate", "base_net_rate", "band", "rate_provenance",
+            "decision", "clamped", "delta_vs_average_pct", "adjustments",
+        } <= set(n)
+        assert set(n["band"]) == {"min", "base", "max"}
+        assert n["clamped"] in {"min", "max", None}
+        assert n["decision"] in {"accepted", "overridden", None}
+
+
+def test_a_priced_night_explains_itself_the_same_way_the_range_does(client):
+    """Night mode reuses PriceContribution, so a night's adjustments have the
+    same shape as the range's -- and each covers exactly one night."""
+    tiles = client.get(
+        "/api/rate/tiles", params={"start_date": _today(), "nights": 7}
+    ).json()
+    tile = tiles["tiles"][0]
+    detail = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": tile["room_type_id"],
+            "start_date": tiles["start_date"],
+            "end_date": tiles["end_date"],
+        },
+    ).json()
+    priced = [n for n in detail["nightly"] if n["priced"]]
+    assert priced, "the demo range always has at least one priced night"
+    for row in priced[0]["adjustments"]:
+        assert {"code", "label", "label_key", "delta", "params",
+                "is_neutral", "is_ignored", "nights_covered"} <= set(row)
+        assert row["nights_covered"] == 1
+        # ALSO inside params, which is the copy the ICU message reads. The
+        # sentence branches on it, and adjustments.ts drops a whole sentence
+        # when ICU refuses one -- so losing this injection would silently blank
+        # every pace and pickup explanation rather than fail anything. The
+        # placeholder guard in test_localisation.py assumes this holds, so it
+        # has to be asserted somewhere that would actually notice.
+        assert row["params"]["nights_covered"] == row["nights_covered"]
+
+
+def test_the_night_delta_is_measured_against_the_range_average(client):
+    """The strip's percentage answers 'does accepting the average over- or
+    under-price this night?', so it is relative to the average -- and an
+    unpriced night, which is in no average, reports zero rather than a
+    fabricated gap."""
+    tiles = client.get(
+        "/api/rate/tiles", params={"start_date": _today(), "nights": 7}
+    ).json()
+    tile = tiles["tiles"][0]
+    detail = client.get(
+        "/api/rate/range",
+        params={
+            "room_type_id": tile["room_type_id"],
+            "start_date": tiles["start_date"],
+            "end_date": tiles["end_date"],
+        },
+    ).json()
+    avg = detail["average_recommended_net_rate"]
+    for n in detail["nightly"]:
+        if not n["priced"]:
+            assert n["delta_vs_average_pct"] == 0.0
+            continue
+        expected = round((n["recommended_net_rate"] - avg) / avg * 100, 2)
+        assert n["delta_vs_average_pct"] == expected
+
+
+def _first_range(client):
+    tiles = client.get(
+        "/api/rate/tiles", params={"start_date": _today(), "nights": 7}
+    ).json()
+    return tiles["tiles"][0]["room_type_id"], tiles["start_date"], tiles["end_date"]
+
+
+def test_a_bulk_accept_preserves_a_hand_tuned_night_by_default(client):
+    """The operator's per-night judgment is the whole reason night mode
+    exists. A later bulk accept must not silently replace it."""
+    room_type_id, start, end = _first_range(client)
+    client.post("/api/rate/accept", json={
+        "room_type_id": room_type_id, "start_date": start, "end_date": end,
+    })
+    room_type_id, start, end = _first_range(client)
+    detail = client.get("/api/rate/range", params={
+        "room_type_id": room_type_id, "start_date": start, "end_date": end,
+    }).json()
+    tuned = next(n for n in detail["nightly"] if n["priced"])["stay_date"]
+
+    client.post("/api/rate/override", json={
+        "room_type_id": room_type_id,
+        "start_date": tuned, "end_date": tuned,
+        "final_net_rate": 1_999_000, "reason_code": "my_judgment",
+    })
+
+    room_type_id, start, end = _first_range(client)
+    result = client.post("/api/rate/accept", json={
+        "room_type_id": room_type_id, "start_date": start, "end_date": end,
+    }).json()
+    assert result["skipped_overridden"] >= 1
+
+    detail = client.get("/api/rate/range", params={
+        "room_type_id": room_type_id, "start_date": start, "end_date": end,
+    }).json()
+    night = next(n for n in detail["nightly"] if n["stay_date"] == tuned)
+    assert night["decision"] == "overridden", "the hand-tuned night survived"
+
+
+def test_an_operator_can_choose_to_overwrite_hand_tuned_nights(client):
+    """Preserving is the default, not a rule. The operator is warned and then
+    decides."""
+    room_type_id, start, end = _first_range(client)
+    detail = client.get("/api/rate/range", params={
+        "room_type_id": room_type_id, "start_date": start, "end_date": end,
+    }).json()
+    tuned = next(n for n in detail["nightly"] if n["priced"])["stay_date"]
+    client.post("/api/rate/override", json={
+        "room_type_id": room_type_id,
+        "start_date": tuned, "end_date": tuned,
+        "final_net_rate": 1_998_000, "reason_code": "my_judgment",
+    })
+
+    room_type_id, start, end = _first_range(client)
+    result = client.post("/api/rate/accept", json={
+        "room_type_id": room_type_id, "start_date": start, "end_date": end,
+        "preserve_overrides": False,
+    }).json()
+    assert result["skipped_overridden"] == 0
+
+    detail = client.get("/api/rate/range", params={
+        "room_type_id": room_type_id, "start_date": start, "end_date": end,
+    }).json()
+    night = next(n for n in detail["nightly"] if n["stay_date"] == tuned)
+    assert night["decision"] == "accepted", "the operator asked to overwrite"
+
+
+def test_accepting_one_night_writes_only_that_night(client):
+    """A single day is a range of length one (D35), so night mode needs no
+    second code path -- but it must not spill onto its neighbours."""
+    room_type_id, start, end = _first_range(client)
+    detail = client.get("/api/rate/range", params={
+        "room_type_id": room_type_id, "start_date": start, "end_date": end,
+    }).json()
+    target = next(n for n in detail["nightly"] if n["priced"])
+
+    result = client.post("/api/rate/accept", json={
+        "room_type_id": room_type_id,
+        "start_date": target["stay_date"], "end_date": target["stay_date"],
+        "preserve_overrides": False,
+    }).json()
+    assert result["nights"] == 1
+    assert result["decisions_written"] == 1
+    assert result["net_rate"] == target["recommended_net_rate"], (
+        "accepting one night writes that night's own price, not an average"
+    )

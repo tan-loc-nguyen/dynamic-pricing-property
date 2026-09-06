@@ -1,17 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceDot,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { useFormat } from "@/lib/useFormat";
 import type { ExplainedStep } from "@/lib/types";
 
@@ -76,129 +65,6 @@ export function RateBand({
   );
 }
 
-/* ------------------------------------------------------------------ pace */
-
-/**
- * Actual on-the-books occupancy against what the curve expects, by lead time.
- *
- * The curve is not fetched from anywhere — it IS `expected_occupancy` as a
- * function of `days_to_arrival`, which every recommendation already carries.
- * Plotting the room type's own rows recovers the shape honestly; nothing is
- * modelled here that the engine did not already compute.
- */
-/** The three fields the curve actually reads.
- *
- *  Widened from `Recommendation` so a RANGE's nights can be plotted by the
- *  same chart: each night has its own lead time, so averaging occupancy
- *  against days-to-arrival across a range is the same shape of question. */
-export interface PacePoint {
-  days_to_arrival: number | null;
-  expected_occupancy: number | null;
-  occupancy: number | null;
-}
-
-export function PaceChart({
-  peers,
-  current,
-}: {
-  peers: PacePoint[];
-  /** Omitted for a range: there is no single "you are here" lead time when
-   *  every night in the selection sits at a different one. */
-  current?: PacePoint | null;
-}) {
-  const t = useTranslations("drawer");
-
-  const data = useMemo(() => {
-    const byDta = new Map<number, { dta: number; expected: number; actual: number }>();
-    for (const r of peers) {
-      if (r.days_to_arrival === null || r.expected_occupancy === null) continue;
-      byDta.set(r.days_to_arrival, {
-        dta: r.days_to_arrival,
-        expected: Math.round((r.expected_occupancy ?? 0) * 100),
-        actual: Math.round((r.occupancy ?? 0) * 100),
-      });
-    }
-    // Lead time runs right-to-left: far out on the left, arrival on the right.
-    return [...byDta.values()].sort((a, b) => b.dta - a.dta);
-  }, [peers]);
-
-  if (data.length < 3) {
-    return <div className="text-[11.5px] text-ink-400">{t("paceNoCurve")}</div>;
-  }
-
-  const here =
-    current && current.days_to_arrival !== null
-      ? data.find((d) => d.dta === current.days_to_arrival)
-      : undefined;
-
-  return (
-    <>
-      {/* Each point is a DIFFERENT night at its own lead time, not this night
-          filling up over time. That is the right comparison against a booking
-          curve, and it is also exactly what an operator would misread in a
-          drawer about one specific date — so the caption says which. */}
-      <p className="mb-1 text-[10.5px] text-ink-400">{t("paceCrossSection")}</p>
-      <div className="h-32 -ml-2">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid strokeDasharray="2 4" stroke="var(--color-ink-200)" vertical={false} />
-          <XAxis
-            dataKey="dta"
-            reversed
-            tick={{ fontSize: 10, fill: "var(--color-ink-400)" }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(v) => `D-${v}`}
-          />
-          <YAxis
-            tick={{ fontSize: 10, fill: "var(--color-ink-400)" }}
-            tickLine={false}
-            axisLine={false}
-            // 30 was too narrow and clipped "100%" down to "00%".
-            width={34}
-            domain={[0, 100]}
-            tickFormatter={(v) => `${v}%`}
-          />
-          <Tooltip
-            contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--color-ink-200)" }}
-            labelFormatter={(v) => `D-${v}`}
-            formatter={(value, name) => [
-              `${value}%`,
-              name === "expected" ? t("paceExpected") : t("paceActual"),
-            ]}
-          />
-          <Line
-            type="monotone"
-            dataKey="expected"
-            stroke="var(--color-ink-400)"
-            strokeWidth={1.5}
-            strokeDasharray="3 3"
-            dot={false}
-          />
-          <Line
-            type="monotone"
-            dataKey="actual"
-            stroke="var(--color-brand-600)"
-            strokeWidth={2}
-            dot={false}
-          />
-          {here && (
-            <ReferenceDot
-              x={here.dta}
-              y={here.actual}
-              r={4}
-              fill="var(--color-brand-600)"
-              stroke="#fff"
-              strokeWidth={2}
-            />
-          )}
-        </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </>
-  );
-}
-
 /* ---------------------------------------------------------- contribution */
 
 /**
@@ -212,10 +78,18 @@ export function PaceChart({
 export function PriceContribution({
   adjustments,
   render,
+  totalNights,
 }: {
   adjustments: ExplainedStep[];
   render: (a: ExplainedStep) => { label: string; reason: string };
+  /** Nights in the scope being explained. Every row is badged with its own
+   *  count, so none has to be inferred from the absence of one and the counts
+   *  visibly add up across the rows a single factor was split into. Suppressed
+   *  entirely for a single night, where every row would read "1 night" — which
+   *  is the panel's heading, not information. */
+  totalNights?: number;
 }) {
+  const t = useTranslations("drawer");
   const { formatSignedVND } = useFormat();
   const widest = Math.max(...adjustments.map((a) => Math.abs(a.delta)), 1);
 
@@ -228,8 +102,19 @@ export function PriceContribution({
         const flat = Math.abs(a.delta) < 1;
         return (
           <li key={i} className="grid grid-cols-[1fr_64px_88px] items-center gap-2">
-            <span className={`truncate text-[11.5px] ${a.is_ignored ? "text-ink-400" : "text-ink-700"}`}>
-              {label}
+            <span className="flex min-w-0 items-baseline gap-1.5">
+              <span
+                className={`truncate text-[11.5px] ${
+                  a.is_ignored ? "text-ink-400" : "text-ink-700"
+                }`}
+              >
+                {label}
+              </span>
+              {totalNights !== undefined && totalNights > 1 && (
+                <span className="shrink-0 text-[10px] text-ink-400">
+                  {t("nightsCovered", { count: a.nights_covered })}
+                </span>
+              )}
             </span>
             {/* Centre line: gains grow right, reductions grow left. */}
             <div className="relative h-2.5" aria-hidden>
@@ -325,31 +210,69 @@ export function MarketRange({
 /* ------------------------------------------------------ occupancy strip */
 
 /**
- * One bar per night in the range: how full each night already is.
+ * One bar per night: how full each night in the range already is.
  *
  * Bulk accept writes ONE price to every night, so an averaged pace reading can
  * hide a range whose first ten nights are healthy and whose last four are
  * empty — and the operator would never find out, because they only ever see
  * the average. This is the smallest thing that makes the disagreement visible
  * before they commit.
+ *
+ * A chart, not a control. It was briefly both, and that was the mistake:
+ * varying bar heights read as a visualisation, so nobody expected to click
+ * them, and the drawer's only way to change night was invisible. Picking a
+ * night is `NightPicker`; this strip takes `selected` so it can show where in
+ * the range that night sits, and nothing else.
+ *
+ * The bar's HEIGHT is occupancy, and the selected highlight is an outline that
+ * never touches height or bar colour — a chart whose encoding shifts meaning
+ * under the reader is worse than no chart.
  */
-export function OccupancyStrip({ nights }: { nights: PaceStripNight[] }) {
+export function OccupancyStrip({
+  nights,
+  selected,
+  showDeltas = false,
+}: {
+  nights: PaceStripNight[];
+  /** Highlights one night so the reader can see where it sits in the range.
+   *  Presentational only — this strip does not choose the night. */
+  selected?: string | null;
+  showDeltas?: boolean;
+}) {
   const t = useTranslations("drawer");
-  const { formatDayMonth } = useFormat();
+  const { formatDayMonth, formatAdjPct } = useFormat();
 
   if (nights.length < 2) return null;
 
   return (
     <div>
-      <p className="mb-1 text-[10.5px] text-ink-400">{t("stripCaption")}</p>
-      <div className="flex items-end gap-[3px]" role="img" aria-label={t("stripCaption")}>
+      <p className="mb-1 text-[10.5px] text-ink-400">
+        {showDeltas ? t("stripDeltaCaption") : t("stripCaption")}
+      </p>
+      <div
+        className="flex items-end gap-[3px]"
+        role="img"
+        aria-label={showDeltas ? t("stripDeltaCaption") : t("stripCaption")}
+      >
         {nights.map((n) => {
           const sold = n.units_total > 0 ? n.units_sold / n.units_total : 0;
           const pct = Math.round(sold * 100);
+          const isSelected = selected === n.stay_date;
+          const handTuned = n.decision === "overridden";
+          const delta = n.delta_vs_average_pct ?? 0;
+
           return (
-            <div key={n.stay_date} className="flex flex-1 flex-col items-center gap-1">
-              <div className="flex h-12 w-full items-end rounded-sm bg-ink-100">
+            <div
+              key={n.stay_date}
+              className="flex flex-1 flex-col items-center gap-1"
+            >
+              <div
+                className={`flex h-12 w-full items-end rounded-sm bg-ink-100 ${
+                  isSelected ? "ring-2 ring-brand-500 ring-offset-1" : ""
+                }`}
+              >
                 <div
+                  data-bar
                   className={`w-full rounded-sm ${
                     !n.priced ? "bg-amber-300" : pct >= 80 ? "bg-brand-600" : "bg-brand-400"
                   }`}
@@ -360,9 +283,33 @@ export function OccupancyStrip({ nights }: { nights: PaceStripNight[] }) {
                   title={`${formatDayMonth(n.stay_date)} · ${pct}%`}
                 />
               </div>
-              <span className="text-[8.5px] leading-none text-ink-400">
+              <span
+                className={`text-[8.5px] leading-none ${
+                  isSelected ? "font-semibold text-ink-700" : "text-ink-400"
+                }`}
+              >
                 {formatDayMonth(n.stay_date).replace(/\s/g, "\u00a0")}
               </span>
+              {showDeltas && (
+                <span
+                  className={`tnum text-[8.5px] leading-none ${
+                    delta > 0.5
+                      ? "text-emerald-700"
+                      : delta < -0.5
+                        ? "text-amber-700"
+                        : "text-ink-300"
+                  }`}
+                >
+                  {formatAdjPct(delta)}
+                </span>
+              )}
+              {handTuned && (
+                <span
+                  data-hand-tuned
+                  aria-label={t("stripHandTuned")}
+                  className="h-1 w-1 rounded-full bg-violet-500"
+                />
+              )}
             </div>
           );
         })}
@@ -376,4 +323,8 @@ export interface PaceStripNight {
   units_sold: number;
   units_total: number;
   priced: boolean;
+  /** Set when an operator has already priced this night by hand. */
+  decision?: "accepted" | "overridden" | null;
+  /** How far this night sits from the range average, in percent. */
+  delta_vs_average_pct?: number;
 }

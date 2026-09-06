@@ -69,10 +69,17 @@ class MarketObservationDTO:
     )
 
 
-# Why an observation scored the way it did. Operator-facing on the Market
-# screen -- it is the whole basis for trusting or discarding a competitor price
-# -- so it is emitted as codes and rendered in the viewer's language, the same
-# way the pricing explanation is. Checked against both locale files by test.
+# Why an observation scored the way it did: the basis for trusting or
+# discarding a competitor price. Derived, persisted, and served on every
+# observation -- but NOT rendered anywhere today. The only surface that showed
+# them was `components/market/RawObservations.tsx`, removed as dead code when
+# the comp-set UI moved to Settings, which took the `confidenceReason.*` and
+# `confidenceGap.*` message namespaces with it.
+#
+# So these are codes with no reader. Anything that starts rendering one must
+# add translations in BOTH locale files first -- next-intl renders a missing
+# key as its own dotted path, so an untranslated code ships as visible
+# `confidenceReason.no_price` text in both languages.
 CONFIDENCE_REASON_CODES: tuple[str, ...] = (
     "no_price",
     "comparable_net",

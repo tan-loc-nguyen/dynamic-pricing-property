@@ -32,23 +32,23 @@
     "pace": {
       "well_behind": {
         "label": "Chậm hơn nhiều",
-        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+        "reason": "{nights_covered, plural, =1 {Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.} other {Trong {nights_covered, number} đêm, trung bình đã bán {occupancy, number, percent} so với {expected_occupancy, number, percent} mà đường cong đặt phòng kỳ vọng -- {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.}}"
       },
       "behind": {
         "label": "Chậm hơn",
-        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+        "reason": "{nights_covered, plural, =1 {Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.} other {Trong {nights_covered, number} đêm, trung bình đã bán {occupancy, number, percent} so với {expected_occupancy, number, percent} mà đường cong đặt phòng kỳ vọng -- {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.}}"
       },
       "on_pace": {
         "label": "Đúng tiến độ",
-        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+        "reason": "{nights_covered, plural, =1 {Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.} other {Trong {nights_covered, number} đêm, trung bình đã bán {occupancy, number, percent} so với {expected_occupancy, number, percent} mà đường cong đặt phòng kỳ vọng -- {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.}}"
       },
       "ahead": {
         "label": "Nhanh hơn",
-        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+        "reason": "{nights_covered, plural, =1 {Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.} other {Trong {nights_covered, number} đêm, trung bình đã bán {occupancy, number, percent} so với {expected_occupancy, number, percent} mà đường cong đặt phòng kỳ vọng -- {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.}}"
       },
       "well_ahead": {
         "label": "Nhanh hơn nhiều",
-        "reason": "Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number} điểm."
+        "reason": "{nights_covered, plural, =1 {Đã bán {occupancy, number, percent} khi còn {days_to_arrival, number} ngày đến ngày nhận phòng. Đường cong đặt phòng kỳ vọng {expected_occupancy, number, percent} tại thời điểm này, nên ngày này đang {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.} other {Trong {nights_covered, number} đêm, trung bình đã bán {occupancy, number, percent} so với {expected_occupancy, number, percent} mà đường cong đặt phòng kỳ vọng -- {direction, select, ahead {nhanh hơn} other {chậm hơn}} tiến độ {gap_pp, number, ::.#} điểm.}}"
       },
       "unavailable": {
         "label": "Tiến độ đặt phòng",
@@ -66,23 +66,23 @@
     "recent_pickup": {
       "stalled": {
         "label": "Chững hẳn",
-        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+        "reason": "{nights_covered, plural, =1 {{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number}).} other {Trung bình {recent_pickup, number, ::.#} lượt đặt mỗi đêm trong {lookback_days, number} ngày qua, so với {expected_pickup, number, ::.#} lượt kỳ vọng ({delta, number, ::.#}).}}"
       },
       "slowing": {
         "label": "Chậm lại",
-        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+        "reason": "{nights_covered, plural, =1 {{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number}).} other {Trung bình {recent_pickup, number, ::.#} lượt đặt mỗi đêm trong {lookback_days, number} ngày qua, so với {expected_pickup, number, ::.#} lượt kỳ vọng ({delta, number, ::.#}).}}"
       },
       "as_expected": {
         "label": "Đúng kỳ vọng",
-        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+        "reason": "{nights_covered, plural, =1 {{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number}).} other {Trung bình {recent_pickup, number, ::.#} lượt đặt mỗi đêm trong {lookback_days, number} ngày qua, so với {expected_pickup, number, ::.#} lượt kỳ vọng ({delta, number, ::.#}).}}"
       },
       "accelerating": {
         "label": "Tăng tốc",
-        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+        "reason": "{nights_covered, plural, =1 {{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number}).} other {Trung bình {recent_pickup, number, ::.#} lượt đặt mỗi đêm trong {lookback_days, number} ngày qua, so với {expected_pickup, number, ::.#} lượt kỳ vọng ({delta, number, ::.#}).}}"
       },
       "surging": {
         "label": "Tăng mạnh",
-        "reason": "{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number})."
+        "reason": "{nights_covered, plural, =1 {{recent_pickup, number} lượt đặt trong {lookback_days, number} ngày qua so với {expected_pickup, number} lượt kỳ vọng ({delta, number}).} other {Trung bình {recent_pickup, number, ::.#} lượt đặt mỗi đêm trong {lookback_days, number} ngày qua, so với {expected_pickup, number, ::.#} lượt kỳ vọng ({delta, number, ::.#}).}}"
       },
       "unavailable": {
         "label": "Lượng đặt mới gần đây",
@@ -106,7 +106,7 @@
     "market": {
       "applied": {
         "label": "Tín hiệu thị trường",
-        "reason": "Giá tham chiếu {reference_net_rate, number} ₫ {direction, select, above {cao hơn} other {thấp hơn}} mặt bằng của nhóm so sánh {delta_pct, number}% ({qualified_count, number} quan sát độ tin cậy {confidence, select, HIGH {cao} MEDIUM {trung bình} LOW {thấp} other {không rõ}}, độ nhạy {sensitivity, number})."
+        "reason": "Giá tham chiếu {reference_net_rate, number, ::.} ₫ {direction, select, above {cao hơn} other {thấp hơn}} mặt bằng của nhóm so sánh {delta_pct, number, ::.#}% ({qualified_count, number} quan sát độ tin cậy {confidence, select, HIGH {cao} MEDIUM {trung bình} LOW {thấp} other {không rõ}}, độ nhạy {sensitivity, number})."
       },
       "ignored_low_confidence": {
         "label": "Tín hiệu thị trường (bỏ qua — độ tin cậy thấp)",
@@ -232,12 +232,8 @@
     "loading": "Đang tải…",
     "save": "Lưu",
     "cancel": "Huỷ",
-    "add": "Thêm",
     "delete": "Xoá",
-    "edit": "Sửa",
-    "noData": "Chưa có dữ liệu",
     "source": "Nguồn",
-    "notes": "Ghi chú",
     "notesOptional": "Ghi chú (không bắt buộc)",
     "roomCategory": "Hạng căn hộ",
     "stayDate": "Ngày lưu trú",
@@ -308,35 +304,45 @@
     "shadow": "Theo dõi",
     "unpriced": "Không định giá được ngày lưu trú này.",
     "netRatesNote": "Đây là <term>giá NET</term> — số tiền Luminous thực nhận, không phải giá khách nhìn thấy trên OTA.",
-    "acceptRate": "Chấp nhận {rate}",
+    "scopeRange": "Cả dãy ngày",
+    "scopeNight": "Từng ngày",
+    "acceptForRange": "Chấp nhận {rate} cho {nights, plural, other {# đêm}}",
+    "acceptForNight": "Chấp nhận {rate} cho {date}",
+    "averageOf": "trung bình {nights, plural, other {# đêm}}",
     "overrideEllipsis": "Tự đặt giá…",
     "unitsSold": "{sold, number}/{total, number} căn · còn {left, number}",
     "otaOnFile": " Giá OTA đang lưu: {price}.",
     "netRatesPlain": "Giá NET — số tiền bạn thực nhận, không phải giá khách thấy trên OTA.",
     "bandTitle": "Vị trí trong khung giá cho phép",
-    "paceTitle": "Đêm này đang bán ra sao",
+    "paceTitle": "Mức lấp đầy của dãy ngày",
     "whyTitle": "Vì sao giá thay đổi",
     "marketTitle": "So với thị trường",
     "showReasoning": "Xem giải thích bằng lời",
     "adjust": "Điều chỉnh",
     "bandHitMin": "Đã giữ ở mức sàn theo mùa — phép tính muốn xuống thấp hơn.",
     "bandHitMax": "Đã giữ ở mức trần theo mùa — phép tính muốn lên cao hơn.",
-    "pacePlain": "{direction, select, ahead {Đang bán nhanh hơn kỳ vọng {points, number} điểm} other {Đang bán chậm hơn kỳ vọng {points, number} điểm}} so với thời điểm này.",
-    "paceUnknown": "Chưa đủ lịch sử đặt phòng để đánh giá tiến độ của đêm này.",
-    "paceNoCurve": "Chưa đủ số ngày trong kỳ để vẽ đường tiến độ.",
-    "paceExpected": "Kỳ vọng",
-    "paceActual": "Thực tế",
-    "paceOnTheBooks": "Đã đặt",
-    "paceLeadTime": "Còn",
     "marketYou": "Bạn",
     "marketSummary": "Ghi nhận {count, number} mức giá tương đương · độ tin cậy {confidence}",
     "marketReferenceOnly": "Dữ liệu thị trường ở đây chỉ để tham khảo và không ảnh hưởng giá đề xuất.",
     "marketNone": "Chưa có giá thị trường tương đương cho đêm này.",
-    "paceCrossSection": "Mỗi điểm là một đêm khác nhau ở mốc thời gian đó; chấm tròn là đêm này.",
     "rangeNights": "{from} → {to} · {nights, plural, other {# đêm}}",
     "stripCaption": "Mức lấp đầy hiện tại của từng đêm trong khoảng này.",
+    "nightsCovered": "{count, plural, other {# đêm}}",
+    "stripHandTuned": "đã chỉnh tay",
+    "stripDeltaCaption": "Mỗi đêm so vối giá trung bình",
     "someUnpriced": "{count, plural, other {# đêm trong khoảng này không định giá được và sẽ được bỏ qua}}.",
-    "provenanceMixed": "Các đêm trong khoảng này lấy giá hiện tại từ những nguồn khác nhau, nên con số này pha trộn giá niêm yết và giá tái dựng."
+    "handTunedKept": "{count, plural, other {# đêm bạn đã chỉnh tay sẽ được giữ nguyên}}",
+    "handTunedOverwrite": "Ghi đè cả những đêm này",
+    "handTunedOverwriting": "Những đêm đã chỉnh tay sẽ bị ghi đè",
+    "handTunedKeep": "Giữ nguyên",
+    "provenanceMixed": "Các đêm trong khoảng này lấy giá hiện tại từ những nguồn khác nhau, nên con số này pha trộn giá niêm yết và giá tái dựng.",
+    "nightPickerLabel": "Chọn đêm",
+    "nightPickerOption": "{date}, {price}",
+    "nightPickerOptionUnpriced": "{date}, chưa có giá",
+    "roomNightsSold": "Đã bán {sold, number} trên {total, number} đêm phòng",
+    "guestsArriveInRange": "Khách nhận phòng sau {min, number} đến {max, number} ngày",
+    "guestsArriveInOne": "{days, plural, =0 {Khách nhận phòng hôm nay} other {Khách nhận phòng sau # ngày}}",
+    "scopeTabsLabel": "Phạm vi định giá"
   },
   "rateBook": {
     "clientValidated": "Khách hàng đã xác thực",
@@ -395,49 +401,6 @@
     "saveEvent": "Lưu sự kiện",
     "onlyExceptional": "Yếu tố mùa vụ thông thường đã nằm trong bảng giá — chỉ thêm những ngày thực sự bất thường.",
     "type": "Loại"
-  },
-  "market": {
-    "title": "Dữ liệu thị trường",
-    "loading": "Đang tải quan sát…",
-    "noCompetitors": "Chưa có toà nhà so sánh nào",
-    "addCompetitor": "Thêm toà nhà so sánh",
-    "propertyName": "Tên toà nhà",
-    "propertyPlaceholder": "ví dụ: The Riverside Residences",
-    "location": "Khu vực",
-    "locationPlaceholder": "ví dụ: Quận 1",
-    "comparableTo": "So sánh với hạng",
-    "comparableToHint": "Tương đương với hạng căn hộ nào",
-    "observations": "Quan sát",
-    "noObservations": "Không có quan sát nào khớp bộ lọc",
-    "record": "Ghi nhận một quan sát",
-    "competitor": "Đối thủ",
-    "property": "Toà nhà",
-    "price": "Giá",
-    "observedPrice": "Giá quan sát được (VND)",
-    "priceBasis": "Cơ sở giá",
-    "basis": "Cơ sở",
-    "category": "Hạng",
-    "lengthOfStay": "Số đêm lưu trú",
-    "guests": "Số khách",
-    "taxes": "Thuế",
-    "promotion": "Khuyến mãi",
-    "confidence": "Độ tin cậy",
-    "allConfidence": "Mọi độ tin cậy",
-    "highOnly": "Chỉ mức cao",
-    "mediumUp": "Từ trung bình trở lên",
-    "lowUp": "Từ thấp trở lên (không khuyến nghị)",
-    "willInfluence": "Quan sát này có thể tác động đến giá đề xuất.",
-    "willNotInfluence": "Quan sát này sẽ được hiển thị nhưng không làm thay đổi giá.",
-    "uninterpretable": "Một mức giá không rõ cơ sở thì không phải là bằng chứng.",
-    "subtitle": "Giá của đối thủ và mức độ đáng tin của từng quan sát. Chỉ những quan sát bạn hiểu rõ — biết cơ sở giá, hạng căn hộ và ngày lưu trú — mới được phép làm thay đổi giá NET đề xuất.",
-    "uninterpretableBody": "Cùng một con số có thể là giá bán OTA đã gồm thuế, cho phép hoàn huỷ, tính cho 3 đêm — hoặc là giá NET của một đêm. Chỉ một trong hai là so sánh được với giá NET của Luminous. Độ tin cậy được suy ra từ thông tin bạn nhập, và quan sát có độ tin cậy THẤP không bao giờ làm thay đổi giá.",
-    "tabObservations": "Quan sát ({count, number})",
-    "tabCompset": "Nhóm so sánh ({count, number})",
-    "observationsHeading": "Quan sát",
-    "saveObservation": "Lưu quan sát",
-    "basisNote": "Bạn nêu được càng nhiều thông tin về cơ sở giá thì độ tin cậy càng cao — và chỉ bạn mới nêu được.",
-    "tryPublicCollector": "Thử thu thập từ web",
-    "fees": "Phí"
   },
   "history": {
     "title": "Lịch sử quyết định",
