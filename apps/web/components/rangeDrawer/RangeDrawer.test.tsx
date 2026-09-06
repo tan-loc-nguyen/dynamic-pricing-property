@@ -27,7 +27,19 @@ const nightAt = (day: number, over: Partial<RangeNight> = {}): RangeNight => ({
       label: "Pace",
       label_key: "adjustments.pace.behind",
       delta: -10_000,
-      params: { nights_covered: 1 },
+      // The full set the sentence interpolates, not just nights_covered. ICU
+      // refuses a message with an argument missing and lib/adjustments.ts
+      // catches that by dropping the whole sentence -- so a thinner fixture
+      // silently exercises the failure path and buries the run in stack
+      // traces instead of rendering what the drawer really shows.
+      params: {
+        nights_covered: 1,
+        occupancy: 0.5,
+        expected_occupancy: 0.6,
+        days_to_arrival: day,
+        gap_pp: 10,
+        direction: "behind",
+      },
       is_neutral: false,
       is_ignored: false,
       nights_covered: 1,
