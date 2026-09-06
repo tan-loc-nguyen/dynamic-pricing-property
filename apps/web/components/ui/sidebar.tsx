@@ -232,6 +232,7 @@ function Sidebar({
 function SidebarTrigger({
   className,
   onClick,
+  children,
   ...props
 }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useSidebar()
@@ -249,8 +250,17 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
+      {/* `children` wins so a caller can show which way the rail will move
+          and label it in the reader's language. The fallback keeps upstream's
+          behaviour, but its "Toggle Sidebar" is hardcoded English -- in a
+          product whose default locale is Vietnamese, an unlabelled trigger is
+          better served by the caller's own aria-label. */}
+      {children ?? (
+        <>
+          <PanelLeftIcon />
+          <span className="sr-only">Toggle Sidebar</span>
+        </>
+      )}
     </Button>
   )
 }

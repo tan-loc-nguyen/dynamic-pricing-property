@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { Tag, Compass, SlidersHorizontal, Settings as SettingsIcon } from "lucide-react";
+import {
+  Tag,
+  Compass,
+  SlidersHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings as SettingsIcon,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -141,7 +148,17 @@ export function Nav() {
           className="w-full justify-start gap-2.5 px-2 text-ink-600 group-data-[collapsible=icon]:justify-center"
           aria-expanded={!collapsed}
           aria-label={collapsed ? t("expand") : t("collapse")}
-        />
+        >
+          {/* The icon says which way the rail will move; upstream shows the
+              same one in both states. Expanded, it carries a label like every
+              other row in the rail. */}
+          {collapsed ? (
+            <PanelLeftOpen aria-hidden size={17} strokeWidth={1.5} />
+          ) : (
+            <PanelLeftClose aria-hidden size={17} strokeWidth={1.5} />
+          )}
+          {!collapsed && <span className="text-[13px]">{t("collapse")}</span>}
+        </SidebarTrigger>
       </SidebarFooter>
     </Sidebar>
   );
