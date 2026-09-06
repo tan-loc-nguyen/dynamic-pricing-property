@@ -427,10 +427,18 @@ def _translation_references() -> tuple[set[str], set[str]]:
     `const tv = useTranslations("vocab")`, and treating every call as reachable
     from every namespace turns this check into noise.
 
-    Three call shapes are recognised:
-      * ``t("a.b")``                -> the exact path
-      * ``t(`a.${code}`)``          -> a static PREFIX; anything under it counts
-      * ``t(name)`` / ``t(x[y])``   -> fully dynamic, so the whole namespace counts
+    Four call shapes are recognised:
+      * ``t("a.b")``                    -> the exact path
+      * ``t(cond ? "a" : "b")``         -> BOTH paths
+      * ``t(`a.${code}`)``              -> a static PREFIX; anything under it counts
+      * ``t(name)`` / ``t(x[y])``       -> fully dynamic, so the whole namespace counts
+
+    The ternary is read rather than waved through because the last rule is
+    expensive: one unresolvable call switches off dead-key detection for every
+    key in its namespace. `drawer` alone is ~100 keys, and a single
+    ``t(clamped === "min" ? ... )`` was hiding 47 dead ones. Choosing between
+    two literals is not dynamic in any useful sense, so it no longer counts as
+    such.
     """
     exact: set[str] = set()
     prefixes: set[str] = set()
@@ -454,6 +462,16 @@ def _translation_references() -> tuple[set[str], set[str]]:
             bindings[var] = ns
 
         for var, ns in bindings.items():
+            # `t(cond ? "a" : "b")` names both keys. Matched before the
+            # literal pass so the arguments are collected, and before the
+            # dynamic fallback so it does not whitelist the namespace.
+            for first, second in re.findall(
+                rf"\b{re.escape(var)}(?:\.rich)?\(\s*[^)]*?\?\s*\"([^\"]+)\"\s*:\s*\"([^\"]+)\"",
+                src,
+            ):
+                for arg in (first, second):
+                    exact.add(f"{ns}.{arg}" if ns else arg)
+
             for quote in ('"', "'", "`"):
                 for arg in re.findall(
                     rf"\b{re.escape(var)}(?:\.rich)?\(\s*{quote}([^{quote}]*?){quote}", src
@@ -463,9 +481,41 @@ def _translation_references() -> tuple[set[str], set[str]]:
                         prefixes.add(f"{ns}.{static}".rstrip(".") if ns else static.rstrip("."))
                     else:
                         exact.add(f"{ns}.{arg}" if ns else arg)
-            if ns and re.search(rf"\b{re.escape(var)}\(\s*[A-Za-z_][A-Za-z0-9_]*[\.\[(]?", src):
+            # Whole-namespace fallback, and deliberately the LAST resort: it
+            # switches off dead-key detection for everything in the namespace,
+            # so it fires only for a call no rule above could resolve. A
+            # ternary between two literals is not such a call, and treating it
+            # as one hid 47 dead keys in `drawer`.
+            unresolved = [
+                m
+                for m in re.finditer(
+                    rf"\b{re.escape(var)}(?:\.rich)?\(\s*[A-Za-z_][A-Za-z0-9_]*[\.\[(]?", src
+                )
+                if not re.match(
+                    r"[^)]*?\?\s*\"[^\"]+\"\s*:\s*\"[^\"]+\"",
+                    src[m.end() - 1 :],
+                )
+            ]
+            if ns and unresolved:
                 prefixes.add(ns)
     return exact, prefixes
+
+
+def test_a_key_chosen_by_a_ternary_counts_as_rendered():
+    """`t(cond ? "a" : "b")` names both keys, and neither is dead.
+
+    This is not a style preference. The reference scan's last resort is to
+    treat an unresolvable call as reaching ANY key in its namespace, which
+    switches off dead-key detection for all of them -- `drawer` is around a
+    hundred keys, and one `t(clamped === "min" ? ...)` in viz.tsx was hiding
+    47 dead ones. Reading the ternary is what keeps that fallback rare.
+    """
+    exact, prefixes = _translation_references()
+    assert "drawer.bandHitMin" in exact
+    assert "drawer.bandHitMax" in exact
+    assert "drawer" not in prefixes, (
+        "a ternary between two literals must not whitelist the whole namespace"
+    )
 
 
 def test_every_translated_string_is_rendered_somewhere():
