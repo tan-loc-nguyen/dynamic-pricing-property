@@ -11,12 +11,10 @@ export function NightScopeBody({
   detail,
   night,
   observations,
-  onSelect,
 }: {
   detail: RangeDetail;
   night: RangeNight;
   observations: MarketObservation[];
-  onSelect: (stayDate: string) => void;
 }) {
   const t = useTranslations("drawer");
   const tds = useTranslations("dataSource");
@@ -97,13 +95,12 @@ export function NightScopeBody({
       {/* ----------------------------- C. how is it selling? */}
       <section>
         <h3 className="mb-1 text-[12px] font-semibold text-ink-800">{t("paceTitle")}</h3>
+        {/* A chart, not a control -- picking a night is the strip above the
+            body. It keeps the selected highlight so it still answers "where
+            am I in the range", and drops the per-night deltas because the
+            picker already carries a figure for every night. */}
         <div className="mt-1">
-          <OccupancyStrip
-            nights={detail.nightly}
-            selected={night.stay_date}
-            onSelect={onSelect}
-            showDeltas
-          />
+          <OccupancyStrip nights={detail.nightly} selected={night.stay_date} />
         </div>
       </section>
 

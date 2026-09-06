@@ -338,7 +338,6 @@
     "rangeNights": "{from} → {to} · {nights, plural, one {# night} other {# nights}}",
     "stripCaption": "How full each night in this range already is.",
     "nightsCovered": "{count, plural, one {# night} other {# nights}}",
-    "stripSelect": "{date}, {delta} versus the range average",
     "stripHandTuned": "priced by hand",
     "stripDeltaCaption": "How each night compares with the average",
     "someUnpriced": "{count, plural, one {# night in this range could not be priced and will be skipped} other {# nights in this range could not be priced and will be skipped}}.",
@@ -346,7 +345,10 @@
     "handTunedOverwrite": "Overwrite them too",
     "handTunedOverwriting": "Hand-priced nights will be overwritten",
     "handTunedKeep": "Keep them",
-    "provenanceMixed": "The nights in this range got their current rate from different places, so this figure mixes published and reconstructed prices."
+    "provenanceMixed": "The nights in this range got their current rate from different places, so this figure mixes published and reconstructed prices.",
+    "nightPickerLabel": "Choose a night",
+    "nightPickerOption": "{date}, {price}",
+    "nightPickerOptionUnpriced": "{date}, no price yet"
   },
   "rateBook": {
     "clientValidated": "Client-validated",

@@ -344,8 +344,7 @@ export function MarketRange({
 /* ------------------------------------------------------ occupancy strip */
 
 /**
- * One bar per night, and — when a night can be picked — the drawer's night
- * selector.
+ * One bar per night: how full each night in the range already is.
  *
  * Bulk accept writes ONE price to every night, so an averaged pace reading can
  * hide a range whose first ten nights are healthy and whose last four are
@@ -353,29 +352,31 @@ export function MarketRange({
  * the average. This is the smallest thing that makes the disagreement visible
  * before they commit.
  *
- * The bar's HEIGHT is occupancy. Selection is drawn as an outline and never
- * touches height or bar colour, because a chart whose encoding changes meaning
- * when you click it is worse than no chart. The delta row underneath answers
- * the question the range average hides: accepting one price for every night
- * over- or under-prices these ones by this much.
+ * A chart, not a control. It was briefly both, and that was the mistake:
+ * varying bar heights read as a visualisation, so nobody expected to click
+ * them, and the drawer's only way to change night was invisible. Picking a
+ * night is `NightPicker`; this strip takes `selected` so it can show where in
+ * the range that night sits, and nothing else.
+ *
+ * The bar's HEIGHT is occupancy, and the selected highlight is an outline that
+ * never touches height or bar colour — a chart whose encoding shifts meaning
+ * under the reader is worse than no chart.
  */
 export function OccupancyStrip({
   nights,
   selected,
-  onSelect,
   showDeltas = false,
 }: {
   nights: PaceStripNight[];
+  /** Highlights one night so the reader can see where it sits in the range.
+   *  Presentational only — this strip does not choose the night. */
   selected?: string | null;
-  onSelect?: (stayDate: string) => void;
   showDeltas?: boolean;
 }) {
   const t = useTranslations("drawer");
   const { formatDayMonth, formatAdjPct } = useFormat();
 
   if (nights.length < 2) return null;
-
-  const interactive = typeof onSelect === "function";
 
   return (
     <div>
@@ -384,7 +385,8 @@ export function OccupancyStrip({
       </p>
       <div
         className="flex items-end gap-[3px]"
-        {...(interactive ? {} : { role: "img", "aria-label": t("stripCaption") })}
+        role="img"
+        aria-label={showDeltas ? t("stripDeltaCaption") : t("stripCaption")}
       >
         {nights.map((n) => {
           const sold = n.units_total > 0 ? n.units_sold / n.units_total : 0;
@@ -393,8 +395,11 @@ export function OccupancyStrip({
           const handTuned = n.decision === "overridden";
           const delta = n.delta_vs_average_pct ?? 0;
 
-          const column = (
-            <>
+          return (
+            <div
+              key={n.stay_date}
+              className="flex flex-1 flex-col items-center gap-1"
+            >
               <div
                 className={`flex h-12 w-full items-end rounded-sm bg-ink-100 ${
                   isSelected ? "ring-2 ring-brand-500 ring-offset-1" : ""
@@ -439,29 +444,6 @@ export function OccupancyStrip({
                   className="h-1 w-1 rounded-full bg-violet-500"
                 />
               )}
-            </>
-          );
-
-          const className = "flex flex-1 flex-col items-center gap-1";
-
-          return interactive ? (
-            <button
-              key={n.stay_date}
-              type="button"
-              onClick={() => onSelect!(n.stay_date)}
-              aria-pressed={isSelected}
-              aria-label={t("stripSelect", {
-                date: formatDayMonth(n.stay_date),
-                delta: formatAdjPct(delta),
-              })}
-              className={`${className} rounded-sm focus:outline-none focus-visible:ring-2
-                focus-visible:ring-brand-500`}
-            >
-              {column}
-            </button>
-          ) : (
-            <div key={n.stay_date} className={className}>
-              {column}
             </div>
           );
         })}

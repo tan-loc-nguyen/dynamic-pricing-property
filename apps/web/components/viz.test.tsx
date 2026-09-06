@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { renderWithIntl } from "./test-utils";
 import { OccupancyStrip, PriceContribution } from "./viz";
 import type { ExplainedStep } from "@/lib/types";
@@ -16,24 +15,15 @@ const night = (day: number, over: Partial<any> = {}) => ({
 });
 
 describe("OccupancyStrip", () => {
-  it("is inert when no selection handler is given", () => {
-    renderWithIntl(<OccupancyStrip nights={[night(1), night(2)]} />);
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
-  });
-
-  it("becomes a list of buttons when a night can be picked", async () => {
-    const onSelect = vi.fn();
+  it("is a chart, never a control", () => {
+    // It used to be clickable, and that was the bug: varying bar heights read
+    // as a visualisation, so the drawer's only way to change night was
+    // invisible. Picking a night is NightPicker's job now.
     renderWithIntl(
-      <OccupancyStrip
-        nights={[night(1), night(2)]}
-        selected="2026-09-01"
-        onSelect={onSelect}
-      />,
+      <OccupancyStrip nights={[night(1), night(2)]} selected="2026-09-01" />,
     );
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(2);
-    await userEvent.click(buttons[1]);
-    expect(onSelect).toHaveBeenCalledWith("2026-09-02");
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getByRole("img")).toBeTruthy();
   });
 
   it("marks the selected night without changing the bar it draws", () => {
@@ -41,7 +31,6 @@ describe("OccupancyStrip", () => {
       <OccupancyStrip
         nights={[night(1, { units_sold: 4 }), night(2, { units_sold: 4 })]}
         selected="2026-09-01"
-        onSelect={() => {}}
       />,
     );
     // Both nights sold the same, so both bars must still be the same height:
@@ -55,10 +44,7 @@ describe("OccupancyStrip", () => {
 
   it("marks a hand-tuned night so a bulk accept is not a surprise", () => {
     const { container } = renderWithIntl(
-      <OccupancyStrip
-        nights={[night(1, { decision: "overridden" }), night(2)]}
-        onSelect={() => {}}
-      />,
+      <OccupancyStrip nights={[night(1, { decision: "overridden" }), night(2)]} />,
     );
     expect(container.querySelectorAll("[data-hand-tuned]")).toHaveLength(1);
   });

@@ -119,9 +119,9 @@ describe("RangeDrawer", () => {
     expect(screen.queryByRole("tab", { name: /night by night/i })).toBeNull();
   });
 
-  // The strip's buttons are the only elements carrying aria-pressed, which
+  // NightPicker's chips are the only elements carrying aria-pressed, which
   // makes them addressable without depending on how a date is formatted.
-  const stripButtons = (c: HTMLElement) =>
+  const nightChips = (c: HTMLElement) =>
     Array.from(c.querySelectorAll<HTMLElement>("[aria-pressed]"));
 
   it("accepts only the selected night in the night scope", async () => {
@@ -129,7 +129,7 @@ describe("RangeDrawer", () => {
       <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
     );
     await userEvent.click(await screen.findByRole("tab", { name: /night by night/i }));
-    await userEvent.click(stripButtons(container)[1]);
+    await userEvent.click(nightChips(container)[1]);
     await userEvent.click(
       await screen.findByRole("button", { name: /accept .* for/i }),
     );
@@ -145,7 +145,7 @@ describe("RangeDrawer", () => {
       <RangeDrawer selection={selection} onClose={() => {}} onChanged={() => {}} />,
     );
     await userEvent.click(await screen.findByRole("tab", { name: /night by night/i }));
-    await userEvent.click(stripButtons(container)[1]);
+    await userEvent.click(nightChips(container)[1]);
     expect(screen.queryByRole("button", { name: /accept .* for/i })).toBeNull();
   });
 

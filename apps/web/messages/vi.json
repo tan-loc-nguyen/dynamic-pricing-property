@@ -338,7 +338,6 @@
     "rangeNights": "{from} → {to} · {nights, plural, other {# đêm}}",
     "stripCaption": "Mức lấp đầy hiện tại của từng đêm trong khoảng này.",
     "nightsCovered": "{count, plural, other {# đêm}}",
-    "stripSelect": "{date}, {delta} so vối trung bình dãy ngày",
     "stripHandTuned": "đã chỉnh tay",
     "stripDeltaCaption": "Mỗi đêm so vối giá trung bình",
     "someUnpriced": "{count, plural, other {# đêm trong khoảng này không định giá được và sẽ được bỏ qua}}.",
@@ -346,7 +345,10 @@
     "handTunedOverwrite": "Ghi đè cả những đêm này",
     "handTunedOverwriting": "Những đêm đã chỉnh tay sẽ bị ghi đè",
     "handTunedKeep": "Giữ nguyên",
-    "provenanceMixed": "Các đêm trong khoảng này lấy giá hiện tại từ những nguồn khác nhau, nên con số này pha trộn giá niêm yết và giá tái dựng."
+    "provenanceMixed": "Các đêm trong khoảng này lấy giá hiện tại từ những nguồn khác nhau, nên con số này pha trộn giá niêm yết và giá tái dựng.",
+    "nightPickerLabel": "Chọn đêm",
+    "nightPickerOption": "{date}, {price}",
+    "nightPickerOptionUnpriced": "{date}, chưa có giá"
   },
   "rateBook": {
     "clientValidated": "Khách hàng đã xác thực",

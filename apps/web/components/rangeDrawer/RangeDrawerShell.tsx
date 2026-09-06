@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import type { MarketObservation, RangeDetail } from "@/lib/types";
 import { RangeScopeBody } from "./RangeScopeBody";
 import { NightScopeBody } from "./NightScopeBody";
+import { NightPicker } from "./NightPicker";
 
 /**
  * The answer to "what should I charge for this tier over these nights?", in
@@ -219,13 +220,23 @@ export function RangeDrawer({
                   </Tabs.List>
                 )}
 
+                {/* Outside the scrolling body on purpose: this is navigation,
+                    so it has to stay reachable while the night's detail is
+                    scrolled. */}
+                {scope === "night" && night && (
+                  <NightPicker
+                    nights={detail.nightly}
+                    selected={night.stay_date}
+                    onSelect={setSelectedDate}
+                  />
+                )}
+
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
                   {scope === "night" && night ? (
                     <NightScopeBody
                       detail={detail}
                       night={night}
                       observations={observations}
-                      onSelect={setSelectedDate}
                     />
                   ) : (
                     <RangeScopeBody
