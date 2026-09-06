@@ -320,16 +320,13 @@ function FooterActions({
           rate: detail.average_recommended_net_rate,
         };
 
-  // What the accept button will ACTUALLY write. Unpriced nights get no decision
-  // at all, so a button naming the selected span would promise more than the
-  // server delivers. Phase 8 subtracts preserved hand-tuned nights from this
-  // same figure.
   const handTuned = (detail?.nightly ?? []).filter((n) => n.decision === "overridden");
 
-  // What the button will ACTUALLY write. An accept that preserves hand-tuned
-  // nights covers fewer nights than the operator selected, and a button that
-  // names the selection rather than the outcome is the same class of quiet
-  // partial success as an unpriced night written as zero.
+  // What the accept button will ACTUALLY write, which is not the span the
+  // operator selected. Unpriced nights get no decision at all, and hand-tuned
+  // nights are preserved unless the operator opts out -- so a button naming the
+  // selection would promise more than the server delivers, the same class of
+  // quiet partial success as an unpriced night written as zero.
   const nightsToWrite =
     scope === "night"
       ? 1
