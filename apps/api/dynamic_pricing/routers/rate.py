@@ -282,6 +282,11 @@ class RangeDecisionIn(BaseModel):
     end_date: date
     note: str | None = None
     operator: str = "demo-operator"
+    # Defaults to True here while the SERVICE defaults to False: an operator
+    # pressing "accept for 7 nights" is warned about hand-tuned nights and gets
+    # the safe outcome unless they opt out, but an internal caller keeps the
+    # older, simpler behaviour.
+    preserve_overrides: bool = True
 
 
 class RangeOverrideIn(RangeDecisionIn):
@@ -321,6 +326,9 @@ def _result_payload(result) -> dict:
         # one would put a fictional entry in the audit trail. Reported so the
         # operator knows the range was not fully covered.
         "skipped_unpriced": result.skipped_unpriced,
+        # Nights an operator had already priced by hand and that this action
+        # deliberately left alone (D40).
+        "skipped_overridden": result.skipped_overridden,
     }
 
 
@@ -360,6 +368,7 @@ def accept_range(body: RangeDecisionIn, session: Session = Depends(get_session))
             decision=DECISION_ACCEPTED,
             note=body.note,
             operator=body.operator,
+            preserve_overrides=body.preserve_overrides,
         )
     )
     return _regenerate_after_decision(session, result)

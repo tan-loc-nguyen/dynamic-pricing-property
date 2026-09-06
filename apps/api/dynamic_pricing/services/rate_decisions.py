@@ -34,6 +34,7 @@ class BulkResult:
     decisions_written: int
     nights: int
     skipped_unpriced: int
+    skipped_overridden: int = 0
 
 
 def apply_to_range(
@@ -47,6 +48,7 @@ def apply_to_range(
     reason_code: str | None = None,
     note: str | None = None,
     operator: str = "demo-operator",
+    preserve_overrides: bool = False,
 ) -> BulkResult:
     """Write ``net_rate`` to every priced night in the range.
 
@@ -55,6 +57,13 @@ def apply_to_range(
     rather than given a fabricated decision, because the audit trail is the one
     dataset this product cannot afford noise in, and it is REPORTED rather than
     passed over silently.
+
+    ``preserve_overrides`` skips nights an operator has already priced by hand.
+    D36 originally had a bulk accept replace every decision without prompting,
+    which was right while the range was the only unit of work. Once a single
+    night can be priced on its own, silently replacing that night destroys the
+    judgment the per-night scope exists to capture -- so the caller warns
+    first and the operator chooses (D40).
     """
     run_id = latest_run_id(session)
     rows = (
@@ -87,10 +96,14 @@ def apply_to_range(
     status = STATUS_ACCEPTED if decision == DECISION_ACCEPTED else STATUS_OVERRIDDEN
     written = 0
     skipped = 0
+    skipped_override = 0
 
     for rec in rows:
         if rec.status == STATUS_ERROR:
             skipped += 1
+            continue
+        if preserve_overrides and rec.status == STATUS_OVERRIDDEN:
+            skipped_override += 1
             continue
         held = inventory.get(rec.stay_date)
         previous = held.current_net_rate if held else rec.current_net_rate
@@ -123,6 +136,7 @@ def apply_to_range(
         decisions_written=written,
         nights=len(rows),
         skipped_unpriced=skipped,
+        skipped_overridden=skipped_override,
     )
 
 
