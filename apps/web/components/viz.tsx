@@ -97,6 +97,42 @@ export interface PacePoint {
   occupancy: number | null;
 }
 
+export interface PaceCurvePoint {
+  dta: number;
+  expected: number;
+  actual: number;
+}
+
+/**
+ * The curve's points, in the order they are drawn from left to right.
+ *
+ * Ascending lead time, which for a forward range is ascending DATE: the first
+ * night of the selection is the nearest one, so D-1 is 7 Sep and D-7 is 13 Sep.
+ *
+ * That is the whole reason this is not the usual booking-curve orientation.
+ * A booking curve is conventionally read far-out on the left counting down to
+ * arrival, and drawing it that way here renders the range backwards -- 13 Sep
+ * on the left, 7 Sep on the right -- directly between a night picker and an
+ * occupancy strip that both run 7 Sep to 13 Sep. Three stacked views of the
+ * same nights, one of them mirrored, is a worse trade than departing from the
+ * convention.
+ *
+ * Sorted rather than reversed at the axis: the array order IS the visual
+ * order, so this can be tested and cannot be silently flipped by a prop.
+ */
+export function paceCurvePoints(peers: PacePoint[]): PaceCurvePoint[] {
+  const byDta = new Map<number, PaceCurvePoint>();
+  for (const r of peers) {
+    if (r.days_to_arrival === null || r.expected_occupancy === null) continue;
+    byDta.set(r.days_to_arrival, {
+      dta: r.days_to_arrival,
+      expected: Math.round((r.expected_occupancy ?? 0) * 100),
+      actual: Math.round((r.occupancy ?? 0) * 100),
+    });
+  }
+  return [...byDta.values()].sort((a, b) => a.dta - b.dta);
+}
+
 export function PaceChart({
   peers,
   current,
@@ -108,21 +144,7 @@ export function PaceChart({
 }) {
   const t = useTranslations("drawer");
 
-  const data = useMemo(() => {
-    const byDta = new Map<number, { dta: number; expected: number; actual: number }>();
-    for (const r of peers) {
-      if (r.days_to_arrival === null || r.expected_occupancy === null) continue;
-      byDta.set(r.days_to_arrival, {
-        dta: r.days_to_arrival,
-        expected: Math.round((r.expected_occupancy ?? 0) * 100),
-        actual: Math.round((r.occupancy ?? 0) * 100),
-      });
-    }
-    // Far out on the LEFT, arrival on the right, so the line is read the way
-    // time runs. Sorted descending and plotted in order -- `reversed` on the
-    // axis as well flipped it back and put arrival on the left.
-    return [...byDta.values()].sort((a, b) => b.dta - a.dta);
-  }, [peers]);
+  const data = useMemo(() => paceCurvePoints(peers), [peers]);
 
   if (data.length < 3) {
     return <div className="text-[11.5px] text-ink-400">{t("paceNoCurve")}</div>;

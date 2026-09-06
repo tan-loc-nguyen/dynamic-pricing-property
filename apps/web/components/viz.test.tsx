@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithIntl } from "./test-utils";
-import { OccupancyStrip, PriceContribution } from "./viz";
+import { OccupancyStrip, PriceContribution, paceCurvePoints } from "./viz";
 import type { ExplainedStep } from "@/lib/types";
 
 const night = (day: number, over: Partial<any> = {}) => ({
@@ -111,5 +111,38 @@ describe("PriceContribution", () => {
       />,
     );
     expect(screen.queryByText(/night/i)).toBeNull();
+  });
+});
+
+describe("paceCurvePoints", () => {
+  const peer = (dta: number, occ: number) => ({
+    days_to_arrival: dta,
+    expected_occupancy: 0.6,
+    occupancy: occ,
+  });
+
+  it("draws the range in date order, not booking-curve order", () => {
+    // Lead time runs OPPOSITE to date on a forward range: the first night of
+    // the selection is the nearest one. Drawing far-out-first would put the
+    // last night of the range on the left, mirroring the night picker and the
+    // occupancy strip that sit directly above and below this chart.
+    const points = paceCurvePoints([peer(7, 0.9), peer(1, 0.5), peer(4, 0.7)]);
+    expect(points.map((p) => p.dta)).toEqual([1, 4, 7]);
+  });
+
+  it("keeps one point per lead time", () => {
+    const points = paceCurvePoints([peer(3, 0.5), peer(3, 0.8)]);
+    expect(points).toHaveLength(1);
+  });
+
+  it("skips nights the curve cannot place", () => {
+    // No lead time or no expected occupancy means there is nothing to compare
+    // against; plotting zero would invent a reading.
+    const points = paceCurvePoints([
+      peer(2, 0.5),
+      { days_to_arrival: null, expected_occupancy: 0.6, occupancy: 0.5 },
+      { days_to_arrival: 5, expected_occupancy: null, occupancy: 0.5 },
+    ]);
+    expect(points.map((p) => p.dta)).toEqual([2]);
   });
 });
