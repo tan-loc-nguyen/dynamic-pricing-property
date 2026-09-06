@@ -4,15 +4,13 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useAdjustmentText } from "@/lib/adjustments";
 import { useFormat } from "@/lib/useFormat";
-import { MarketRange, OccupancyStrip, PriceContribution, RateBand } from "../viz";
-import type { MarketObservation, RangeDetail, RangeNight } from "@/lib/types";
+import { MarketRange, PriceContribution, RateBand } from "../viz";
+import type { MarketObservation, RangeNight } from "@/lib/types";
 
 export function NightScopeBody({
-  detail,
   night,
   observations,
 }: {
-  detail: RangeDetail;
   night: RangeNight;
   observations: MarketObservation[];
 }) {
@@ -92,17 +90,10 @@ export function NightScopeBody({
         />
       </section>
 
-      {/* ----------------------------- C. how is it selling? */}
-      <section>
-        <h3 className="mb-1 text-[12px] font-semibold text-ink-800">{t("paceTitle")}</h3>
-        {/* A chart, not a control -- picking a night is the strip above the
-            body. It keeps the selected highlight so it still answers "where
-            am I in the range", and drops the per-night deltas because the
-            picker already carries a figure for every night. */}
-        <div className="mt-1">
-          <OccupancyStrip nights={detail.nightly} selected={night.stay_date} />
-        </div>
-      </section>
+      {/* There is no pace section here. It carried the whole range's occupancy
+          strip under a heading that promised one night's, showed no figure
+          about the selected night at all, and repeated the picker directly
+          above it. What a night is worth, and why, is the breakdown below. */}
 
       {/* ------------------------------ D. why did it move? */}
       <section>

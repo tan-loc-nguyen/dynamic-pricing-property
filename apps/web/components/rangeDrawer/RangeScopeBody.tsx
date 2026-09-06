@@ -1,10 +1,9 @@
 "use client";
 
-import { TrendingUp, TrendingDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAdjustmentText } from "@/lib/adjustments";
 import { useFormat } from "@/lib/useFormat";
-import { MarketRange, OccupancyStrip, PaceChart, PriceContribution, RateBand } from "../viz";
+import { MarketRange, OccupancyStrip, PriceContribution, RateBand } from "../viz";
 import type { MarketObservation, RangeDetail } from "@/lib/types";
 
 /** The market band, low/high/median/count, computed once in the shell. */
@@ -39,6 +38,12 @@ export function RangeScopeBody({
         <div className="flex items-end justify-between gap-4">
           <div>
             <div className="text-[11px] text-ink-400">{t("recommendedNet")}</div>
+            {/* Say that it is an average. Unlabelled, this reads as one price
+                for the range rather than the mean of nights that disagree with
+                each other -- and accepting it writes it to all of them. */}
+            <div className="text-[11px] text-ink-500">
+              {t("averageOf", { nights: detail.nights })}
+            </div>
             <div className="tnum text-[30px] font-bold leading-tight text-brand-700">
               {formatVND(detail.average_recommended_net_rate)}
             </div>
@@ -106,49 +111,33 @@ export function RangeScopeBody({
         />
       </section>
 
-      {/* ----------------------------- C. how is it selling? */}
+      {/* ----------------------------- C. how full is it? */}
+      {/* Facts only. Whether that is good or bad -- ahead of pace, behind,
+          by how much -- is answered directly below in "why the price moved",
+          one row per pace band with its own sentence. Saying it in both
+          places meant saying it twice in two different vocabularies, and the
+          version here was the one nobody could read: "selling 7 points slower
+          than expected for this far out". */}
       <section>
         <h3 className="mb-1 text-[12px] font-semibold text-ink-800">{t("paceTitle")}</h3>
-        <p
-          className={`mb-2 flex items-center gap-1 text-[12px] ${
-            detail.pace_gap === null
-              ? "text-ink-600"
-              : detail.pace_gap >= 0
-                ? "text-emerald-700"
-                : "text-amber-700"
-          }`}
-        >
-          {detail.pace_gap !== null &&
-            (detail.pace_gap >= 0 ? (
-              <TrendingUp aria-hidden size={13} strokeWidth={2} />
-            ) : (
-              <TrendingDown aria-hidden size={13} strokeWidth={2} />
-            ))}
-          {detail.pace_gap === null
-            ? t("paceUnknown")
-            : t("pacePlain", {
-                direction: detail.pace_gap >= 0 ? "ahead" : "behind",
-                points: Math.abs(Math.round(detail.pace_gap * 100)),
-              })}
-        </p>
-        <div className="flex flex-wrap gap-4 text-[11.5px] text-ink-500">
-          <span>
-            {t("paceOnTheBooks")}{" "}
-            <span className="tnum font-medium text-ink-800">
-              {detail.units_sold}/{detail.units_total * detail.nights}
-            </span>
-          </span>
+        <div className="space-y-0.5 text-[11.5px] text-ink-600">
+          <p>
+            {t("roomNightsSold", {
+              sold: detail.units_sold,
+              total: detail.units_total * detail.nights,
+            })}
+          </p>
           {leadTimes.length > 0 && (
-            <span>
-              {t("paceLeadTime")}{" "}
-              <span className="tnum font-medium text-ink-800">
-                D-{Math.min(...leadTimes)}
-                {leadTimes.length > 1 && ` … D-${Math.max(...leadTimes)}`}
-              </span>
-            </span>
+            <p>
+              {Math.min(...leadTimes) === Math.max(...leadTimes)
+                ? t("guestsArriveInOne", { days: Math.max(...leadTimes) })
+                : t("guestsArriveInRange", {
+                    min: Math.min(...leadTimes),
+                    max: Math.max(...leadTimes),
+                  })}
+            </p>
           )}
         </div>
-        <PaceChart peers={detail.nightly} />
         <div className="mt-3">
           <OccupancyStrip nights={detail.nightly} showDeltas />
         </div>

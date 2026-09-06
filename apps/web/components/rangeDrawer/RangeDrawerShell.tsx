@@ -197,7 +197,11 @@ export function RangeDrawer({
                 {canSwitchScope && (
                   <Tabs.List
                     className="flex shrink-0 gap-1 border-b border-ink-100 px-5"
-                    aria-label={t("paceTitle")}
+                    // Names the CHOICE, not whatever section happens to sit
+                    // below it — this was labelled with the pace heading, so
+                    // the scope tabs announced themselves as "how full the
+                    // range is".
+                    aria-label={t("scopeTabsLabel")}
                   >
                     <Tabs.Trigger
                       value="range"
@@ -233,11 +237,7 @@ export function RangeDrawer({
 
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
                   {scope === "night" && night ? (
-                    <NightScopeBody
-                      detail={detail}
-                      night={night}
-                      observations={observations}
-                    />
+                    <NightScopeBody night={night} observations={observations} />
                   ) : (
                     <RangeScopeBody
                       detail={detail}
