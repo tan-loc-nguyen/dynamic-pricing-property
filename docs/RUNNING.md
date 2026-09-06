@@ -72,7 +72,9 @@ Not "the servers started" — that is not the same as working. Open
    switch and Settings pinned to the bottom.
 
 `make test` should report **527 passed**. If it does not, stop there — a
-failing suite means the demo data is not trustworthy either.
+failing suite means the demo data is not trustworthy either. That command
+only runs the backend suite; the frontend has its own (`cd apps/web && npm
+test`), not wired into `make test`.
 
 ---
 
