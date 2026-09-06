@@ -23,12 +23,7 @@ Next.js is configured with `output: "export"` and `trailingSlash: true` (`next.c
 - `components/{market,customisation}/` — feature-scoped components, not shared.
 - Prefer extending an existing shadcn primitive (a new variant) over reaching for a raw Tailwind class when the same visual need will recur — that's the DRY lesson from the Card `border`/`py-0` cleanup (both became a `variant`/`size` on `Card` itself instead of a repeated className at every call site).
 - Three components (`RangeDrawer`'s Dialog, `DataSourceStatus`'s Popover, the customisation Tabs) import primitives directly from the unified `radix-ui` package rather than through `components/ui/`. This was deliberate: all three are fully custom-styled with no benefit from shadcn's opinionated wrapper, and in Dialog's case the wrapper's centered-modal positioning actively conflicts with the drawer's slide-in-from-the-right layout. The unified `radix-ui` package's exports are confirmed byte-identical re-exports of the individual `@radix-ui/react-*` packages (checked in `node_modules` directly) — treat this as the sanctioned pattern for a bespoke overlay, not a one-off exception.
-- `components/rangeDrawer/` — the Rate drawer, split into a shell
-  (`RangeDrawerShell`) plus one body per scope (`RangeScopeBody`,
-  `NightScopeBody`). `components/RangeDrawer.tsx` is a re-export that keeps the
-  original import path. The split happened when the drawer gained a second
-  scope (D41): a `mode ?` conditional inside all five sections would have made
-  every section dual-purpose in a file that was already 465 lines.
+- `components/rangeDrawer/` — the Rate drawer, split into a shell (`RangeDrawerShell`) plus one body per scope (`RangeScopeBody`, `NightScopeBody`). `components/RangeDrawer.tsx` is a re-export that keeps the original import path. The split happened when the drawer gained a second scope (D41): a `mode ?` conditional inside all five sections would have made every section dual-purpose in a file that was already 465 lines.
 
 ## Design tokens
 
