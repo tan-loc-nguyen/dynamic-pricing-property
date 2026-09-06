@@ -358,7 +358,13 @@ function SidebarSeparator({
     <Separator
       data-slot="sidebar-separator"
       data-sidebar="separator"
-      className={cn("mx-2 w-auto bg-sidebar-border", className)}
+      // `data-horizontal:w-auto`, not plain `w-auto`: Separator's base sets
+      // `data-horizontal:w-full`, which compiles to an attribute selector and
+      // outranks an unprefixed class whatever the order. The separator was
+      // therefore full width PLUS its own mx-2, hanging 7px past the rail --
+      // 15% of it once collapsed. Matching the variant lets twMerge drop the
+      // base rule instead of losing to it.
+      className={cn("mx-2 data-horizontal:w-auto bg-sidebar-border", className)}
       {...props}
     />
   )
