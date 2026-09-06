@@ -228,7 +228,7 @@ historical row silently loses its explanation.
 
 ## Testing
 
-**Backend** (`make test`, 534 today)
+**Backend** (`make test`, 535 today)
 - `nights_covered` equals group size; **the existing reconciling-sum invariant
   still passes** — the regression that matters most
 - single-night aggregate is the identity

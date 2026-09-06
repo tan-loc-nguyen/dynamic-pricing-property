@@ -110,7 +110,7 @@ cd apps/web && npm run check:messages
 If `make setup` has never been run on this machine, run it first. If the demo
 database is missing or stale, `make reseed`.
 
-**Record the passing backend test count.** It is 534 at the time of writing.
+**Record the passing backend test count.** It is 535 at the time of writing.
 Every phase below adds tests; none may remove or break an existing one.
 
 - [ ] **Step 6: Reproduce the bug yourself, with real data**
@@ -2568,7 +2568,7 @@ EOF
 
 Run before opening a PR.
 
-- [ ] `make test` — count is 534 + new tests, zero failures
+- [ ] `make test` — count is 535 + new tests, zero failures
 - [ ] `cd apps/web && npm test` — zero failures
 - [ ] `make lint` — ruff and the ICU/message check both clean
 - [ ] `cd apps/web && npm run check:messages` — en and vi describe the same keys
