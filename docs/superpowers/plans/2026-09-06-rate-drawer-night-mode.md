@@ -1453,8 +1453,9 @@ and amber for unpriced. A separate chip strip would be a second horizontal
   - `OccupancyStrip({ nights, selected?, onSelect?, showDeltas? })` — when
     `onSelect` is supplied each column becomes a `<button>`.
   - `PaceStripNight` gains `decision`, `delta_vs_average_pct`.
-  - `PriceContribution({ adjustments, render, totalNights? })` — badges a row
-    when `nights_covered < totalNights`.
+  - `PriceContribution({ adjustments, render, totalNights? })` — badges every
+    row with its own night count when `totalNights > 1`; badges nothing when
+    the scope is a single night.
 
 ### Context you need
 
@@ -1606,7 +1607,10 @@ describe("PriceContribution", () => {
     expect(screen.getByText("2 nights")).toBeTruthy();
   });
 
-  it("leaves a row that covers every night unbadged", () => {
+  it("badges a row that covers every night too", () => {
+    // Every row carries its own count so none has to be inferred from the
+    // absence of one, and so the counts visibly add up across the rows a
+    // single factor was split into.
     renderWithIntl(
       <PriceContribution
         adjustments={[step({ nights_covered: 7, label: "Market" })]}
@@ -1614,7 +1618,7 @@ describe("PriceContribution", () => {
         totalNights={7}
       />,
     );
-    expect(screen.queryByText("7 nights")).toBeNull();
+    expect(screen.getByText("7 nights")).toBeTruthy();
   });
 
   it("badges nothing when the scope is a single night", () => {
@@ -1790,11 +1794,11 @@ export function PriceContribution({
 }: {
   adjustments: ExplainedStep[];
   render: (a: ExplainedStep) => { label: string; reason: string };
-  /** Nights in the scope being explained. A row is badged only when it covers
-   *  FEWER than this — every structural row (the seasonal base, rounding, the
-   *  market signal) covers them all, so badging everything would stop the
-   *  badge carrying information. Absence means "this row describes the whole
-   *  range"; presence means "it does not". */
+  /** Nights in the scope being explained. Every row is badged with its own
+   *  count, so none has to be inferred from the absence of one and the counts
+   *  visibly add up across the rows a single factor was split into. Suppressed
+   *  entirely for a single night, where every row would read "1 night" — which
+   *  is the panel's heading, not information. */
   totalNights?: number;
 }) {
 ```
@@ -1811,13 +1815,11 @@ inside the `<li>`, replace the label `<span>` with:
               >
                 {label}
               </span>
-              {totalNights !== undefined &&
-                totalNights > 1 &&
-                a.nights_covered < totalNights && (
-                  <span className="shrink-0 text-[10px] text-ink-400">
-                    {t("nightsCovered", { count: a.nights_covered })}
-                  </span>
-                )}
+              {totalNights !== undefined && totalNights > 1 && (
+                <span className="shrink-0 text-[10px] text-ink-400">
+                  {t("nightsCovered", { count: a.nights_covered })}
+                </span>
+              )}
             </span>
 ```
 
@@ -2515,7 +2517,8 @@ it, it was describing something the reader was not looking at.
 `(code, label_key)`, so `pace` rendered as up to five contradictory rows with
 nothing saying which nights each covered, and `_average_params` printed
 averaged integers as "4.5 days to arrival" and "2.333 bookings". Rows now
-carry `nights_covered` and are badged when they do not cover the whole range;
+carry `nights_covered` and each is badged with it, so five pace rows reading
+1 + 1 + 2 + 1 + 2 against a seven-night range visibly account for every night;
 the sentences branch on that count in ICU and drop the figures that cannot be
 averaged. The rows were never collapsed to one per factor: a range that is two
 nights empty and two nights full would then render identically to one that is

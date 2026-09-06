@@ -185,12 +185,20 @@ switching mode without noticing cannot write the wrong range.
 dataclass so per-night rows are correct untouched. The synthesized rounding row
 (`rate_range.py:218-224`) must pass it explicitly.
 
-**Badge renders only when `nights_covered < nights`.** Every structural row
-(`rate_band`, `rounding`, `market`) covers all nights, so badges everywhere
-would stop carrying information. Absence means "covers every night"; presence
-means "this row does not describe the whole range" — exactly the pace/pickup
-rows that caused the confusion. The alternative, hardcoding a list of
-"structural" codes in the frontend, is rejected.
+**Badge renders on every row whenever the scope covers more than one night.**
+A row covering all 7 reads "7 đêm" just as a row covering 2 reads "2 đêm".
+
+The alternative — badging only rows where `nights_covered < nights`, so absence
+means "covers everything" — was considered and rejected by the operator. It
+saves ink at the cost of making the reader learn a convention, and an unbadged
+row is then ambiguous between "covers every night" and "this row has no count".
+Every row carrying its own count is self-describing with nothing to learn, and
+the badges also make the coverage add up visibly: five pace rows reading
+1 + 1 + 2 + 1 + 2 against a 7-night range shows at a glance that the factor is
+fully accounted for.
+
+In the night scope the count is suppressed entirely — every row would read
+"1 đêm", which is the heading of the panel, not information.
 
 ### The param bug — fixed in the message files, not in the averaging
 
