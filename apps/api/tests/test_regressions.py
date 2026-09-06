@@ -761,3 +761,30 @@ def test_a_run_produced_by_a_different_engine_version_is_regenerated(session):
 
     # ...and it must not regenerate when the versions already agree.
     assert refresh_stale_run(session, today=today) is False
+
+
+# --- the pickup window has to be a window ---------------------------------
+@pytest.mark.parametrize("days,accepted", [(6, False), (7, True), (14, True), (15, False)])
+def test_the_pickup_window_is_bounded_to_a_week_or_two(days, accepted):
+    """Below a week a single weekend swings the signal; above two weeks it stops
+    being "recent" and starts measuring the same demand pace already measures,
+    which is the double-count the two signals exist to avoid.
+
+    Enforced in Python, not just as an input attribute: the input is an
+    affordance, and an affordance is not a rule.
+    """
+    from dynamic_pricing.pricing.defaults import ConfigurationInvalid, prepare_config
+
+    if accepted:
+        prepared = prepare_config({"recent_pickup": {"lookback_days": days}})
+        assert prepared["recent_pickup"]["lookback_days"] == days
+        return
+
+    with pytest.raises(ConfigurationInvalid) as caught:
+        prepare_config({"recent_pickup": {"lookback_days": days}})
+    problems = caught.value.problems
+    assert "out_of_range" in [p["code"] for p in problems]
+    offending = next(p for p in problems if p["code"] == "out_of_range")
+    assert offending["path"] == "recent_pickup.lookback_days"
+    assert offending["params"]["minimum"] == 7
+    assert offending["params"]["maximum"] == 14

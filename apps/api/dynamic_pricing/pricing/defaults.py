@@ -28,6 +28,14 @@ from typing import Any
 #    compared as typed rather than rescaled by the window length (D39).
 CONFIG_SCHEMA_VERSION = 3
 
+# The operator-tunable bounds on the recent-pickup window, in days. Bounded
+# because the signal stops meaning what it says outside them: under a week one
+# weekend swings it, and over two it stops being "recent" and starts measuring
+# the same demand that pace position already measures -- the double-count the
+# two signals are separated to avoid. UNVALIDATED, like everything in this file.
+PICKUP_LOOKBACK_MIN_DAYS = 7
+PICKUP_LOOKBACK_MAX_DAYS = 14
+
 DEMO_DEFAULTS: dict[str, Any] = {
     "schema_version": CONFIG_SCHEMA_VERSION,
     "label": "demo-defaults",
@@ -219,6 +227,7 @@ PROBLEM_CODES: tuple[str, ...] = (
     "min_exceeds_max",
     "could_not_check",
     "not_an_allowed_value",
+    "out_of_range",
 )
 
 
@@ -535,6 +544,22 @@ def validate_config(config: dict[str, Any]) -> list[dict]:
 
     pickup = config.get("recent_pickup", {})
     if pickup.get("enabled", True):
+        lookback = pickup.get("lookback_days")
+        if lookback is not None and not (
+            PICKUP_LOOKBACK_MIN_DAYS <= int(lookback) <= PICKUP_LOOKBACK_MAX_DAYS
+        ):
+            problems.append(
+                _problem(
+                    "out_of_range",
+                    f"recent_pickup.lookback_days must be between "
+                    f"{PICKUP_LOOKBACK_MIN_DAYS} and {PICKUP_LOOKBACK_MAX_DAYS}; "
+                    f"got {lookback}.",
+                    path="recent_pickup.lookback_days",
+                    minimum=PICKUP_LOOKBACK_MIN_DAYS,
+                    maximum=PICKUP_LOOKBACK_MAX_DAYS,
+                    value=int(lookback),
+                )
+            )
         expected = float(pickup.get("expected_pickup_per_window", 1.0) or 1.0)
         # recent_pickup cannot be negative, so -expected is the true floor.
         problems += _band_problems(

@@ -623,6 +623,7 @@ def test_every_validation_placeholder_is_supplied(engine, config, locale):
         {"booking_curve": {"anchors": [{"day": 0}]}},
         {"dynamic": {"min_total_adjustment_pct": 20.0, "max_total_adjustment_pct": 5.0}},
         {"pace": {"bands": "not-a-list"}},
+        {"recent_pickup": {"lookback_days": 30}},
     ]
     broken_band = copy.deepcopy(default_config())
     broken_band["pace"]["bands"][0]["max_gap"] = 0.5

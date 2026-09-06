@@ -52,11 +52,15 @@ function NumberInput({
   value,
   onChange,
   step = 0.5,
+  min,
+  max,
   suffix,
 }: {
   value: number | null | undefined;
   onChange: (v: number | null) => void;
   step?: number;
+  min?: number;
+  max?: number;
   suffix?: string;
 }) {
   return (
@@ -64,6 +68,8 @@ function NumberInput({
       <Input
         type="number"
         step={step}
+        min={min}
+        max={max}
         className={`tnum ${suffix ? "pr-7" : ""}`}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
@@ -330,6 +336,8 @@ export function StrategyPanel({ onOpenSeasonal }: { onOpenSeasonal: () => void }
               <Field label={t("lookbackDays")}>
                 <NumberInput
                   step={1}
+                  min={7}
+                  max={14}
                   value={draft.recent_pickup.lookback_days}
                   onChange={(v) => update(["recent_pickup", "lookback_days"], v)}
                 />

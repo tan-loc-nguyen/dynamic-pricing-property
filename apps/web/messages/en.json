@@ -522,6 +522,7 @@
     "not_a_number": "{path} must be a number — {value} is not.",
     "not_a_whole_number": "{path} must be a whole number — {value} is not.",
     "not_an_allowed_value": "{path} must be one of: {allowed}. Got {value}.",
+    "out_of_range": "{path} must be between {minimum, number} and {maximum, number} — {value, number} is outside that.",
     "list_member_not_an_object": "{path} must be an object.",
     "band_invalid": "{signal, select, pace {Pace} recent_pickup {Pickup} other {{signal}}} band #{position, number} is not a valid band.",
     "band_needs_threshold": "{signal, select, pace {Pace} recent_pickup {Pickup} other {{signal}}} band “{band}” needs a {threshold} value.",

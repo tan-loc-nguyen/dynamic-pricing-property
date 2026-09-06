@@ -522,6 +522,7 @@
     "not_a_number": "{path} phải là một con số — {value} thì không phải.",
     "not_a_whole_number": "{path} phải là số nguyên — {value} thì không phải.",
     "not_an_allowed_value": "{path} chỉ nhận một trong các giá trị: {allowed}. Đang là {value}.",
+    "out_of_range": "{path} phải nằm trong khoảng {minimum, number}–{maximum, number} — {value, number} nằm ngoài khoảng đó.",
     "list_member_not_an_object": "{path} phải là một đối tượng.",
     "band_invalid": "Khung {signal, select, pace {tiến độ} recent_pickup {lượng đặt} other {{signal}}} số {position, number} không hợp lệ.",
     "band_needs_threshold": "Khung {signal, select, pace {tiến độ} recent_pickup {lượng đặt} other {{signal}}} “{band}” cần có giá trị {threshold}.",
