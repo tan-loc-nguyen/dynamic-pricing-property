@@ -347,6 +347,12 @@ export function MarketRange({
  * One bar per night, and — when a night can be picked — the drawer's night
  * selector.
  *
+ * Bulk accept writes ONE price to every night, so an averaged pace reading can
+ * hide a range whose first ten nights are healthy and whose last four are
+ * empty — and the operator would never find out, because they only ever see
+ * the average. This is the smallest thing that makes the disagreement visible
+ * before they commit.
+ *
  * The bar's HEIGHT is occupancy. Selection is drawn as an outline and never
  * touches height or bar colour, because a chart whose encoding changes meaning
  * when you click it is worse than no chart. The delta row underneath answers
