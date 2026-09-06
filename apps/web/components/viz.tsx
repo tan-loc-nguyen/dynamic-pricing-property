@@ -212,10 +212,18 @@ export function PaceChart({
 export function PriceContribution({
   adjustments,
   render,
+  totalNights,
 }: {
   adjustments: ExplainedStep[];
   render: (a: ExplainedStep) => { label: string; reason: string };
+  /** Nights in the scope being explained. Every row is badged with its own
+   *  count, so none has to be inferred from the absence of one and the counts
+   *  visibly add up across the rows a single factor was split into. Suppressed
+   *  entirely for a single night, where every row would read "1 night" — which
+   *  is the panel's heading, not information. */
+  totalNights?: number;
 }) {
+  const t = useTranslations("drawer");
   const { formatSignedVND } = useFormat();
   const widest = Math.max(...adjustments.map((a) => Math.abs(a.delta)), 1);
 
@@ -228,8 +236,19 @@ export function PriceContribution({
         const flat = Math.abs(a.delta) < 1;
         return (
           <li key={i} className="grid grid-cols-[1fr_64px_88px] items-center gap-2">
-            <span className={`truncate text-[11.5px] ${a.is_ignored ? "text-ink-400" : "text-ink-700"}`}>
-              {label}
+            <span className="flex min-w-0 items-baseline gap-1.5">
+              <span
+                className={`truncate text-[11.5px] ${
+                  a.is_ignored ? "text-ink-400" : "text-ink-700"
+                }`}
+              >
+                {label}
+              </span>
+              {totalNights !== undefined && totalNights > 1 && (
+                <span className="shrink-0 text-[10px] text-ink-400">
+                  {t("nightsCovered", { count: a.nights_covered })}
+                </span>
+              )}
             </span>
             {/* Centre line: gains grow right, reductions grow left. */}
             <div className="relative h-2.5" aria-hidden>
@@ -325,31 +344,58 @@ export function MarketRange({
 /* ------------------------------------------------------ occupancy strip */
 
 /**
- * One bar per night in the range: how full each night already is.
+ * One bar per night, and — when a night can be picked — the drawer's night
+ * selector.
  *
- * Bulk accept writes ONE price to every night, so an averaged pace reading can
- * hide a range whose first ten nights are healthy and whose last four are
- * empty — and the operator would never find out, because they only ever see
- * the average. This is the smallest thing that makes the disagreement visible
- * before they commit.
+ * The bar's HEIGHT is occupancy. Selection is drawn as an outline and never
+ * touches height or bar colour, because a chart whose encoding changes meaning
+ * when you click it is worse than no chart. The delta row underneath answers
+ * the question the range average hides: accepting one price for every night
+ * over- or under-prices these ones by this much.
  */
-export function OccupancyStrip({ nights }: { nights: PaceStripNight[] }) {
+export function OccupancyStrip({
+  nights,
+  selected,
+  onSelect,
+  showDeltas = false,
+}: {
+  nights: PaceStripNight[];
+  selected?: string | null;
+  onSelect?: (stayDate: string) => void;
+  showDeltas?: boolean;
+}) {
   const t = useTranslations("drawer");
-  const { formatDayMonth } = useFormat();
+  const { formatDayMonth, formatAdjPct } = useFormat();
 
   if (nights.length < 2) return null;
 
+  const interactive = typeof onSelect === "function";
+
   return (
     <div>
-      <p className="mb-1 text-[10.5px] text-ink-400">{t("stripCaption")}</p>
-      <div className="flex items-end gap-[3px]" role="img" aria-label={t("stripCaption")}>
+      <p className="mb-1 text-[10.5px] text-ink-400">
+        {showDeltas ? t("stripDeltaCaption") : t("stripCaption")}
+      </p>
+      <div
+        className="flex items-end gap-[3px]"
+        {...(interactive ? {} : { role: "img", "aria-label": t("stripCaption") })}
+      >
         {nights.map((n) => {
           const sold = n.units_total > 0 ? n.units_sold / n.units_total : 0;
           const pct = Math.round(sold * 100);
-          return (
-            <div key={n.stay_date} className="flex flex-1 flex-col items-center gap-1">
-              <div className="flex h-12 w-full items-end rounded-sm bg-ink-100">
+          const isSelected = selected === n.stay_date;
+          const handTuned = n.decision === "overridden";
+          const delta = n.delta_vs_average_pct ?? 0;
+
+          const column = (
+            <>
+              <div
+                className={`flex h-12 w-full items-end rounded-sm bg-ink-100 ${
+                  isSelected ? "ring-2 ring-brand-500 ring-offset-1" : ""
+                }`}
+              >
                 <div
+                  data-bar
                   className={`w-full rounded-sm ${
                     !n.priced ? "bg-amber-300" : pct >= 80 ? "bg-brand-600" : "bg-brand-400"
                   }`}
@@ -360,9 +406,56 @@ export function OccupancyStrip({ nights }: { nights: PaceStripNight[] }) {
                   title={`${formatDayMonth(n.stay_date)} · ${pct}%`}
                 />
               </div>
-              <span className="text-[8.5px] leading-none text-ink-400">
+              <span
+                className={`text-[8.5px] leading-none ${
+                  isSelected ? "font-semibold text-ink-700" : "text-ink-400"
+                }`}
+              >
                 {formatDayMonth(n.stay_date).replace(/\s/g, "\u00a0")}
               </span>
+              {showDeltas && (
+                <span
+                  className={`tnum text-[8.5px] leading-none ${
+                    delta > 0.5
+                      ? "text-emerald-700"
+                      : delta < -0.5
+                        ? "text-amber-700"
+                        : "text-ink-300"
+                  }`}
+                >
+                  {formatAdjPct(delta)}
+                </span>
+              )}
+              {handTuned && (
+                <span
+                  data-hand-tuned
+                  aria-label={t("stripHandTuned")}
+                  className="h-1 w-1 rounded-full bg-violet-500"
+                />
+              )}
+            </>
+          );
+
+          const className = "flex flex-1 flex-col items-center gap-1";
+
+          return interactive ? (
+            <button
+              key={n.stay_date}
+              type="button"
+              onClick={() => onSelect!(n.stay_date)}
+              aria-pressed={isSelected}
+              aria-label={t("stripSelect", {
+                date: formatDayMonth(n.stay_date),
+                delta: formatAdjPct(delta),
+              })}
+              className={`${className} rounded-sm focus:outline-none focus-visible:ring-2
+                focus-visible:ring-brand-500`}
+            >
+              {column}
+            </button>
+          ) : (
+            <div key={n.stay_date} className={className}>
+              {column}
             </div>
           );
         })}
@@ -376,4 +469,8 @@ export interface PaceStripNight {
   units_sold: number;
   units_total: number;
   priced: boolean;
+  /** Set when an operator has already priced this night by hand. */
+  decision?: "accepted" | "overridden" | null;
+  /** How far this night sits from the range average, in percent. */
+  delta_vs_average_pct?: number;
 }

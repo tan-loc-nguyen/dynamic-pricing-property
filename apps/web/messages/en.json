@@ -331,6 +331,10 @@
     "paceCrossSection": "Each point is a different night at that lead time, with the dot marking this one.",
     "rangeNights": "{from} → {to} · {nights, plural, one {# night} other {# nights}}",
     "stripCaption": "How full each night in this range already is.",
+    "nightsCovered": "{count, plural, one {# night} other {# nights}}",
+    "stripSelect": "{date}, {delta} versus the range average",
+    "stripHandTuned": "priced by hand",
+    "stripDeltaCaption": "How each night compares with the average",
     "someUnpriced": "{count, plural, one {# night in this range could not be priced and will be skipped} other {# nights in this range could not be priced and will be skipped}}.",
     "provenanceMixed": "The nights in this range got their current rate from different places, so this figure mixes published and reconstructed prices."
   },

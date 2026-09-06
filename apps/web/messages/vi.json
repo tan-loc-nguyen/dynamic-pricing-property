@@ -331,6 +331,10 @@
     "paceCrossSection": "Mỗi điểm là một đêm khác nhau ở mốc thời gian đó; chấm tròn là đêm này.",
     "rangeNights": "{from} → {to} · {nights, plural, other {# đêm}}",
     "stripCaption": "Mức lấp đầy hiện tại của từng đêm trong khoảng này.",
+    "nightsCovered": "{count, plural, other {# đêm}}",
+    "stripSelect": "{date}, {delta} so vối trung bình dãy ngày",
+    "stripHandTuned": "đã chỉnh tay",
+    "stripDeltaCaption": "Mỗi đêm so vối giá trung bình",
     "someUnpriced": "{count, plural, other {# đêm trong khoảng này không định giá được và sẽ được bỏ qua}}.",
     "provenanceMixed": "Các đêm trong khoảng này lấy giá hiện tại từ những nguồn khác nhau, nên con số này pha trộn giá niêm yết và giá tái dựng."
   },
